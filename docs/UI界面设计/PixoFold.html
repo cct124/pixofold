@@ -1,0 +1,966 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>PixoFold · 轻图 — 交互原型</title>
+  <link rel="icon" href="logo/PixoFold-logo.svg" type="image/svg+xml">
+  <!--
+    无构建步骤的交互原型。双击本文件即可打开。
+    修改入口：① CSS 设计变量与布局 ② HTML 结构 ③ JS 文案、状态与事件。
+    DemoProcessor 只模拟压缩，不调用编码器、不上传或覆盖文件。
+    本地资源：logo/PixoFold-logo.svg；PixoFold-亮色.png（示例缩略图）。导入后自动模拟，中央显示列表，底部显示汇总。
+  -->
+  <style>
+    /* 01. 设计变量：尺寸、颜色和圆角集中在这里调整。 */
+    :root {
+      color-scheme: light;
+      --canvas: #fff; --surface: #fff; --subtle: #f7f9fc; --titlebar: #f1f5f9;
+      --text: #121b2d; --muted: #69788e; --border: #dce4ef; --line: #e8edf4;
+      --accent: #2184ff; --accent-hover: #0873ee; --accent-soft: #eff6ff;
+      --accent-border: #b9d5ff; --track: #d6dfe9; --chip: #eaf0f6;
+      --success: #178458; --danger: #d83d4f; --warning: #b87513;
+      --shadow: 0 12px 36px #152c511a; --focus: 0 0 0 3px #2184ff33;
+      --scrollbar-thumb: rgb(105 120 142 / 24%); --scrollbar-thumb-hover: rgb(105 120 142 / 42%);
+      --radius: 9px; --titlebar-height: 60px; --panel-padding: 28px;
+      font: 18px/1.5 "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    }
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --canvas: #11151b; --surface: #171d25; --subtle: #1b222c; --titlebar: #1b212a;
+      --text: #edf2f8; --muted: #a3b1c5; --border: #34404f; --line: #2a3442;
+      --accent: #288aff; --accent-hover: #459aff; --accent-soft: #172c49;
+      --accent-border: #345e91; --track: #586779; --chip: #29323e;
+      --success: #65d5a6; --danger: #ff8391; --warning: #e9bd6c;
+      --shadow: 0 12px 36px #0006;
+      --scrollbar-thumb: rgb(163 177 197 / 22%); --scrollbar-thumb-hover: rgb(163 177 197 / 40%);
+    }
+    * { box-sizing: border-box; }
+    /* 固定预留滚动条空间，内容展开时不挤压控件；轨道透明，滑块低对比度。 */
+    html, .workspace, .drop-intro, .image-list, .settings-scroll, dialog { scrollbar-gutter: stable; }
+    * { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
+    @supports selector(::-webkit-scrollbar) {
+      * { scrollbar-width: auto; scrollbar-color: auto; }
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 999px; }
+      ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+      ::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+    }
+    [hidden] { display: none !important; }
+    body { margin: 0; background: var(--canvas); color: var(--text); }
+    button, input, select { font: inherit; color: inherit; }
+    button, select { cursor: pointer; }
+    button { -webkit-tap-highlight-color: transparent; }
+    button:disabled, input:disabled, select:disabled { cursor: not-allowed; }
+    button:disabled { opacity: .48; }
+    button, input, select, summary { outline: none; }
+    :focus-visible { box-shadow: var(--focus); outline: 2px solid var(--accent); outline-offset: 2px; }
+    button { border: 0; }
+    h1, h2, h3, p { margin: 0; }
+    h1, h2 { font-size: 30px; line-height: 1.35; font-weight: 650; letter-spacing: -.5px; }
+    h3 { font-size: 24px; font-weight: 600; }
+    a { color: var(--accent); }
+    .icon { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+    .icon-button { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 6px; background: transparent; color: var(--muted); }
+    .icon-button:hover { background: var(--chip); color: var(--text); }
+    .button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 20px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); transition: background .15s, border-color .15s; }
+    .button:hover { background: var(--subtle); border-color: var(--accent-border); }
+    .button.primary { color: #fff; background: var(--accent); border-color: var(--accent); }
+    .button.primary:hover { background: var(--accent-hover); }
+    .text-button { background: transparent; color: var(--muted); padding: 5px 7px; border-radius: 5px; }
+    .text-button:hover { background: var(--chip); color: var(--text); }
+    .field { height: 40px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); padding: 6px 12px; min-width: 0; }
+    .field:focus { border-color: var(--accent); }
+    .field[aria-invalid="true"] { border-color: var(--danger); }
+    .hint { color: var(--muted); font-size: 14px; }
+    .app { height: 100dvh; min-height: 720px; display: flex; flex-direction: column; }
+
+    /* 02. 标题栏与双栏布局。 */
+    .titlebar { height: var(--titlebar-height); flex: none; display: flex; align-items: center; padding: 0 18px 0 24px; background: var(--titlebar); border-bottom: 1px solid var(--border); gap: 14px; user-select: none; }
+    .brand { display: flex; align-items: center; gap: 11px; white-space: nowrap; font-size: 22px; font-weight: 550; }
+    .brand img { width: 36px; height: 36px; }
+    .prototype-badge { border: 1px solid var(--border); border-radius: 5px; padding: 2px 7px; color: var(--muted); background: transparent; font-size: 11px; }
+    .titlebar-spacer { flex: 1; }
+    .theme-switch { display: flex; border: 1px solid var(--border); padding: 2px; border-radius: 22px; }
+    .theme-switch button { display: flex; align-items: center; justify-content: center; gap: 7px; border-radius: 20px; padding: 5px 12px; color: var(--muted); background: transparent; border: 1px solid transparent; }
+    .theme-switch button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent-border); background: var(--accent-soft); }
+    .window-actions { display: flex; gap: 5px; border-left: 1px solid var(--border); padding-left: 12px; margin-left: 3px; }
+    .window-actions button { color: var(--text); width: 43px; }
+    .window-actions button:last-child:hover { color: #fff; background: #e34f59; }
+    .main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 2fr) minmax(360px, 1fr); }
+    .workspace { padding: 25px var(--panel-padding) 18px; display: flex; flex-direction: column; gap: 18px; min-width: 0; min-height: 0; overflow: hidden; }
+    .workspace > h1 { flex: none; }
+    .settings { border-left: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; background: var(--canvas); }
+    .settings-scroll { overflow-y: auto; padding: 25px var(--panel-padding) 0; flex: 1; min-height: 0; }
+    .settings-bottom { padding: 16px var(--panel-padding) 18px; flex: none; }
+
+    /* 03. 空闲时显示识别区，导入后切换图片列表；底部汇总固定，列表独立滚动。 */
+    .dropzone { flex: 1; min-height: 0; min-width: 0; border: 1px dashed var(--accent-border); border-radius: var(--radius); background: var(--subtle); display: flex; flex-direction: column; overflow: hidden; transition: background .15s, box-shadow .15s; position: relative; }
+    .dropzone.has-files { border-style: solid; border-color: var(--border); background: var(--canvas); }
+    .drop-intro { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 28px 14px 24px; text-align: center; overflow-y: auto; }
+    .drop-intro > * { flex-shrink: 0; }
+    .dropzone.drag-over { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
+    .dropzone.drag-over::after { content: attr(data-drop-label); position: absolute; inset: 0; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); font-size: 24px; font-weight: 600; border-radius: inherit; pointer-events: none; z-index: 3; }
+    .drop-art { width: 113px; height: 94px; position: relative; margin-bottom: 15px; color: #8d9bb0; flex: none; }
+    .drop-art > .icon { width: 99px; height: 88px; stroke-width: 1.2; }
+    .drop-plus { position: absolute; bottom: 4px; right: 0; width: 40px; height: 40px; border: 3px solid var(--subtle); border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; }
+    .drop-plus .icon { width: 27px; height: 27px; stroke-width: 2.4; }
+    .drop-title { font-size: 26px; font-weight: 650; }
+    .format-chips { display: flex; gap: 8px; margin: 12px 0 22px; }
+    .format-chips span { font-size: 16px; color: var(--muted); background: var(--chip); padding: 4px 14px; border-radius: 20px; }
+    .import-actions { display: flex; gap: 10px; }
+    .import-actions .button { min-width: 176px; font-size: 20px; }
+    .drop-hint { margin-top: 10px; color: var(--muted); }
+    .image-list { flex: 1; min-height: 0; width: 100%; overflow: auto; }
+    .image-table { width: 100%; min-width: 570px; table-layout: fixed; border-collapse: separate; border-spacing: 0; font-size: 14px; }
+    .image-table col:nth-child(1) { width: 38%; }
+    .image-table col:nth-child(2), .image-table col:nth-child(3) { width: 16%; }
+    .image-table col:nth-child(4) { width: 12%; }
+    .image-table col:nth-child(5) { width: 18%; }
+    .image-table th { position: sticky; top: 0; z-index: 1; background: var(--titlebar); color: var(--muted); font-size: 13px; font-weight: 400; text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+    .image-table td { padding: 15px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; font-variant-numeric: tabular-nums; }
+    .image-table tr:last-child td { border-bottom: 0; }
+    .image-table tr[data-status="running"] td { background: var(--accent-soft); }
+    .file-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .file-thumb { width: 64px; height: 46px; flex: none; border-radius: 6px; background: var(--chip); display: grid; place-items: center; overflow: hidden; }
+    .file-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .file-thumb .icon { width: 26px; height: 26px; color: var(--muted); }
+    .file-thumb.sample { height: 36px; background-image: url("PixoFold-亮色.png"); background-size: 1268.8px 793.6px; background-repeat: no-repeat; }
+    .file-thumb[data-sample="0"] { background-position: -38.4px -534.4px; }
+    .file-thumb[data-sample="1"] { background-position: -38.4px -581.6px; }
+    .file-thumb[data-sample="2"] { background-position: -38.4px -628.8px; }
+    .file-thumb[data-sample="3"] { background-position: -38.4px -676px; }
+    .file-text { min-width: 0; }
+    .file-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+    .file-path { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; margin-top: 4px; }
+    .file-after { color: var(--text); }
+    .file-saving { color: var(--muted); }
+    tr[data-status="done"] .file-saving { color: var(--success); }
+    .file-status { color: var(--muted); font-size: 13px; }
+    tr[data-status="running"] .file-status { color: var(--accent); }
+    tr[data-status="done"] .file-status { color: var(--success); }
+    tr[data-status="failed"] .file-status { color: var(--danger); }
+    tr[data-status="skipped"] .file-status, tr[data-status="canceled"] .file-status { color: var(--warning); }
+    .file-progress { height: 3px; background: var(--track); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+    .file-progress span { display: block; height: 100%; background: var(--accent); }
+    .workspace-footer { flex: none; display: grid; gap: 10px; min-height: 170px; padding-top: 14px; border-top: 1px solid var(--border); }
+    .summary-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
+    .work-status { font-size: 16px; font-weight: 600; }
+    .idle-tips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 24px; margin: 0; }
+    .idle-tips dt { margin-bottom: 5px; font-size: 13px; font-weight: 550; }
+    .idle-tips dd { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
+    .summary-metrics { display: grid; grid-template-columns: .7fr 1fr 1fr 1.25fr; gap: 12px; }
+    .summary-metrics > div { min-width: 0; }
+    .summary-metrics dt { color: var(--muted); font-size: 12px; margin-bottom: 3px; }
+    .summary-metrics dd { margin: 0; font-size: 18px; font-weight: 550; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    #totalSaved { color: var(--success); }
+    .progress-caption { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+    .work-progress progress { display: block; width: 100%; height: 6px; border: 0; border-radius: 6px; overflow: hidden; background: var(--track); accent-color: var(--accent); }
+    .work-progress progress::-webkit-progress-bar { background: var(--track); border-radius: 6px; }
+    .work-progress progress::-webkit-progress-value { background: var(--accent); border-radius: 6px; }
+    .work-progress progress::-moz-progress-bar { background: var(--accent); border-radius: 6px; }
+    .summary-notes { display: flex; justify-content: space-between; align-items: start; gap: 12px; color: var(--muted); font-size: 11px; }
+    .summary-details { display: flex; gap: 3px 16px; flex-wrap: wrap; min-width: 0; }
+    .import-report { overflow-wrap: anywhere; }
+    .privacy-note { white-space: nowrap; }
+    .work-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+    .work-actions .text-button { color: var(--accent); }
+    .work-actions #cancelBatch { color: var(--danger); }
+    .dropzone[data-phase="scanning"] .drop-plus .icon { display: none; }
+    .dropzone[data-phase="scanning"] .drop-plus::after { content: ""; width: 17px; height: 17px; border: 2px solid #ffffff66; border-top-color: #fff; border-radius: 50%; animation: spin .9s linear infinite; }
+
+    /* 04. 设置栏：滑块与输入框共用 0–100 数值，质量描述由区间派生。 */
+    .mode-switch { display: flex; background: var(--titlebar); padding: 3px; border: 1px solid var(--border); border-radius: 11px; margin-top: 20px; }
+    .mode-switch button { flex: 1; min-height: 51px; border-radius: 8px; background: transparent; font-size: 20px; }
+    .mode-switch button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+    .quality-section { margin-top: 29px; padding-bottom: 24px; border-bottom: 1px solid var(--border); }
+    .quality-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 19px; }
+    .quality-description { min-width: 2em; text-align: right; color: var(--accent); font-size: 18px; font-weight: 500; }
+    .quality-widget { padding: 0 1px; }
+    .quality-rail { position: relative; height: 32px; }
+    .rail-track { position: absolute; top: 14px; left: 12px; right: 12px; height: 5px; background: linear-gradient(to right, var(--accent) var(--quality-position,80%), var(--track) var(--quality-position,80%)); border-radius: 3px; }
+    .quality-range { position: absolute; margin: 0; inset: 0; width: 100%; height: 32px; background: transparent; appearance: none; cursor: pointer; }
+    .quality-range::-webkit-slider-runnable-track { height: 5px; background: transparent; }
+    .quality-range::-webkit-slider-thumb { appearance: none; width: 24px; height: 24px; border: 3px solid var(--canvas); background: var(--accent); border-radius: 50%; margin-top: -9.5px; box-shadow: 0 2px 4px #1d518522; }
+    .quality-range::-moz-range-track { height: 5px; background: transparent; }
+    .quality-range::-moz-range-thumb { width: 19px; height: 19px; border: 3px solid var(--canvas); background: var(--accent); border-radius: 50%; }
+    .quality-controls.disabled { opacity: .46; }
+    .numeric-row { display: flex; align-items: center; gap: 20px; margin-top: 28px; }
+    .numeric-row label { white-space: nowrap; }
+    .numeric-row input { width: 112px; }
+    .numeric-row input::-webkit-inner-spin-button { opacity: 1; }
+    .numeric-row .range-caption { color: var(--muted); font-size: 15px; }
+    .quality-help { margin-top: 9px; min-height: 24px; color: var(--muted); font-size: 16px; }
+    .quality-help.error { color: var(--danger); }
+    .output-section { padding-top: 25px; }
+    .output-directory { margin-top: 17px; }
+    input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width: 19px; height: 19px; margin: 0; flex: none; }
+    .output-label { display: block; margin-bottom: 7px; }
+    .directory-control { display: flex; align-items: center; border: 1px solid var(--border); border-radius: var(--radius); height: 45px; overflow: hidden; }
+    .directory-name { display: flex; align-items: center; gap: 10px; padding: 0 13px; flex: 1; min-width: 0; }
+    .directory-name span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .directory-control button { align-self: stretch; border-left: 1px solid var(--border); background: var(--surface); padding: 0 14px; white-space: nowrap; font-size: 17px; }
+    .directory-control button:hover { background: var(--subtle); }
+    .advanced { margin-top: 16px; }
+    .advanced summary { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 12px 0; list-style: none; border-radius: 4px; }
+    .advanced summary::-webkit-details-marker { display: none; }
+    .advanced summary .icon { width: 18px; height: 18px; transition: transform .15s; }
+    .advanced[open] summary .icon { transform: rotate(90deg); }
+    .advanced-body { border: 1px solid var(--border); padding: 16px; border-radius: var(--radius); display: grid; gap: 15px; background: var(--subtle); font-size: 14px; margin: 2px 0 14px; }
+    .advanced-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .advanced-row input[type="range"] { width: 120px; accent-color: var(--accent); }
+    .advanced-row input[type="number"] { width: 78px; }
+    .advanced-row select { max-width: 160px; font-size: 13px; }
+    .check-line { display: flex; align-items: center; gap: 9px; }
+    .speed-control { display: flex; align-items: center; gap: 8px; }
+    .speed-control output { min-width: 15px; text-align: right; }
+
+    .settings-footer { border-top: 1px solid var(--border); margin-top: 0; padding-top: 15px; display: flex; align-items: center; justify-content: flex-end; color: var(--muted); gap: 9px; }
+    .settings-footer .icon { width: 19px; height: 19px; }
+    .language-select { border: 0; background: transparent; color: var(--muted); font-size: 16px; max-width: 140px; }
+    .footer-divider { width: 1px; height: 17px; background: var(--border); margin: 0 8px; }
+
+    /* 05. 弹层和窄窗口。 */
+    dialog { width: min(480px, calc(100vw - 32px)); border: 1px solid var(--border); border-radius: 15px; padding: 25px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+    dialog::backdrop { background: #101c315e; backdrop-filter: blur(3px); }
+    .dialog-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 17px; }
+    .dialog-heading h2 { font-size: 22px; }
+    .dialog-body { display: grid; gap: 16px; }
+    .dialog-body > label { display: grid; gap: 7px; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 22px; flex-wrap: wrap; }
+    .dialog-actions .button { padding: 8px 15px; font-size: 14px; }
+    .about-brand { display: flex; align-items: center; gap: 14px; }
+    .about-brand img { width: 64px; height: 64px; }
+    .about-description { font-size: 14px; line-height: 1.8; color: var(--muted); }
+    .about-tools { display: grid; gap: 13px; padding-top: 15px; border-top: 1px solid var(--border); }
+
+    .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); max-width: min(620px, calc(100vw - 32px)); z-index: 50; border: 1px solid var(--border); border-radius: 10px; padding: 12px 20px; background: var(--surface); box-shadow: var(--shadow); color: var(--text); font-size: 14px; text-align: center; }
+    .window-placeholder { flex: 1; display: flex; flex-direction: column; gap: 20px; align-items: center; justify-content: center; background: var(--subtle); color: var(--muted); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (min-width: 1700px) { .main { grid-template-columns: minmax(0,1fr) 530px; } }
+    @media (max-width: 1120px) {
+      :root { --panel-padding: 21px; }
+      .main { grid-template-columns: minmax(0,1fr) 370px; }
+
+      .privacy-note { font-size: 10px; } .drop-title { font-size: 21px; }
+      .image-table th, .image-table td { padding-left: 10px; padding-right: 10px; }
+      .file-thumb { width: 48px; height: 40px; }
+      .file-identity { gap: 8px; }
+      .summary-metrics dd { font-size: 16px; }
+      .prototype-badge { display: none; }
+    }
+    @media (max-width: 820px) {
+      .app { min-height: 100dvh; height: auto; }
+      .main { grid-template-columns: 1fr; }
+      .workspace { overflow: visible; }
+      .dropzone { flex: none; min-height: 350px; }
+      .drop-intro { min-height: 350px; }
+      .dropzone.has-files { height: 430px; min-height: 0; }
+      .summary-notes { flex-wrap: wrap; }
+      .settings { border-left: 0; border-top: 1px solid var(--border); }
+      .settings-scroll { overflow: visible; }
+      .settings-bottom { padding-top: 25px; }
+
+      .window-actions { display: none; }
+      .settings-footer { justify-content: center; }
+      .titlebar { padding: 0 15px; }
+      .brand { font-size: 18px; }
+      .theme-switch button { padding: 5px 9px; }
+      .theme-switch .icon { display: none; }
+    }
+    @media (max-width: 480px) {
+      :root { --panel-padding: 16px; }
+      .brand { gap: 7px; font-size: 16px; } .brand img { width: 30px; height: 30px; }
+      .theme-switch button { font-size: 13px; }
+      .drop-title { font-size: 19px; }
+      .drop-hint { font-size: 13px; }
+      .import-actions .button { min-width: 125px; font-size: 16px; }
+      .drop-title { max-width: 100%; overflow-wrap: anywhere; }
+      .work-status { font-size: 17px; }
+      .idle-tips { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; }
+      .idle-tips > div:last-child { grid-column: 1 / -1; }
+      .summary-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .summary-heading { align-items: flex-start; }
+
+      .workspace-footer { min-height: 230px; } .privacy-note { font-size: 10px; }
+    }
+    @media (max-width: 600px) {
+      .image-table { display: block; min-width: 0; }
+      .image-table colgroup { display: none; }
+      .image-table tbody { width: 100%; }
+      .image-table thead { display: none; }
+      .image-table tbody, .image-table tr { display: block; }
+      .image-table tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: 1px solid var(--border); padding: 10px; }
+      .image-table td { display: block; border: 0; padding: 5px; font-size: 12px; }
+      .image-table td:first-child { grid-column: 1 / -1; }
+      .image-table td:last-child { grid-column: 1 / -1; }
+      .image-table td[data-label]::before { content: attr(data-label); display: block; color: var(--muted); font-size: 10px; margin-bottom: 4px; }
+      .file-thumb { width: 54px; height: 42px; }
+      .file-name { font-size: 14px; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+  </style>
+</head>
+<body>
+  <!-- 公共图标：纯内联 SVG，不加载外部图标库。 -->
+  <svg xmlns="http://www.w3.org/2000/svg" hidden aria-hidden="true">
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 15.5A8.5 8.5 0 0 1 8.5 4a8.5 8.5 0 1 0 11.5 11.5Z"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="18" rx="2.5"/><circle cx="16.5" cy="8" r="1.5"/><path d="m4 17 5.5-6 5 5 3-3 3 3"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7V5a1 1 0 0 1 1-1h5l2 3h9a1 1 0 0 1 1 1v12H3V7Zm0 0h8"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r=".7"/><circle cx="12" cy="12" r=".7"/><circle cx="19" cy="12" r=".7"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18M5 6h14M5 18h14"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m5 5 14 14M5 19 19 5"/></symbol>
+    <symbol id="i-minimize" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    <symbol id="i-maximize" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></symbol>
+    <symbol id="i-retry" viewBox="0 0 24 24"><path d="M4 5v6h6M4.5 10A8 8 0 1 1 5 17"/></symbol>
+  </svg>
+  <div class="app">
+    <header class="titlebar">
+      <div class="brand"><img src="logo/PixoFold-logo.svg" alt=""><span>PixoFold · 轻图</span></div>
+      <button class="prototype-badge" data-open="aboutDialog" data-i18n="prototype">交互原型</button>
+      <div class="titlebar-spacer"></div>
+      <div class="theme-switch" role="group" aria-label="主题">
+        <button id="lightTheme" data-theme-choice="light" aria-pressed="true"><svg class="icon"><use href="#i-sun"/></svg><span data-i18n="light">浅色</span></button>
+        <button id="darkTheme" data-theme-choice="dark" aria-pressed="false"><svg class="icon"><use href="#i-moon"/></svg><span data-i18n="dark">深色</span></button>
+      </div>
+      <div class="window-actions">
+        <button class="icon-button" id="minimizeWindow" aria-label="最小化窗口演示" title="最小化窗口演示"><svg class="icon"><use href="#i-minimize"/></svg></button>
+        <button class="icon-button" id="maximizeWindow" aria-label="全屏切换" title="全屏切换"><svg class="icon"><use href="#i-maximize"/></svg></button>
+        <button class="icon-button" id="closeWindow" aria-label="关闭窗口演示" title="关闭窗口演示"><svg class="icon"><use href="#i-close"/></svg></button>
+      </div>
+    </header>
+    <main class="main" id="main">
+      <section class="workspace" aria-labelledby="workspaceTitle">
+        <h1 id="workspaceTitle" data-i18n="imageCompression">图片压缩</h1>
+        <div class="dropzone" id="dropzone" data-phase="idle" data-drop-label="松开后自动开始模拟压缩">
+          <div class="drop-intro" id="dropIntro">
+            <div class="drop-art" aria-hidden="true"><svg class="icon"><use href="#i-image"/></svg><span class="drop-plus"><svg class="icon"><use href="#i-plus"/></svg></span></div>
+            <p class="drop-title" id="dropTitle">拖拽图片或文件夹到这里</p>
+            <div class="format-chips" aria-label="支持的图片格式"><span>PNG</span><span>JPG</span><span>GIF</span><span>APNG</span></div>
+            <div class="import-actions" id="importActions">
+              <button class="button primary" id="chooseFiles" data-i18n="chooseFiles">选择文件</button>
+              <button class="button" id="chooseFolder" data-i18n="chooseFolder">选择目录</button>
+            </div>
+            <p class="drop-hint" id="dropHint">导入后自动开始 · 支持文件夹及子目录</p>
+          </div>
+          <div class="image-list" id="imageList" role="region" aria-label="图片压缩明细" tabindex="0" hidden>
+            <table class="image-table">
+              <colgroup><col><col><col><col><col></colgroup>
+              <thead><tr><th scope="col" data-i18n="imageFile">图片</th><th scope="col" data-i18n="beforeSize">原始大小</th><th scope="col" data-i18n="afterSize">压缩后（模拟）</th><th scope="col" data-i18n="reduction">减少</th><th scope="col" data-i18n="fileStatus">状态</th></tr></thead>
+              <tbody id="imageRows"></tbody>
+            </table>
+          </div>
+          <input id="fileInput" type="file" accept=".png,.jpg,.jpeg,.gif,.apng,image/png,image/jpeg,image/gif,image/apng" multiple hidden>
+          <input id="folderInput" type="file" webkitdirectory multiple hidden>
+        </div>
+        <footer class="workspace-footer" id="batchSummary" aria-label="操作技巧">
+          <div class="summary-heading">
+            <p class="work-status" id="workStatus" role="status" aria-live="polite">操作技巧</p>
+            <div class="work-actions">
+              <button class="text-button" id="cancelBatch" data-i18n="cancelBatch" hidden>取消本次</button>
+              <button class="text-button" id="retryBatch" data-i18n="retryBatch" hidden>重试未完成</button>
+              <button class="text-button" id="nextFiles" data-i18n="chooseFiles" hidden>选择文件</button>
+              <button class="text-button" id="nextFolder" data-i18n="chooseFolder" hidden>选择目录</button>
+              <button class="text-button" id="clearResult" data-i18n="clearResult" hidden>清除结果</button>
+            </div>
+          </div>
+          <dl class="idle-tips" id="idleTips">
+            <div><dt data-i18n="tipImportTitle">批量导入</dt><dd data-i18n="tipImport">拖入多张图片或整个文件夹，自动读取子目录。</dd></div>
+            <div><dt data-i18n="tipSettingsTitle">先调好参数</dt><dd data-i18n="tipSettings">在右侧设置质量与输出方式，导入后自动开始。</dd></div>
+            <div><dt data-i18n="tipShortcutTitle">快捷操作</dt><dd data-i18n="tipShortcut">Ctrl + O 选择文件，完成后可继续拖入下一批。</dd></div>
+          </dl>
+          <dl class="summary-metrics" id="summaryMetrics" style="margin:0" hidden>
+            <div><dt data-i18n="totalFilesLabel">文件总数</dt><dd id="totalFiles">0</dd></div>
+            <div><dt data-i18n="totalOriginalLabel">原始总体积</dt><dd id="totalOriginal">—</dd></div>
+            <div><dt data-i18n="totalResultLabel">当前总体积（模拟）</dt><dd id="totalResult">—</dd></div>
+            <div><dt data-i18n="totalSavedLabel">已节省（模拟）</dt><dd id="totalSaved">—</dd></div>
+          </dl>
+          <div class="work-progress" id="workProgress" hidden>
+            <div class="progress-caption"><span id="progressCaption"></span><span id="progressPercent">0%</span></div>
+            <progress id="workBar" max="100" value="0" aria-label="总压缩进度"></progress>
+          </div>
+          <div class="summary-notes">
+            <div class="summary-details"><span id="resultCounts"></span><span id="importReport"></span></div>
+            <span class="privacy-note" data-i18n="privacy">所有图片仅在本机处理</span>
+          </div>
+        </footer>
+      </section>
+      <aside class="settings" aria-labelledby="settingsTitle">
+        <div class="settings-scroll">
+          <h2 id="settingsTitle" data-i18n="compressionSettings">压缩设置</h2>
+          <div class="mode-switch" role="group" aria-label="压缩模式">
+            <button id="lossyMode" data-mode="lossy" aria-pressed="true" data-i18n="lossy">有损压缩</button>
+            <button id="losslessMode" data-mode="lossless" aria-pressed="false" data-i18n="lossless">无损优化</button>
+          </div>
+          <section class="quality-section" aria-labelledby="qualityTitle">
+            <div class="quality-heading"><h3 id="qualityTitle" data-i18n="quality">压缩质量</h3><output class="quality-description" id="qualityDescription" for="qualityRange qualityNumber">高</output></div>
+            <div class="quality-controls" id="qualityControls">
+              <div class="quality-widget">
+                <div class="quality-rail" id="qualityRail">
+                  <div class="rail-track"></div>
+                  <input class="quality-range" id="qualityRange" type="range" min="0" max="100" step="1" value="80" aria-label="压缩质量" aria-describedby="qualityHelp">
+                </div>
+              </div>
+              <div class="numeric-row"><label for="qualityNumber" data-i18n="fineTune">精细调整</label><input class="field" id="qualityNumber" type="number" min="0" max="100" step="1" value="80" aria-describedby="qualityHelp"><span class="range-caption">0–100</span></div>
+            </div>
+            <p class="quality-help" id="qualityHelp">数值越高，画质保留越多</p>
+          </section>
+          <section class="output-section" aria-labelledby="outputTitle">
+            <h2 id="outputTitle" data-i18n="outputSettings">输出设置</h2>
+            <div class="mode-switch" role="group" aria-labelledby="outputTitle">
+              <button id="overwriteOriginal" data-output-mode="overwrite" aria-pressed="true" data-i18n="overwriteOriginal">原图覆盖</button>
+              <button id="saveCopy" data-output-mode="copy" aria-pressed="false" data-i18n="saveCopy">另存副本</button>
+            </div>
+            <div class="output-directory" id="outputDirectorySettings" data-copy-only hidden>
+              <label class="output-label" for="chooseOutput" data-i18n="outputDirectory">输出目录</label>
+              <div class="directory-control"><div class="directory-name"><svg class="icon"><use href="#i-folder"/></svg><span id="outputName">原文件夹</span></div><button id="chooseOutput" data-i18n="chooseFolder">选择目录</button></div>
+            </div>
+          </section>
+          <details class="advanced" id="advancedOptions">
+            <summary><svg class="icon"><use href="#i-chevron"/></svg><span data-i18n="advanced">高级选项</span></summary>
+            <div class="advanced-body">
+              <label class="advanced-row"><span data-i18n="speed">压缩速度</span><span class="speed-control"><input id="speedInput" type="range" min="1" max="10" step="1" value="4"><output id="speedValue">4</output></span></label>
+              <label class="advanced-row"><span data-i18n="dither">抖动强度</span><input class="field" id="ditherInput" type="number" min="0" max="1" step=".1" value="1"></label>
+              <label class="check-line"><input id="keepMetadata" type="checkbox" checked><span data-i18n="keepMetadata">保留图片元数据</span></label>
+              <label class="check-line" data-copy-only hidden><input id="keepStructure" type="checkbox"><span data-i18n="keepStructure">保留输入目录结构</span></label>
+              <label class="advanced-row" data-copy-only hidden><span data-i18n="conflict">文件重名时</span><select class="field" id="conflictSelect"><option value="rename" data-i18n="rename">自动添加序号</option><option value="skip" data-i18n="skipFile">跳过文件</option></select></label>
+              <p class="hint" data-i18n="advancedHint">速度与抖动独立于压缩质量。</p>
+            </div>
+          </details>
+        </div>
+        <div class="settings-bottom">
+
+          <footer class="settings-footer"><svg class="icon"><use href="#i-globe"/></svg><select class="language-select" id="languageSelect" aria-label="界面语言"><option value="zh-CN">简体中文</option><option value="en">English</option></select><span class="footer-divider"></span><button class="text-button" data-open="aboutDialog" data-i18n="about">关于</button></footer>
+        </div>
+      </aside>
+    </main>
+    <section class="window-placeholder" id="windowPlaceholder" hidden><p id="windowMessage"></p><button class="button primary" id="restoreWindow" data-i18n="restoreWindow">还原窗口</button></section>
+  </div>
+
+  <dialog id="outputDialog" aria-labelledby="outputDialogTitle">
+    <div class="dialog-heading"><h2 id="outputDialogTitle" data-i18n="outputDirectory">输出目录</h2><button class="icon-button" data-close aria-label="关闭"><svg class="icon"><use href="#i-close"/></svg></button></div>
+    <div class="dialog-body">
+      <label><span data-i18n="directoryPath">目录名称或路径</span><input class="field" id="outputPathInput" type="text" placeholder="例如 D:\Pictures\Compressed"></label>
+      <p class="hint" data-i18n="outputHint">这里用于预览目录选择交互，不会向该目录写入文件。</p>
+      <button class="button" id="nativeOutputPicker" data-i18n="nativeFolder">浏览本地目录</button>
+    </div>
+    <div class="dialog-actions"><button class="button" id="originalOutput" data-i18n="originalFolder">原文件夹</button><button class="button primary" id="applyOutput" data-i18n="apply">应用</button></div>
+  </dialog>
+  <dialog id="aboutDialog" aria-labelledby="aboutDialogTitle">
+    <div class="dialog-heading"><h2 id="aboutDialogTitle" data-i18n="about">关于</h2><button class="icon-button" data-close aria-label="关闭"><svg class="icon"><use href="#i-close"/></svg></button></div>
+    <div class="dialog-body">
+      <div class="about-brand"><img src="logo/PixoFold-logo.svg" alt=""><div><h3>PixoFold · 轻图</h3><p class="hint" data-i18n="prototype">交互原型</p></div></div>
+      <p class="about-description" data-i18n="prototypeDescription">用于讨论布局与交互的 HTML 原型。支持拖入或选择图片与文件夹，导入后自动模拟压缩，所有进度与结果大小均为演示数据，不会上传、压缩或覆盖原文件。</p>
+      <p class="hint">GPL-3.0-or-later · <a href="../架构设计文档/ui-interaction-design.md" target="_blank" rel="noopener" data-i18n="designDocument">交互设计文档</a></p>
+      <div class="about-tools">
+        <label class="advanced-row"><span data-i18n="demoScenario">演示场景</span><select class="field" id="scenarioSelect"><option value="normal" data-i18n="normalScenario">全部完成</option><option value="mixed" data-i18n="mixedScenario">包含失败与无收益</option></select></label>
+        <div class="dialog-actions" style="margin-top:0"><button class="button" id="resetSettings" data-i18n="resetSettings">重置设置</button><button class="button primary" id="demoImport" data-i18n="demoImport">导入示例并模拟</button></div>
+      </div>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script>
+  (() => {
+    'use strict';
+    /* 06. 原型配置与文案。调整质量描述区间、示例数据和演示耗时从这里开始。 */
+    const QUALITY_THRESHOLDS = [30, 50, 70, 85, 95];
+    const STORAGE_KEY = 'pixofold.html-prototype.settings.v1';
+    const DEFAULTS = { theme: 'light', language: 'zh-CN', mode: 'lossy', quality: 80, outputMode: 'overwrite', output: '', speed: 4, dither: 1, keepMetadata: true, keepStructure: false, conflict: 'rename' };
+    const TEXT = {
+      'zh-CN': {
+        tipsTitle:'操作技巧', tipImportTitle:'批量导入', tipImport:'拖入多张图片或整个文件夹，自动读取子目录。',
+        tipSettingsTitle:'先调好参数', tipSettings:'在右侧设置质量与输出方式，导入后自动开始。',
+        tipShortcutTitle:'快捷操作', tipShortcut:'Ctrl + O 选择文件，完成后可继续拖入下一批。',
+        imageFile:'图片', beforeSize:'原始大小', afterSize:'压缩后（模拟）', reduction:'减少', fileStatus:'状态',
+        pending:'待处理', running:'处理中', totalFilesLabel:'文件总数', totalOriginalLabel:'原始总体积',
+        totalResultLabel:'当前总体积（模拟）', totalSavedLabel:'已节省（模拟）', overallProgress:'总压缩进度',
+        listLabel:'图片压缩明细', summaryLabel:'批次汇总', sample:'示例',
+        originalRetained:'未生成新文件，保留原图', afterPending:'处理完成后显示',
+        prototype:'交互原型', light:'浅色', dark:'深色', imageCompression:'图片压缩',
+        dropTitle:'拖拽图片或文件夹到这里', dropLabel:'松开后自动开始模拟压缩', chooseFiles:'选择文件', chooseFolder:'选择目录',
+        autoHint:'导入后自动开始 · 支持文件夹及子目录', nextHint:'继续拖入或选择下一批图片', privacy:'所有图片仅在本机处理',
+        localDemo:'交互演示 · 不会修改原图', scanningTitle:'正在识别图片…', runningTitle:'正在模拟压缩…', waitingTitle:'图片已就绪',
+        doneTitle:'本次模拟已完成', canceledTitle:'本次模拟已取消', partialTitle:'本次模拟已结束', noImages:'未找到支持的图片',
+        scanningHint:'正在读取文件与子目录', waitingHint:'请修正右侧参数，随后将自动开始', supportedHint:'支持 PNG、JPEG、GIF、APNG',
+        cancelBatch:'取消本次', retryBatch:'重试未完成', clearResult:'清除结果', demoImport:'导入示例并模拟',
+        recognized:'已识别', unsupported:'不支持或无法识别', duplicates:'重复', unreadable:'无法读取', folders:'个目录',
+        saved:'模拟减少', files:'个文件', completed:'已处理', done:'完成', failed:'失败', skipped:'无收益', canceled:'已取消',
+        compressionSettings:'压缩设置', lossy:'有损压缩', lossless:'无损优化', quality:'压缩质量', fineTune:'精细调整',
+        qualityHint:'数值越高，画质保留越多', qualityError:'请输入 0–100 的整数', losslessHint:'无损模式保留原始画质',
+        outputSettings:'输出设置', overwriteOriginal:'原图覆盖', saveCopy:'另存副本', outputDirectory:'输出目录', originalFolder:'原文件夹',
+        advanced:'高级选项', speed:'压缩速度', dither:'抖动强度', keepMetadata:'保留图片元数据', keepStructure:'保留输入目录结构',
+        conflict:'文件重名时', rename:'自动添加序号', skipFile:'跳过文件', advancedHint:'速度与抖动独立于压缩质量。',
+        about:'关于', directoryPath:'目录名称或路径', outputHint:'这里用于预览目录选择交互，不会向该目录写入文件。',
+        nativeFolder:'浏览本地目录', apply:'应用',
+        prototypeDescription:'支持拖入或选择图片与文件夹，导入后自动模拟压缩，所有进度与结果大小均为演示数据，不会上传、压缩或覆盖原文件。',
+        designDocument:'交互设计文档', demoScenario:'演示场景', normalScenario:'全部完成', mixedScenario:'包含失败与无收益',
+        resetSettings:'重置设置', demoProgress:'模拟压缩进度', busy:'请先取消或等待当前模拟完成。',
+        settingsReset:'已恢复默认设置。', settingsSaved:'输出目录已更新。',
+        noNativePicker:'浏览器不支持目录选择，可直接填写目录名称或路径。', pickerError:'无法打开目录选择，请直接填写路径。',
+        demoOnly:'模拟过程不会生成或覆盖文件。', minimized:'窗口已最小化（演示）', closed:'窗口已关闭（演示）',
+        restoreWindow:'还原窗口', fullscreenError:'当前浏览器不支持全屏切换。', ditherError:'抖动强度须为 0–1 之间的数值',
+        outputEmpty:'请输入目录名称，或选择原文件夹。', levels:['低','较低','中','高','较高','最高']
+      },
+      en: {
+        tipsTitle:'Quick tips', tipImportTitle:'Import in batches', tipImport:'Drop images or a whole folder. Subfolders are included.',
+        tipSettingsTitle:'Set your preferences', tipSettings:'Choose quality and output on the right. Importing starts processing.',
+        tipShortcutTitle:'Keep things moving', tipShortcut:'Ctrl + O opens files. Drop the next batch when processing finishes.',
+        imageFile:'Image', beforeSize:'Original', afterSize:'Result (simulated)', reduction:'Saved', fileStatus:'Status',
+        pending:'Pending', running:'Processing', totalFilesLabel:'Total files', totalOriginalLabel:'Original total',
+        totalResultLabel:'Current total (simulated)', totalSavedLabel:'Saved (simulated)', overallProgress:'Overall progress',
+        listLabel:'Image compression details', summaryLabel:'Batch summary', sample:'Sample',
+        originalRetained:'No new file; original retained', afterPending:'Shown after processing',
+        prototype:'Prototype', light:'Light', dark:'Dark', imageCompression:'Image compression',
+        dropTitle:'Drop images or folders here', dropLabel:'Drop to start the simulation', chooseFiles:'Choose files', chooseFolder:'Choose folder',
+        autoHint:'Starts automatically · Includes subfolders', nextHint:'Drop or select the next batch', privacy:'All images stay on your device',
+        localDemo:'Interactive demo · Originals stay unchanged', scanningTitle:'Finding images…', runningTitle:'Simulating compression…', waitingTitle:'Images are ready',
+        doneTitle:'Simulation complete', canceledTitle:'Simulation canceled', partialTitle:'Simulation finished', noImages:'No supported images found',
+        scanningHint:'Reading files and subfolders', waitingHint:'Correct the settings to start automatically', supportedHint:'Supports PNG, JPEG, GIF and APNG',
+        cancelBatch:'Cancel batch', retryBatch:'Retry unfinished', clearResult:'Clear results', demoImport:'Import demo files',
+        recognized:'recognized', unsupported:'unsupported or invalid', duplicates:'duplicates', unreadable:'unreadable', folders:'folders',
+        saved:'Simulated savings', files:'files', completed:'Processed', done:'Done', failed:'Failed', skipped:'No savings', canceled:'Canceled',
+        compressionSettings:'Compression settings', lossy:'Lossy', lossless:'Lossless', quality:'Quality', fineTune:'Fine adjustment',
+        qualityHint:'Higher values preserve more detail', qualityError:'Enter a whole number from 0 to 100', losslessHint:'Lossless mode preserves original quality',
+        outputSettings:'Output settings', overwriteOriginal:'Overwrite original', saveCopy:'Save a copy', outputDirectory:'Output folder', originalFolder:'Original folder',
+        advanced:'Advanced options', speed:'Encoding speed', dither:'Dithering', keepMetadata:'Keep image metadata', keepStructure:'Keep folder structure',
+        conflict:'Name conflicts', rename:'Append a number', skipFile:'Skip file', advancedHint:'Speed and dithering are separate from quality.',
+        about:'About', directoryPath:'Folder name or path', outputHint:'This previews folder selection. No files will be written.',
+        nativeFolder:'Browse local folders', apply:'Apply',
+        prototypeDescription:'Drop or select images and folders to start a compression simulation automatically. Progress and output sizes are simulated. No files are uploaded, compressed or overwritten.',
+        designDocument:'Interaction design', demoScenario:'Demo scenario', normalScenario:'All successful', mixedScenario:'Failure and no savings',
+        resetSettings:'Reset settings', demoProgress:'Simulated compression progress', busy:'Cancel or wait for the current simulation to finish.',
+        settingsReset:'Default settings restored.', settingsSaved:'Output folder updated.',
+        noNativePicker:'Folder picking is unavailable. Enter a folder name or path.', pickerError:'Could not open the folder picker. Enter a path instead.',
+        demoOnly:'Simulation only. No files are created or overwritten.', minimized:'Window minimized (demo)', closed:'Window closed (demo)',
+        restoreWindow:'Restore window', fullscreenError:'Fullscreen is unavailable in this browser.', ditherError:'Dithering must be a number between 0 and 1',
+        outputEmpty:'Enter a folder name or use the original folder.', levels:['Low','Fair','Medium','High','Higher','Highest']
+      }
+    };
+    const $ = id => document.getElementById(id);
+    const settings = readSettings();
+    const state = { files: [], running: false, importing: false, scanning: false, autoStartScheduled: false, draft: String(settings.quality), qualityValid: true, advancedValid: true, scenario: 'normal', batch: null, controller: null, report: null };
+    let idCounter = 0, toastTimer, dragDepth = 0, renderedFiles = null;
+    const rowViews = new Map();
+    const t = key => TEXT[settings.language][key] || TEXT['zh-CN'][key] || key;
+
+    function readSettings() {
+      const result = { ...DEFAULTS };
+      try {
+        const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        if (!raw || raw.schemaVersion !== 1) return result;
+        for (const key of ['theme','language','mode','outputMode','conflict']) {
+          const allowed = {theme:['light','dark'],language:['zh-CN','en'],mode:['lossy','lossless'],outputMode:['overwrite','copy'],conflict:['rename','skip']}[key];
+          if (allowed.includes(raw[key])) result[key] = raw[key];
+        }
+        if (Number.isInteger(raw.quality) && raw.quality >= 0 && raw.quality <= 100) result.quality = raw.quality;
+        if (Number.isInteger(raw.speed) && raw.speed >= 1 && raw.speed <= 10) result.speed = raw.speed;
+        if (Number.isFinite(raw.dither) && raw.dither >= 0 && raw.dither <= 1) result.dither = raw.dither;
+        for (const key of ['keepMetadata','keepStructure']) if (typeof raw[key] === 'boolean') result[key] = raw[key];
+        if (typeof raw.output === 'string') result.output = raw.output.slice(0, 1000);
+      } catch { /* file:// 或隐私模式下存储可能不可用，仍可正常使用原型。 */ }
+      return result;
+    }
+    function saveSettings() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ schemaVersion:1, ...settings })); } catch {} }
+    function tierFor(value) {
+      return QUALITY_THRESHOLDS.filter(threshold => value >= threshold).length;
+    }
+    function formatSize(bytes) {
+      if (bytes >= 1e6) return (bytes/1e6).toFixed(2) + ' MB';
+      if (bytes >= 1e3) return (bytes/1e3).toFixed(2) + ' KB';
+      return bytes + ' B';
+    }
+    function toast(message) {
+      clearTimeout(toastTimer); $('toast').textContent = message; $('toast').hidden = false;
+      toastTimer = setTimeout(() => { $('toast').hidden = true; }, 4600);
+    }
+    function busy() { if (state.running || state.importing || state.scanning) { toast(t('busy')); return true; } return false; }
+    function createItem(data) { return { id: 'file-' + (++idCounter), status:'pending', progress:0, resultSize:null, attempts:0, snapshot:null, ...data }; }
+    function releaseFiles() { for(const item of state.files) if(item.url) URL.revokeObjectURL(item.url); }
+    function loadSamples() {
+      if (busy()) return;
+      releaseFiles();
+      state.files = [
+        ['landscape.png',3200000,'PNG'],['travel.jpg',6400000,'JPEG'],['motion.gif',1600000,'GIF'],['sticker.apng',2800000,'APNG']
+      ].map((sample,index) => createItem({ name:sample[0], size:sample[1], format:sample[2], sample:index, key:'sample-'+index, path:sample[0] }));
+      state.batch = null;
+      state.report = {added:4,unsupported:0,duplicates:0,unreadable:0,folders:0,source:'demo'};
+      renderActions();
+    }
+
+    /* 07. 设置状态与界面渲染。输入草稿与有效 quality 分开保存。 */
+    function renderQuality() {
+      const index = tierFor(settings.quality), disabled = settings.mode === 'lossless';
+      const label = t('levels')[index];
+      $('qualityDescription').textContent = label;
+      $('qualityRail').style.setProperty('--quality-position', settings.quality + '%');
+      $('qualityRange').value = settings.quality; $('qualityRange').disabled = disabled;
+      $('qualityRange').setAttribute('aria-valuetext', label + ', ' + settings.quality + '/100');
+      $('qualityRange').setAttribute('aria-label', t('quality'));
+      $('qualityNumber').disabled = disabled;
+      $('qualityNumber').setAttribute('aria-invalid', String(!state.qualityValid && !disabled));
+      $('qualityControls').classList.toggle('disabled', disabled);
+      const invalid = !state.qualityValid && !disabled;
+      $('qualityHelp').textContent = t(disabled ? 'losslessHint' : invalid ? 'qualityError' : 'qualityHint');
+      $('qualityHelp').classList.toggle('error', invalid);
+      renderActions();
+    }
+    function setQuality(value) {
+      settings.quality = value; state.draft = String(value); state.qualityValid = true;
+      $('qualityNumber').value = state.draft; saveSettings(); renderQuality();
+    }
+    function renderSettings() {
+      document.documentElement.dataset.theme = settings.theme;
+      document.documentElement.lang = settings.language;
+      document.querySelectorAll('[data-theme-choice]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.themeChoice===settings.theme)));
+      document.querySelectorAll('[data-mode]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.mode===settings.mode)));
+      document.querySelectorAll('[data-output-mode]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.outputMode===settings.outputMode)));
+      document.querySelectorAll('[data-copy-only]').forEach(node => { node.hidden = settings.outputMode !== 'copy'; });
+      $('qualityNumber').value = state.draft;
+      $('outputName').textContent = settings.output || t('originalFolder');
+      $('outputName').title = settings.output || t('originalFolder');
+      $('speedInput').value = settings.speed; $('speedValue').value = settings.speed;
+      if (state.advancedValid) $('ditherInput').value = settings.dither;
+      $('keepMetadata').checked = settings.keepMetadata; $('keepStructure').checked = settings.keepStructure;
+      $('conflictSelect').value = settings.conflict; $('languageSelect').value = settings.language;
+      renderQuality();
+    }
+    function renderLanguage() {
+      document.querySelectorAll('[data-i18n]').forEach(node => { node.textContent = t(node.dataset.i18n); });
+      $('dropzone').dataset.dropLabel = t('dropLabel');
+      renderSettings();
+    }
+    function validSettings() { return (settings.mode==='lossless' || state.qualityValid) && state.advancedValid; }
+    function scheduleAutoStart() {
+      if (state.autoStartScheduled || state.running || state.importing || state.scanning || state.batch || !state.files.length || !validSettings()) return;
+      state.autoStartScheduled = true;
+      queueMicrotask(() => {
+        state.autoStartScheduled = false;
+        if (!state.running && !state.importing && !state.scanning && !state.batch && state.files.length && validSettings()) void runBatch();
+      });
+    }
+    function renderFileList() {
+      if(renderedFiles!==state.files || rowViews.size!==state.files.length) {
+        renderedFiles=state.files;rowViews.clear();$('imageRows').replaceChildren();
+        const fragment=document.createDocumentFragment();
+        for(const item of state.files) {
+          const row=document.createElement('tr');row.dataset.fileId=item.id;
+          row.innerHTML='<td><div class="file-identity"><span class="file-thumb"></span><div class="file-text"><span class="file-name"></span><span class="file-path"></span></div></div></td><td class="file-before"></td><td class="file-after"></td><td class="file-saving"></td><td><span class="file-status"></span><div class="file-progress" hidden><span></span></div></td>';
+          row.querySelector('.file-name').textContent=item.name;
+          row.querySelector('.file-name').title=item.path;
+          const thumb=row.querySelector('.file-thumb');
+          const fallback=()=>{thumb.innerHTML='<svg class="icon" aria-hidden="true"><use href="#i-image"/></svg>';};
+          if(item.url) {
+            const img=document.createElement('img');img.src=item.url;img.alt='';img.loading='lazy';img.decoding='async';
+            img.addEventListener('error',fallback,{once:true});thumb.append(img);
+          } else if(Number.isInteger(item.sample)) {thumb.classList.add('sample');thumb.dataset.sample=item.sample;}
+          else fallback();
+          rowViews.set(item.id,{row,stamp:null,path:row.querySelector('.file-path'),before:row.querySelector('.file-before'),after:row.querySelector('.file-after'),saving:row.querySelector('.file-saving'),status:row.querySelector('.file-status'),progress:row.querySelector('.file-progress')});
+          fragment.append(row);
+        }
+        $('imageRows').append(fragment);
+        $('imageList').scrollTop=0;
+      }
+      for(const item of state.files) {
+        const view=rowViews.get(item.id),percent=Math.floor(item.progress);
+        const stamp=[item.status,percent,item.resultSize,settings.language].join('|');
+        if(view.stamp===stamp) continue;
+        view.stamp=stamp;view.row.dataset.status=item.status;
+        view.path.textContent=item.format+(Number.isInteger(item.sample)?' · '+t('sample'):item.path!==item.name?' · '+item.path:'');
+        view.path.title=item.path;
+        view.before.textContent=formatSize(item.size);view.before.dataset.label=t('beforeSize');
+        view.after.dataset.label=t('afterSize');view.saving.dataset.label=t('reduction');
+        view.after.textContent=item.resultSize!==null?formatSize(item.resultSize):item.status==='skipped'?formatSize(item.size):'—';
+        view.after.title=item.resultSize!==null?t('demoOnly'):['failed','canceled','skipped'].includes(item.status)?t('originalRetained'):t('afterPending');
+        view.saving.textContent=item.resultSize!==null?Math.round((1-item.resultSize/item.size)*100)+'%':item.status==='skipped'?'0%':'—';
+        view.status.textContent=t(item.status)+(item.status==='running'?' · '+percent+'%':'');
+        view.progress.hidden=item.status!=='running';
+        view.progress.firstElementChild.style.width=percent+'%';
+      }
+    }
+    function renderActions() {
+      const scanning=state.importing || state.scanning, locked=scanning || state.running, hasFiles=state.files.length>0;
+      const finished=!!state.batch && !locked, waiting=hasFiles && !state.batch && !locked;
+      const counts={pending:0,running:0,done:0,failed:0,skipped:0,canceled:0};
+      const terminal=['done','skipped','failed'];
+      let totalSize=0,resultSize=0,progressSum=0;
+      for(const item of state.files) {
+        counts[item.status]++;totalSize+=item.size;
+        resultSize+=item.status==='done' && item.resultSize!==null?item.resultSize:item.size;
+        progressSum+=terminal.includes(item.status)?100:item.progress;
+      }
+      const phase=scanning?'scanning':state.running?'running':waiting?'waiting':finished?(counts.canceled?'canceled':counts.failed?'partial':'done'):state.report?'empty':'idle';
+      $('dropzone').dataset.phase=phase;
+      $('dropzone').classList.toggle('has-files',hasFiles);
+      $('dropIntro').hidden=hasFiles;$('imageList').hidden=!hasFiles;
+      $('idleTips').hidden=hasFiles;$('summaryMetrics').hidden=!hasFiles;$('workProgress').hidden=!hasFiles;
+      $('imageList').setAttribute('aria-label',t('listLabel'));$('batchSummary').setAttribute('aria-label',t(hasFiles?'summaryLabel':'tipsTitle'));
+      $('dropTitle').textContent=t(scanning?'scanningTitle':state.report && !hasFiles?'noImages':'dropTitle');
+      $('importActions').hidden=locked;
+      for(const id of ['chooseFiles','chooseFolder','nextFiles','nextFolder']) $(id).disabled=locked;
+      $('nextFiles').hidden=$('nextFolder').hidden=locked || !hasFiles;
+      $('demoImport').disabled=locked;$('scenarioSelect').disabled=locked;
+      $('dropHint').textContent=t(scanning?'scanningHint':state.report && !hasFiles?'supportedHint':'autoHint');
+      const title=scanning?'scanningTitle':state.running?'runningTitle':waiting?'waitingHint':finished?(counts.canceled?'canceledTitle':counts.failed?'partialTitle':'doneTitle'):state.report?'noImages':'tipsTitle';
+      const statusText=t(title);if($('workStatus').textContent!==statusText)$('workStatus').textContent=statusText;
+      const saved=totalSize-resultSize,percent=hasFiles?progressSum/state.files.length:0,completed=counts.done+counts.failed+counts.skipped;
+      $('totalFiles').textContent=String(state.files.length);
+      $('totalOriginal').textContent=hasFiles?formatSize(totalSize):'—';
+      $('totalResult').textContent=hasFiles?formatSize(resultSize):'—';
+      $('totalSaved').textContent=hasFiles?formatSize(saved)+' · '+(totalSize?Math.round(saved/totalSize*100):0)+'%':'—';
+      $('totalResult').title=t('demoOnly');
+      $('progressCaption').textContent=t('overallProgress')+' · '+t('completed')+' '+completed+' / '+state.files.length;
+      $('progressPercent').textContent=Math.floor(percent)+'%';
+      $('workBar').value=percent;$('workBar').setAttribute('aria-label',t('overallProgress'));
+      const details=['done','failed','skipped','canceled'].filter(key=>counts[key]>0).map(key=>t(key)+' '+counts[key]);
+      $('resultCounts').textContent=details.length?details.join(' · '):t('localDemo');
+      $('importReport').hidden=!state.report || scanning;
+      if(state.report) {
+        const report=state.report,parts=[report.added+' '+t('recognized')];
+        for(const key of ['folders','duplicates','unsupported','unreadable']) if(report[key]) parts.push(report[key]+' '+t(key));
+        $('importReport').textContent=parts.join(' · ');
+      }
+      $('cancelBatch').hidden=!state.running;
+      $('retryBatch').hidden=!finished || !(counts.failed || counts.canceled);
+      $('retryBatch').disabled=!validSettings();
+      $('clearResult').hidden=locked || (!state.report && !state.batch);
+      renderFileList();scheduleAutoStart();
+    }
+
+    /* 08. 本地文件导入：读取文件签名、递归扫描目录，导入完成后自动启动。 */
+    async function detectFormat(file) {
+      const bytes = new Uint8Array(await file.slice(0,65536).arrayBuffer());
+      if (bytes[0]===255 && bytes[1]===216 && bytes[2]===255) return 'JPEG';
+      if (bytes[0]===71 && bytes[1]===73 && bytes[2]===70 && bytes[3]===56 && [55,57].includes(bytes[4]) && bytes[5]===97) return 'GIF';
+      if ([137,80,78,71,13,10,26,10].every((value,index)=>bytes[index]===value)) {
+        const view = new DataView(bytes.buffer);
+        for (let offset=8; offset+12<=bytes.length;) {
+          const length = view.getUint32(offset), type = String.fromCharCode(...bytes.slice(offset+4,offset+8));
+          if (type==='acTL') return 'APNG'; if (type==='IDAT') break;
+          if (offset+length+12>bytes.length) break; offset += length+12;
+        }
+        return /\.apng$/i.test(file.name) ? 'APNG' : 'PNG';
+      }
+      return null;
+    }
+    async function importFiles(entries, {source='files',folders=0,unreadable=0}={}) {
+      if (busy()) return;
+      releaseFiles();
+      state.importing=true; state.files=[]; state.batch=null; state.report=null; renderActions();
+      const report={added:0,unsupported:0,duplicates:0,unreadable,folders,source}, keys=new Set(), directories=new Set();
+      try {
+        for (const entry of entries) {
+          const file=entry.file || entry, path=entry.path || file.webkitRelativePath || file.name;
+          if (file.webkitRelativePath) {
+            const parts=file.webkitRelativePath.split('/');
+            for(let i=1;i<parts.length;i++) directories.add(parts.slice(0,i).join('/'));
+          }
+          const key=path+'|'+file.size+'|'+file.lastModified;
+          if(keys.has(key)){report.duplicates++;continue;}
+          let format;try{format=await detectFormat(file);}catch{report.unreadable++;continue;}
+          if(!format || !file.size){report.unsupported++;continue;}
+          keys.add(key);
+          state.files.push(createItem({name:file.name,path,size:file.size,format,key,url:URL.createObjectURL(file)}));
+          report.added++;
+        }
+      } finally {
+        report.folders=Math.max(report.folders,directories.size);
+        state.report=report;state.importing=false;renderActions();
+      }
+    }
+    async function readEntry(entry, report, parentPath='') {
+      if(entry.isFile) return new Promise(resolve=>entry.file(file=>resolve([{file,path:parentPath+file.name}]),()=>{report.unreadable++;resolve([]);}));
+      if(!entry.isDirectory) return [];
+      report.folders++;
+      const files=[];
+      try {
+        const reader=entry.createReader();
+        while(true) {
+          const children=await new Promise((resolve,reject)=>reader.readEntries(resolve,reject));
+          if(!children.length) break;
+          for(const child of children) files.push(...await readEntry(child,report,parentPath+entry.name+'/'));
+        }
+      } catch {report.unreadable++;}
+      return files;
+    }
+
+    /* 09. 可替换的演示处理器。正式工程用 Rust 任务事件替换此对象。 */
+    const DemoProcessor = {
+      run(item, snapshot, index, scenario, signal, onProgress) {
+        return new Promise((resolve,reject) => {
+          if (signal.aborted) { reject(new DOMException('Canceled','AbortError')); return; }
+          const duration = 1450 + (index%4)*170, started=performance.now();
+          const cancel = () => { clearInterval(timer); signal.removeEventListener('abort',cancel); reject(new DOMException('Canceled','AbortError')); };
+          const timer = setInterval(() => {
+            const progress=Math.min(100,(performance.now()-started)/duration*100); onProgress(progress);
+            if (progress<100) return;
+            clearInterval(timer); signal.removeEventListener('abort',cancel);
+            if (scenario==='mixed' && index%4===2 && item.attempts===1) { resolve({status:'failed',resultSize:null}); return; }
+            if (scenario==='mixed' && index%4===3) { resolve({status:'skipped',resultSize:null}); return; }
+            const ratio = snapshot.mode.kind==='lossless' ? .91 : .33+(snapshot.mode.quality/100)*.48;
+            resolve({status:'done',resultSize:Math.max(1,Math.round(item.size*ratio))});
+          },120);
+          signal.addEventListener('abort',cancel,{once:true});
+        });
+      }
+    };
+    function batchSettings() {
+      return Object.freeze({
+        mode: Object.freeze(settings.mode==='lossless' ? {kind:'lossless'} : {kind:'lossy',quality:settings.quality}),
+        qualityMappingVersion:1, speed:settings.speed, dither:settings.dither,
+        output:Object.freeze(settings.outputMode==='copy'
+          ? {kind:'copy',directory:settings.output,keepStructure:settings.keepStructure,conflict:settings.conflict}
+          : {kind:'overwrite'}),
+        keepMetadata:settings.keepMetadata
+      });
+    }
+    async function runBatch() {
+      if(state.running || state.importing || state.scanning || !validSettings()) return;
+      const items=state.files.filter(item=>['pending','failed','canceled'].includes(item.status));
+      if(!items.length) return;
+      const snapshot=batchSettings(),scenario=state.scenario,controller=new AbortController();
+      state.controller=controller;state.running=true;
+      state.batch={ids:items.map(item=>item.id),snapshot};
+      for(const item of items) Object.assign(item,{status:'pending',progress:0,resultSize:null,snapshot});
+      renderActions();
+      try {
+        for(let index=0;index<items.length;index++) {
+          if(controller.signal.aborted) break;
+          const item=items[index];item.status='running';item.attempts++;renderActions();
+          try {
+            const result=await DemoProcessor.run(item,snapshot,index,scenario,controller.signal,progress=>{item.progress=progress;renderActions();});
+            if(controller.signal.aborted) break;
+            Object.assign(item,result,{progress:100});renderActions();
+          } catch(error) {
+            if(error.name==='AbortError') break;
+            item.status='failed';item.progress=100;renderActions();
+          }
+        }
+      } finally {
+        if(controller.signal.aborted) for(const item of items) if(['pending','running'].includes(item.status)) item.status='canceled';
+        state.running=false;state.controller=null;renderActions();
+      }
+    }
+
+    /* 10. 列表和底部汇总操作；自动启动，不执行文件写入。 */
+    function clearResult() {
+      if(busy()) return;
+      releaseFiles();state.files=[];state.batch=null;state.report=null;renderActions();
+    }
+
+    /* 11. 事件绑定。 */
+    document.querySelectorAll('[data-theme-choice]').forEach(button=>button.addEventListener('click',()=>{settings.theme=button.dataset.themeChoice;saveSettings();renderSettings();}));
+    document.querySelectorAll('[data-mode]').forEach(button=>button.addEventListener('click',()=>{
+      settings.mode=button.dataset.mode;
+      if (settings.mode==='lossless') {state.draft=String(settings.quality);state.qualityValid=true;}
+      saveSettings();renderSettings();
+    }));
+    document.querySelectorAll('[data-output-mode]').forEach(button=>button.addEventListener('click',()=>{
+      settings.outputMode=button.dataset.outputMode;saveSettings();renderSettings();
+    }));
+    $('qualityRange').addEventListener('input',event=>setQuality(Number(event.target.value)));
+    $('qualityNumber').addEventListener('input',event=>{
+      state.draft=event.target.value;
+      state.qualityValid=/^\d+$/.test(state.draft) && Number(state.draft)<=100;
+      if(state.qualityValid){settings.quality=Number(state.draft);saveSettings();}
+      renderQuality();
+    });
+    $('qualityNumber').addEventListener('keydown',event=>{
+      if(event.key==='Escape'){event.preventDefault();setQuality(settings.quality);}
+      if(['ArrowUp','ArrowDown'].includes(event.key)){
+        event.preventDefault();setQuality(Math.min(100,Math.max(0,settings.quality+(event.key==='ArrowUp'?1:-1))));
+      }
+    });
+    $('languageSelect').addEventListener('change',event=>{settings.language=event.target.value;saveSettings();renderLanguage();});
+    $('speedInput').addEventListener('input',event=>{settings.speed=Number(event.target.value);$('speedValue').value=settings.speed;saveSettings();});
+    $('ditherInput').addEventListener('input',event=>{
+      const raw=event.target.value,value=Number(raw);state.advancedValid=raw!=='' && Number.isFinite(value) && value>=0 && value<=1;
+      event.target.setAttribute('aria-invalid',String(!state.advancedValid));event.target.setCustomValidity(state.advancedValid?'':t('ditherError'));
+      if(state.advancedValid){settings.dither=value;saveSettings();}renderActions();
+    });
+    for(const [id,key] of [['keepMetadata','keepMetadata'],['keepStructure','keepStructure']]) $(id).addEventListener('change',event=>{settings[key]=event.target.checked;saveSettings();});
+    $('conflictSelect').addEventListener('change',event=>{settings.conflict=event.target.value;saveSettings();});
+    $('scenarioSelect').addEventListener('change',event=>{state.scenario=event.target.value;});
+    for(const id of ['chooseFiles','nextFiles']) $(id).addEventListener('click',()=>$('fileInput').click());
+    for(const id of ['chooseFolder','nextFolder']) $(id).addEventListener('click',()=>$('folderInput').click());
+    for(const id of ['fileInput','folderInput']) $(id).addEventListener('change',async event=>{
+      const files=Array.from(event.target.files);event.target.value='';
+      if(files.length) await importFiles(files,{source:id==='folderInput'?'folder':'files'});
+    });
+    const importLocked=()=>state.running || state.importing || state.scanning;
+    $('dropzone').addEventListener('dragenter',event=>{event.preventDefault();dragDepth++;if(!importLocked())$('dropzone').classList.add('drag-over');});
+    $('dropzone').addEventListener('dragover',event=>{event.preventDefault();event.dataTransfer.dropEffect=importLocked()?'none':'copy';});
+    $('dropzone').addEventListener('dragleave',event=>{event.preventDefault();if(--dragDepth<=0){dragDepth=0;$('dropzone').classList.remove('drag-over');}});
+    $('dropzone').addEventListener('drop',async event=>{
+      event.preventDefault();dragDepth=0;$('dropzone').classList.remove('drag-over');if(busy())return;
+      // 在第一次 await 前取出拖放数据，兼容混合文件与目录以及没有 Entry API 的浏览器。
+      const dropped=Array.from(event.dataTransfer.items||[]).filter(item=>item.kind==='file').map(item=>({
+        entry:item.webkitGetAsEntry?item.webkitGetAsEntry():null,file:item.getAsFile()
+      }));
+      const fallback=Array.from(event.dataTransfer.files),files=[],report={folders:0,unreadable:0};
+      if(!dropped.length && !fallback.length) return;
+      releaseFiles();state.scanning=true;state.files=[];state.batch=null;state.report=null;renderActions();
+      try {
+        if(dropped.length) {
+          for(const item of dropped) {
+            if(item.entry) files.push(...await readEntry(item.entry,report));
+            else if(item.file) files.push(item.file);
+            else report.unreadable++;
+          }
+        } else files.push(...fallback);
+      } catch {report.unreadable++;}
+      finally{state.scanning=false;}
+      await importFiles(files,{source:'drop',...report});
+    });
+    document.addEventListener('dragover',event=>event.preventDefault());
+    document.addEventListener('drop',event=>event.preventDefault());
+    $('demoImport').addEventListener('click',()=>{if(busy())return;$('aboutDialog').close();loadSamples();});
+    $('cancelBatch').addEventListener('click',()=>state.controller?.abort());
+    $('retryBatch').addEventListener('click',()=>void runBatch());
+    $('clearResult').addEventListener('click',clearResult);
+    $('resetSettings').addEventListener('click',()=>{
+      Object.assign(settings,DEFAULTS);state.draft='80';state.qualityValid=true;state.advancedValid=true;
+      $('ditherInput').setCustomValidity('');$('ditherInput').setAttribute('aria-invalid','false');
+      saveSettings();renderLanguage();toast(t('settingsReset'));
+    });
+    document.querySelectorAll('[data-open]').forEach(button=>button.addEventListener('click',()=>$(button.dataset.open).showModal()));
+    document.querySelectorAll('[data-close]').forEach(button=>button.addEventListener('click',()=>button.closest('dialog').close()));
+    document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('click',event=>{if(event.target===dialog){const rect=dialog.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)dialog.close();}}));
+    $('chooseOutput').addEventListener('click',()=>{$('outputPathInput').value=settings.output;$('outputDialog').showModal();});
+    $('originalOutput').addEventListener('click',()=>{settings.output='';saveSettings();renderSettings();$('outputDialog').close();});
+    $('applyOutput').addEventListener('click',()=>{
+      const value=$('outputPathInput').value.trim();if(!value){toast(t('outputEmpty'));$('outputPathInput').focus();return;}
+      settings.output=value;saveSettings();renderSettings();$('outputDialog').close();toast(t('settingsSaved'));
+    });
+    $('nativeOutputPicker').addEventListener('click',async()=>{
+      if(!window.showDirectoryPicker){toast(t('noNativePicker'));return;}
+      try{const directory=await window.showDirectoryPicker({mode:'read'});$('outputPathInput').value=directory.name;}
+      catch(error){if(error.name!=='AbortError')toast(t('pickerError'));}
+    });
+    for(const [id,key] of [['minimizeWindow','minimized'],['closeWindow','closed']]) $(id).addEventListener('click',()=>{$('main').hidden=true;$('windowPlaceholder').hidden=false;$('windowMessage').textContent=t(key);});
+    $('restoreWindow').addEventListener('click',()=>{$('main').hidden=false;$('windowPlaceholder').hidden=true;});
+    $('maximizeWindow').addEventListener('click',async()=>{
+      try{if(document.fullscreenElement)await document.exitFullscreen();else if(document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();else toast(t('fullscreenError'));}catch{toast(t('fullscreenError'));}
+    });
+    document.addEventListener('keydown',event=>{
+      if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='o'&&!document.querySelector('dialog[open]')){event.preventDefault();if(!busy())$('fileInput').click();}
+    });
+    window.addEventListener('beforeunload',()=>{if(state.controller)state.controller.abort();releaseFiles();});
+
+    // 便于验证识别结果与批次快照；返回副本，不暴露 File 或预览 URL。
+    window.PixoFoldPrototype = Object.freeze({
+      getState:()=>JSON.parse(JSON.stringify({settings,draft:state.draft,qualityValid:state.qualityValid,running:state.running,scanning:state.scanning,importing:state.importing,batch:state.batch,report:state.report,files:state.files.map(({url,...item})=>item)})),
+      qualityThresholds:[...QUALITY_THRESHOLDS]
+    });
+    renderLanguage();
+  })();
+  </script>
+</body>
+</html>
