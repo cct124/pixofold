@@ -84,7 +84,7 @@
     .prototype-badge { border: 1px solid var(--border); border-radius: 5px; padding: 2px 7px; color: var(--muted); background: transparent; font-size: 11px; }
     .titlebar-spacer { flex: 1; }
     .theme-switch { display: flex; border: 1px solid var(--border); padding: 2px; border-radius: 22px; }
-    .theme-switch button { display: flex; align-items: center; justify-content: center; gap: 7px; border-radius: 20px; padding: 5px 12px; color: var(--muted); background: transparent; border: 1px solid transparent; }
+    .theme-switch button { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; padding: 0; color: var(--muted); background: transparent; border: 1px solid transparent; }
     .theme-switch button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent-border); background: var(--accent-soft); }
     .window-actions { display: flex; gap: 5px; border-left: 1px solid var(--border); padding-left: 12px; margin-left: 3px; }
     .window-actions button { color: var(--text); width: 43px; }
@@ -267,13 +267,10 @@
       .settings-footer { justify-content: center; }
       .titlebar { padding: 0 15px; }
       .brand { font-size: 18px; }
-      .theme-switch button { padding: 5px 9px; }
-      .theme-switch .icon { display: none; }
     }
     @media (max-width: 480px) {
       :root { --panel-padding: 16px; }
       .brand { gap: 7px; font-size: 16px; } .brand img { width: 30px; height: 30px; }
-      .theme-switch button { font-size: 13px; }
       .drop-title { font-size: 19px; }
       .drop-hint { font-size: 13px; }
       .import-actions .button { min-width: 125px; font-size: 16px; }
@@ -326,8 +323,8 @@
       <button class="prototype-badge" data-open="aboutDialog" data-i18n="prototype">交互原型</button>
       <div class="titlebar-spacer"></div>
       <div class="theme-switch" role="group" aria-label="主题">
-        <button id="lightTheme" data-theme-choice="light" aria-pressed="true"><svg class="icon"><use href="#i-sun"/></svg><span data-i18n="light">浅色</span></button>
-        <button id="darkTheme" data-theme-choice="dark" aria-pressed="false"><svg class="icon"><use href="#i-moon"/></svg><span data-i18n="dark">深色</span></button>
+        <button id="lightTheme" data-theme-choice="light" aria-pressed="true" aria-label="浅色" title="浅色"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-sun"/></svg></button>
+        <button id="darkTheme" data-theme-choice="dark" aria-pressed="false" aria-label="深色" title="深色"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-moon"/></svg></button>
       </div>
       <div class="window-actions">
         <button class="icon-button" id="minimizeWindow" aria-label="最小化窗口演示" title="最小化窗口演示"><svg class="icon"><use href="#i-minimize"/></svg></button>
@@ -619,7 +616,11 @@
     function renderSettings() {
       document.documentElement.dataset.theme = settings.theme;
       document.documentElement.lang = settings.language;
-      document.querySelectorAll('[data-theme-choice]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.themeChoice===settings.theme)));
+      document.querySelectorAll('[data-theme-choice]').forEach(button => {
+        button.setAttribute('aria-pressed', String(button.dataset.themeChoice===settings.theme));
+        button.setAttribute('aria-label', t(button.dataset.themeChoice));
+        button.title = t(button.dataset.themeChoice);
+      });
       document.querySelectorAll('[data-mode]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.mode===settings.mode)));
       document.querySelectorAll('[data-output-mode]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.outputMode===settings.outputMode)));
       document.querySelectorAll('[data-copy-only]').forEach(node => { node.hidden = settings.outputMode !== 'copy'; });
