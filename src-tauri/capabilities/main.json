@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "主窗口只允许读取应用构建信息；文件和系统插件在实际使用时再授权。",
+  "windows": ["main"],
+  "permissions": ["allow-get-app-info"]
+}

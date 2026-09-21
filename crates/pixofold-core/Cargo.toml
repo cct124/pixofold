@@ -1,0 +1,26 @@
+[package]
+name = "pixofold-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "PixoFold 独立图片处理核心"
+publish = false
+
+[dependencies]
+serde.workspace = true
+ts-rs = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[features]
+bindings = ["dep:ts-rs"]
+
+[[bin]]
+name = "export-bindings"
+path = "src/bin/export-bindings.rs"
+required-features = ["bindings"]
+
+[lints]
+workspace = true

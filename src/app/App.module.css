@@ -1,0 +1,205 @@
+.app {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 32px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand,
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.brand strong {
+  display: block;
+  font-size: 19px;
+  font-weight: 650;
+}
+
+.brand span {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.badge {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.main {
+  width: min(100%, 680px);
+  margin: auto;
+  padding: 52px 28px;
+}
+
+.intro {
+  text-align: center;
+}
+
+.heroLogo {
+  display: block;
+  margin: 0 auto 22px;
+}
+
+.intro h1 {
+  margin: 0;
+  font-size: clamp(26px, 3.5vw, 38px);
+  line-height: 1.35;
+  letter-spacing: -0.8px;
+  font-weight: 650;
+  text-wrap: balance;
+}
+
+.description {
+  margin: 18px auto 30px;
+  max-width: 480px;
+  color: var(--muted);
+  line-height: 1.8;
+  font-size: 15px;
+}
+
+.statusCard {
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.connection {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.dot[data-status='ready'] {
+  background: var(--success);
+}
+
+.dot[data-status='failed'] {
+  background: var(--danger);
+}
+
+.version {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.hint,
+.nextStep p {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.formats {
+  margin-top: 22px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.formats ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+}
+
+.formats li {
+  padding: 5px 12px;
+  border-radius: 18px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.nextStep {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.retry {
+  margin-top: 14px;
+  padding: 7px 12px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  border-radius: 7px;
+}
+
+.footer,
+.footer > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.footer {
+  padding: 20px 32px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.footer select {
+  max-width: 150px;
+  padding: 6px;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+@media (max-width: 560px) {
+  .header,
+  .footer {
+    padding: 16px;
+  }
+
+  .badge {
+    display: none;
+  }
+
+  .brand {
+    gap: 8px;
+  }
+
+  .brand strong {
+    font-size: 16px;
+  }
+
+  .main {
+    padding: 36px 16px;
+  }
+
+  .statusCard {
+    padding: 20px;
+  }
+}

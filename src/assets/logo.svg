@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="pixofold-logo-title pixofold-logo-description">
+  <title id="pixofold-logo-title">PixoFold · 轻图</title>
+  <desc id="pixofold-logo-description">蓝色渐变圆角方形内，白色图片符号带有浅青色折角。</desc>
+  <defs>
+    <linearGradient id="pixofold-blue" x1="32" y1="32" x2="992" y2="992" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#06BFEF"/>
+      <stop offset="0.5" stop-color="#0498FA"/>
+      <stop offset="1" stop-color="#086AF2"/>
+    </linearGradient>
+    <linearGradient id="pixofold-fold" x1="558" y1="240" x2="772" y2="456" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B8EDF8"/>
+      <stop offset="1" stop-color="#9EE2F3"/>
+    </linearGradient>
+    <path id="pixofold-paper" d="M320 240H552C562 240 568 244 577 253L760 436C768 444 772 453 772 464V722C772 760 741 790 704 790H320C282 790 252 760 252 722V308C252 270 282 240 320 240Z"/>
+    <clipPath id="pixofold-paper-clip">
+      <use href="#pixofold-paper"/>
+    </clipPath>
+  </defs>
+  <rect x="32" y="32" width="960" height="960" rx="224" fill="url(#pixofold-blue)"/>
+  <use href="#pixofold-paper" fill="#FFFFFF"/>
+  <path d="M558 232L782 456H628C589 456 558 424 558 386Z" fill="url(#pixofold-fold)" clip-path="url(#pixofold-paper-clip)"/>
+  <circle cx="406" cy="516" r="58" fill="url(#pixofold-blue)"/>
+  <path d="M304 709L387 629C398 618 410 618 421 629L460 667L554 559C565 545 581 545 592 559L720 713C728 723 728 730 720 738C716 742 710 744 702 744H322C307 744 298 738 296 728C294 721 297 715 304 709Z" fill="url(#pixofold-blue)"/>
+</svg>

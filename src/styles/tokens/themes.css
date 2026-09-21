@@ -1,0 +1,28 @@
+:root {
+  font-family: 'Segoe UI Variable', 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  color-scheme: light;
+  --canvas: #f6f8fb;
+  --surface: #ffffff;
+  --text: #152033;
+  --muted: #66778f;
+  --border: #e0e7f0;
+  --accent: #247cf0;
+  --accent-soft: #edf5ff;
+  --accent-border: #b9d6ff;
+  --success: #178350;
+  --danger: #c63f4f;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --canvas: #12161e;
+  --surface: #1a202b;
+  --text: #e8edf6;
+  --muted: #a0afc3;
+  --border: #2e394b;
+  --accent: #71adff;
+  --accent-soft: #233852;
+  --accent-border: #426899;
+  --success: #63d29b;
+  --danger: #ff8795;
+}

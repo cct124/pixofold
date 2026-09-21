@@ -2,10 +2,10 @@
 
 ## 项目与入口
 
-- PixoFold（轻图）是本地批量图片压缩工具，计划支持 PNG、JPEG、GIF、APNG，采用 GPL-3.0-or-later。当前仅有方案与 HTML 原型，尚未创建 Tauri 应用工程；规划技术栈为 Tauri 2、React、TypeScript、Rust。
+- PixoFold（轻图）是本地批量图片压缩工具，计划支持 PNG、JPEG、GIF、APNG，采用 GPL-3.0-or-later。已建立 Tauri 2、React、TypeScript 与独立 Rust 核心的脚手架；压缩引擎、任务队列及正式业务界面尚未实现。
 - 从 [README.md](README.md) 了解项目；架构与引擎选型见[项目方案](docs/架构设计文档/pixofold-proposal.md)，交互规则见[UI 交互设计](docs/架构设计文档/ui-interaction-design.md)。
 - 界面以 [HTML 原型](docs/UI界面设计/PixoFold.html)及[原型说明](docs/UI界面设计/HTML原型说明.md)为准，生成的 UI 图片仅作历史参考。旧项目 png-palettes 用于参考，未经任务要求不修改。
-- 下列正式工程、工具链与 CI 约定在相应工程阶段落实；实际入口和完成状态以仓库为准，不把规划写成已实现。
+- 实际工具链与命令以 README、`package.json`、`rust-toolchain.toml` 为准；不把规划或未运行的跨平台 CI 写成已验证能力。
 
 ## 接手与修改
 
@@ -45,6 +45,7 @@
 
 ## 工具链、依赖与配置
 
+- 已使用 pnpm、Vite、Oxlint、Prettier、Vitest 与 Cargo workspace；`pnpm desktop:dev` 启动桌面，`pnpm check` 执行统一检查。变更 Rust DTO 后运行 `pnpm types:generate`，CI 用 `pnpm types:check` 只读检查。
 - 工程初始化时锁定 Rust、Node 和包管理器版本，在 README 记录实际命令与系统依赖；固定 Rust edition 与格式风格。本地和 CI 使用同一套配置。
 - 提交 `Cargo.lock` 与唯一的前端锁文件，使用锁定依赖的安装与构建；依赖升级尽量与功能改动分开，Git 依赖及随包编码工具固定到可复现版本。
 - 新增依赖先检查现有能力，评估用途、维护、许可证、平台和构建成本，只启用所需功能；迁移代码与分发第三方工具保留来源、版权和各自许可。

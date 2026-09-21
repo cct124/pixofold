@@ -1,0 +1,37 @@
+.switch {
+  display: flex;
+  flex: none;
+  margin: 0;
+  min-inline-size: 0;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+}
+
+.switch button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 50%;
+}
+
+.switch button[aria-pressed='true'] {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+}
+
+.switch svg {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
