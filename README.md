@@ -2,7 +2,7 @@
 
 基于 Tauri、React 和 Rust 的本地批量图片压缩工具，计划支持 PNG、JPEG、GIF 和 APNG，由 png-palettes 重构演进。
 
-当前已建立 **Tauri 2 + React + TypeScript + Rust workspace 脚手架**，实现可独立调用的 **静态 PNG 无损/有损核心、纯 Rust 批量任务服务及统一导入/输出规划**：内容识别、资源限制、版本化质量映射、保护性无损回退、真实产物验证、覆盖备份，以及文件/目录扫描、去重、有界执行、快照、取消和重试。桌面仍为工程启动页，包含亮暗主题、中英文、偏好持久化和构建信息 IPC；**原生导入入口、桌面压缩 IPC 与正式业务界面尚未接通。** 单文件核心已通过三平台 CI；批量代码的 Windows CI 通过，Ubuntu/macOS 的测试导入问题已在工作区修复、待 CI 复验；新增核心导入完成 Windows 本机验证，具体证据见开发记录。
+当前已建立 **Tauri 2 + React + TypeScript + Rust workspace 脚手架**，实现可独立调用的 **静态 PNG 无损/有损核心、纯 Rust 批量任务服务及统一导入/输出规划**：内容识别、资源限制、版本化质量映射、保护性无损回退、真实产物验证、覆盖备份，以及文件/目录扫描、去重、有界执行、快照、取消和重试。桌面仍为工程启动页，包含亮暗主题、中英文、偏好持久化和构建信息 IPC；**原生导入入口、桌面压缩 IPC 与正式业务界面尚未接通。** 单文件核心已通过三平台 CI；批量代码的 Windows CI 通过，Ubuntu/macOS 的测试导入修复随 P2 提交 `3c06251` 推送、待 CI 复验；新增核心导入完成 Windows 本机验证，具体证据见开发记录。
 
 UI 设计与可交互 HTML 原型保留作为实现依据：质量采用 0–100 连续滑块和精细输入，默认 80；当前质量描述以纯文字显示在标题行右侧。
 
@@ -154,7 +154,7 @@ docs/                       方案、HTML 原型和开发交接
 
 Rust DTO 通过可选 `bindings` feature 使用 ts-rs 12 生成 TypeScript，普通核心与桌面发布不启用该工具。TypeScript 7 超过当前 typescript-eslint 的声明兼容范围，因此采用 Oxlint 做 lint，并由 TypeScript 编译器执行严格类型检查。
 
-2026-09-21 脚手架已通过冻结安装、统一检查、Windows 可执行文件构建/启动及浏览器外观交互验证。2026-09-22 无损提交 `3f6c617`、包含有损功能的 `ab9b2bb` 分别通过三平台 CI 统一检查和桌面构建。包含 P1 批量功能的 `448b5bc` 在 CI run `35706902280` 中 Windows 成功，Ubuntu/macOS 因 Windows 专用测试导入在其他平台未使用而触发 Clippy 失败；导入局部化修复尚未提交，需 CI 复验。本轮含 P2 的 Windows `pnpm check` 通过（73 项 Rust 测试、2 项编译型 doctest、5 项前端测试及 32 份语料清单），`pnpm tauri build --no-bundle --ci` 通过。本轮未执行 GUI 视觉/运行验收、峰值 RSS 实测或安装包验证，不能将本机结果写成新代码的三平台验收。完整证据与后续交接见 [开发记录](docs/devlog/README.md)。
+2026-09-21 脚手架已通过冻结安装、统一检查、Windows 可执行文件构建/启动及浏览器外观交互验证。2026-09-22 无损提交 `3f6c617`、包含有损功能的 `ab9b2bb` 分别通过三平台 CI 统一检查和桌面构建。包含 P1 批量功能的 `448b5bc` 在 CI run `35706902280` 中 Windows 成功，Ubuntu/macOS 因 Windows 专用测试导入在其他平台未使用而触发 Clippy 失败；导入局部化修复及 P2 已随 `3c06251` 推送，需 CI 复验。含 P2 的 Windows `pnpm check` 通过（73 项 Rust 测试、2 项编译型 doctest、5 项前端测试及 32 份语料清单），`pnpm tauri build --no-bundle --ci` 通过。本次提交推送未重复执行未变化代码的全套检查，也未等待新 SHA 的远端 CI；GUI 视觉/运行验收、峰值 RSS 实测和安装包仍待完成，不能将本机结果写成新代码的三平台验收。完整证据与后续交接见 [开发记录](docs/devlog/README.md)。
 
 ## 项目方案
 

@@ -1,6 +1,6 @@
 # 开发交接
 
-当前阶段：静态 PNG 无损/有损单文件核心均已提交推送并通过三平台 CI 检查/桌面构建，见 [无损归档](_fin/260922/png-core-foundation.md)及 [有损归档](_fin/260922/png-lossy-quality.md)。2026-09-22 P1纯Rust批量服务已推送；包含P1的448b5bc在Windows CI成功，Ubuntu/macOS因Windows专用测试导入触发Clippy失败，修复留在本轮工作区待CI复验。P2文件/目录统一导入与输出规划已通过Windows统一检查和release构建，尚未提交。桌面仍是工程启动页，原生导入入口、Tauri压缩适配及正式UI未接通。脚手架历史见 [交接记录](_fin/260921/tauri-scaffold.md)。
+当前阶段：静态 PNG 无损/有损单文件核心均已提交推送并通过三平台 CI 检查/桌面构建，见 [无损归档](_fin/260922/png-core-foundation.md)及 [有损归档](_fin/260922/png-lossy-quality.md)。2026-09-22 P1纯Rust批量服务已推送；包含P1的448b5bc在Windows CI成功，Ubuntu/macOS因Windows专用测试导入触发Clippy失败。该修复与P2文件/目录统一导入、输出规划已随3c06251推送origin/dev，通过Windows统一检查和release构建，待新SHA的三平台CI复验。桌面仍是工程启动页，原生导入入口、Tauri压缩适配及正式UI未接通。脚手架历史见 [交接记录](_fin/260921/tauri-scaffold.md)。
 
 ## 活动任务
 
@@ -8,7 +8,7 @@
 
 ## 后续优先顺序
 
-1. 下次获准提交后复验P1的平台导入修复及P2新代码三平台CI，不重跑旧SHA冒充修复验收；本轮不提交/推送。
+1. 复验已推送的P1平台导入修复及P2新代码三平台CI，不重跑旧SHA冒充修复验收；推送成功不等于CI通过。
 2. 从P3开工：应用级单次导入/启动门闩、可取消后台扫描、薄Commands、Rust DTO→TS、Channel+快照恢复、最小权限原生入口及退出收尾；不把阻塞扫描或线程join放在UI线程。
 3. 补许可明确的真实素材、透明边缘、色彩管理和1/2并发峰值RSS，再完成P4正式UI和真实桌面验收；不因合成样本通过就提高默认并发。
 4. 依次接入 JPEG、GIF/APNG，再完善大批量性能、三平台运行和发行验收；新增原生依赖时即验证平台构建。
