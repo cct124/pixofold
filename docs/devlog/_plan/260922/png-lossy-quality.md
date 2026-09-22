@@ -104,3 +104,11 @@ RMSE为0–255编码值在黑/白背景合成后的独立RGB误差，非线性�
 - 已提交 `5ceb0e113151a691b63df9ae4e3e4cb071ea2f63`（`feat: 实现 PNG 有损量化与统一质量模型`），包含32个文件变更及前序任务归档；暂存diff/空白检查通过。
 - `git push origin dev`成功，远端从3f6c617前进至5ceb0e1；随后HEAD与origin/dev一致，代码推送完成时工作区干净。本条结果和索引随后作为文档收尾提交同步，不修改业务代码。
 - 本次未等待或核查新提交的CI完成结果，不将前序CI成功冒充本轮验收。下一步核实新增有损代码三平台CI，再继续真实素材回归与批量任务开发；未新增功能或修改png-palettes。
+
+## 2026-09-22 下一阶段规划复核
+
+- 文档收尾已提交推送为ab9b2bb；本次规划开始时dev工作区干净，HEAD与origin/dev一致。
+- GitHub API查到ab9b2bb的push CI [run35696580158](https://github.com/cct124/pixofold/actions/runs/35696580158)。2026-09-22 14:52（Asia/Shanghai）查询时仍运行：macOS job106644780909统一检查成功、桌面构建中；Ubuntu job106644781125和Windows job106644781151仍在统一检查。本记录不把运行中状态计为验收通过，暂不归档。
+- 14:56复查同一run：macOS和Ubuntu jobs均completed/success，统一检查与桌面构建成功；Windows统一检查成功，桌面构建仍in_progress。下一次只需核实剩余Windows构建及run最终结果，不重复把已成功的平台描述为未知。
+- 结合同步pipeline、现有单文件资源边界和仍为空的桌面业务接口，下一步计划为[PNG批量任务与桌面闭环](png-batch-desktop.md)：先纯Rust任务服务与有界执行，再统一导入/输出规划，最后接Tauri及原型正式界面；暂不扩展格式或调整量化引擎。
+- 本次仅规划与文档更新，未执行新业务实现、提交或推送；未重复前轮测试/构建。
