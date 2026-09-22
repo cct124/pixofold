@@ -9,6 +9,12 @@ mod worker;
 pub use model::*;
 pub use planning::estimate_working_set;
 
+/// 供导入规划复用完全相同的只读预检；不创建服务、不启动worker或写目录。
+pub(crate) fn preview(requests: Vec<PngRequest>) -> Result<Vec<JobSnapshot>, BatchError> {
+    planning::prepare(requests, ByteCount(u64::MAX))
+        .map(|jobs| jobs.into_iter().map(|job| job.view).collect())
+}
+
 use std::{
     collections::{HashSet, VecDeque},
     sync::{Arc, Condvar, Mutex, MutexGuard},

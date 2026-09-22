@@ -26,7 +26,7 @@ pub enum PngColorType {
     Rgba,
 }
 
-/// 由真实文件头及完整解码验证的静态 PNG 属性。
+/// 静态PNG属性；导入阶段只验证结构，pipeline/inspect_png返回值还经过完整像素解码。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImageInfo {
     pub width: u32,
@@ -81,6 +81,12 @@ pub enum OutputPolicy {
     Overwrite,
     Copy {
         destination: PathBuf,
+    },
+    /// 显式允许在既有root内创建结构目录；relative必须为非空普通相对组件。
+    /// 规划只读，output暂存时创建目录；取消/失败/无收益可能保留空目录，不自动删除。
+    CopyTree {
+        root: PathBuf,
+        relative: PathBuf,
     },
 }
 

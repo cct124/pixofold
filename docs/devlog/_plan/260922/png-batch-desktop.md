@@ -1,7 +1,7 @@
 # PNG 批量任务与桌面闭环
 
 - 创建日期：2026-09-22（Asia/Shanghai）
-- 状态：P1已完成Windows本机实现/验收，代码0f869d5已提交推送，待本轮跨平台CI验收；P2目录导入、P3 Tauri及P4界面尚未开工。完整桌面里程碑仍进行中，不归档本记录。
+- 状态：P1已提交，Windows CI通过，Ubuntu/macOS因测试专用导入触发Clippy失败，修复在本轮工作区待复验；P2已完成Windows统一检查与release桌面构建，尚未提交。P3 Tauri及P4界面未开工，完整桌面里程碑仍进行中，不归档本记录。
 - 分支与代码基准：dev；规划基准ab9b2bb680ec10de798df6dae5c3bc58af9001a9（有损功能5ceb0e1），P1交接基准7587c87d12e5a4466ae9f7f088ebef1c3756cc7a
 - 依据：[PNG 有损前序任务](../../_fin/260922/png-lossy-quality.md)、[项目方案](../../../架构设计文档/pixofold-proposal.md)、[交互设计](../../../架构设计文档/ui-interaction-design.md)、[HTML 原型说明](../../../UI界面设计/HTML原型说明.md)
 
@@ -55,6 +55,7 @@
 ### P3：薄 Tauri 适配与真实桌面操作
 
 - Commands仅适配导入、启动、查询/订阅、取消、重试和清除；服务生命周期属于应用，不属于React组件。仅按实际需要开放dialog、原生拖放、结果定位及缩略图访问，不授予通用shell或任意文件读写。
+- P2完成后细化：应用级门闩覆盖扫描、等待参数/输出修正、规划和运行，阻止并行导入或重复自动启动；扫描在有界后台执行且有取消令牌，锁不跨I/O/await。保留完整ImportScan供修正设置，部分扫描只展示、不得启动；扫描在返回前释放身份句柄，返回完整结果后才接纳输出。
 - Rust作为DTO权威来源，生成TS并增加契约测试；错误转换成稳定代码与必要上下文，duration/bytes明确单位和JS表示边界，不直接序列化底层Box错误。实际能力按格式/模式报告，只开放静态PNG，不把plannedFormats当作可用列表。
 - 沿用方案的Channel+快照：先建立订阅再启动，事件包含批次/任务/尝试及单调序号；查询快照有版本，前端合并只接受更新版本，断线/重挂载能恢复，不丢终态或重复执行。
 - 阶段事件按需合并，终态不被丢弃；无编码百分比时仅显示实际阶段/活动状态。总进度以已处理文件数为真实依据，失败/无收益也属于已处理；取消保留已完成进度，不因把排队项标取消就伪造100%。生命周期的终态数与用户进度数分开定义。
@@ -130,3 +131,47 @@
 - 已提交 `0f869d58a2c56df75e8861cbe0220d79f9172538`（`feat: 实现 PNG 批量任务服务与安全调度`），包含16个文件变更及前序有损记录归档移动；暂存diff/空白检查通过，无构建产物或额外依赖。
 - `git push origin dev`成功，远端由7587c87前进至0f869d5；随后HEAD与origin/dev引用一致，功能代码推送完成时工作区干净。本条结果及索引随后作为文档收尾提交同步，不修改业务代码。
 - 本次未等待或核查新增批量提交的CI完成结果；三平台检查/构建结果仍需后续核实，不能将推送成功视为CI通过。
+
+## 2026-09-22 P2分析与开工
+
+- 用户要求深入分析并执行下一步。当前dev/HEAD与origin/dev为448b5bc，开工工作区干净；本轮不暂存、提交或推送，不修改参考仓库。
+- 实测CI run35706902280（448b5bc）：Ubuntu job106677986374、macOS job106677986858在Clippy阶段失败，均为png_batch.rs全局导入ProcessingError但仅Windows测试使用；Windows当时仍在检查。先将导入局部化，不豁免lint。修复后的跨平台结果需后续提交CI确认，不能因根因明确就写成已通过。
+- P1已有有界执行、取消/重试及安全提交；直接铺UI会重复实现文件、目录、拖放的识别和路径规则。因此本轮实施P2独立核心导入与规划，再由P3统一适配原生入口。JPEG/动画、UI、峰值RSS优化及安装包均不扩展。
+- 扫描与设置分离：只读扫描返回冻结的候选清单、结构识别属性、逐项反馈和扫描计数；坏输入独立反馈，空输入不建批次。取消/全局上限导致的部分结果可展示但不自动压缩；参数错误可在同一份完整清单上修正，不重新扫描。PNG扫描检查有界压缩字节和完整chunk结构/CRC/APNG标记，但不展开像素；最终解码仍在pipeline。
+- 遍历使用有界待处理集合，限制根数、目录条目、候选数、深度和累计读取字节；目录内排序，用户根顺序决定重叠输入的首次归属。规范化路径与文件身份去重；不跟随枚举到的符号链接/Windows reparse节点。身份句柄仅扫描期间持有，返回前释放。
+- 输出规则：原目录副本统一stem_compressed.png；指定目录可扁平或保留结构，目录根映射为目标/root_name/相对路径，单独文件置于目标根。同名根/扁平化重名明确拒绝，不自动编号覆盖。目标位于扫描树时允许规划，但先完成只读扫描，绝不边写边扫描。
+- 为不破坏既有Copy必须父目录存在的契约，新增显式CopyTree输出策略；只有output层在实际暂存阶段创建目标结构目录，规划不写磁盘。不会自动回收结构目录（取消/无收益可能留空目录），避免并发任务误删共有目录；最终副本仍noclobber。复用P1整批路径/身份冲突检查，提交时再次检查。
+- PixoFold临时/备份只按输出层统一保留名规则识别，并提供显式包含选项；不排除所有隐藏文件或_compressed图片。该命名空间识别不宣称能证明任意文件来源。
+- 验收重点：误扩展名、APNG两种布局、CRC/坏像素、嵌套/重叠/硬链接、空输入、取消与所有资源上限、链接/无权限反馈、生成产物排除、根重名/目标冲突、缺失子目录副本、批量覆盖备份、原图不变。
+
+### P2实际实现与关键取舍
+
+- 新增import/{model,scan,planning}：scan接受借用的文件/目录根列表，ImportScan只公开只读访问器，plan借用完整结果并固定BatchParameters。没有额外线程池、文件上传、IPC/TS DTO或UI改动；同步API供后续应用层有界后台任务使用。
+- 默认根数1000、候选1000、条目10000、目录深度32、累计读取1GiB；单文件沿用64MiB/16M像素等probe_limits。条目预算覆盖目录枚举与反馈，读取每64KiB检查取消；PNG只保留当前压缩文件，chunk结构与头部上限从既有probe解码路径抽出复用，不重写第二套PNG解析器。CRC正确的坏DEFLATE会成为候选，随后在pipeline解码失败，不将结构识别宣称为图片有效性证明。
+- 硬链接去重的same-file句柄只保留已接受候选，至多max_files个，返回前全部关闭；句柄耗尽等OS错误作为逐项失败，不宣称配置上限保证系统一定有足够句柄。路径、元数据、反馈按条目数有界，累计IO限额不是RSS预分配或峰值测量。取消无法强制中断正在进行的OS调用或单次CRC计算。
+- 深度优先遍历使用有界待处理集合而非函数递归；目录条目排序，根列表保留用户顺序，重叠根由首次归属决定输出布局。不跟随枚举到的链接/reparse节点，显式根尾分隔符/点组件在lstat前规范化。显式路径的祖先别名仍沿用现有canonicalize边界，这不是符号链接沙箱或文件系统CAS。
+- CopyBeside和CopyTo统一stem_compressed.png；原后缀不可信，因此真实PNG的.jpeg/无后缀输入也输出.png。保留结构将目录根名作为命名空间，不同根同名直接RootNameConflict，不因当前子文件未重名就悄悄合并；扁平重名由P1预检拒绝。输出目标位于输入树内时只在扫描结束后写入；已有普通副本仍视为普通输入，不笼统过滤_compressed。
+- 新增CopyTree是核心Rust OutputPolicy的显式变体，既有Copy仍要求父目录已存在；完整match的下游调用方需补新变体，TS DTO未变。output/paths集中复用比较键、reparse/叶名边界和树路径规则。结构目录只在output暂存阶段创建并复查；取消/无收益可能留下空结构目录，刻意不自动删以免与其他worker竞争。
+- 批次预检增加OutputHierarchy：一个计划产物不能同时成为另一个产物的目录。import通过crate内preview复用同一准入实现，不另写一份冲突逻辑；start仍复查，最后由output做noclobber/源文件与目标复核。选定根必须已存在，relative必须普通相对组件，不接受父路径逃逸。
+- 临时/备份保留名从output创建规则共享（.pixofold-output-六位ASCII字母数字.tmp / .pixofold-backup-六位ASCII字母数字.png），include_artifacts可显式包含。不能证明任意文件来源，用户文件恰好使用保留名也会被默认排除；反馈明确而非静默。普通隐藏图、非保留名及_compressed不排除。
+- 测试中首先发现HashMap借用键无法按OsStr查询祖先，改为拥有目标键；Clippy两处collapsible_if和一处多余clone按建议修正，无豁免。产物测试最初误将六字符family当非保留名，与已声明的六位规则冲突；改用family-photo验证非保留名边界，保留显式包含测试，不放宽真实产物匹配规则。
+- Windows新增19项png_import集成回归通过，包含真实junction/占用、结构目录并发、取消/无收益/晚目标冲突、导入后真实覆盖备份及坏像素最终失败；另编写Unix符号链接回归，尚未在本机运行。API示例为no_run编译型doctest。
+- 再查P1的run35706902280：Windows job106677986575已completed/success，Ubuntu和macOS保持失败；没有盲目重跑同一错误代码。ProcessingError已移入Windows测试函数，修复跨平台结果仍等待后续提交CI。
+- pnpm启动遇到沙箱ENOTCACHED，按规则提升重跑相同锁定命令；全套检查与Windows发布构建结果在交接时补记。
+
+### P2最终验证与交接
+
+- Windows `pnpm check`通过：Prettier/rustfmt、Oxlint、TypeScript严格检查、5项前端测试、32份PNG语料SHA256一致性、Rust/TS生成类型一致性、workspace全target/feature Clippy（-D warnings），以及73项Rust运行测试（13 core单元、1 app_info、7 png_batch、19 png_import、10 png_lossy、20 png_pipeline、3 quality_contract）。2项no_run doctest编译通过，不计入运行测试数。未跳过失败用例或添加lint豁免。
+- `pnpm tauri build --no-bundle --ci`通过：前端生产构建与Windows release桌面可执行文件 `target/release/pixofold.exe`。使用锁定pnpm 12.5.1及仓库便携Node，按沙箱规则申请权限后运行；没有生成安装包或启动GUI。
+- README新增导入API、资源/命名/规划边界及CopyTree兼容说明；AGENTS、架构方案、交互设计与devlog索引同步P2状态。原型、前端业务、Tauri命令/权限和TS DTO均未修改；compression_available继续为false，不能将核心完工宣称为可用桌面闭环。
+- 未验证范围：本轮修复与导入代码的远端CI、Unix符号链接运行、原生对话框/拖放、GUI主题语言和窗口适配、真实素材人工观感、1/2并发峰值RSS、安装包。P1 CI仅Windows成功；Ubuntu/macOS旧SHA失败记录保留，新修复必须提交后重新验收。
+- 工作区交接范围：新增 `src/import/{mod,model,scan,planning}.rs`、`src/output/paths.rs`、`tests/png_import.rs`（均位于crates/pixofold-core）；修改核心batch准入/错误、probe结构检查复用、OutputPolicy/output、lib入口及png_batch的平台导入；同步根README/AGENTS、架构/交互文档、devlog索引及本记录。无新增依赖、锁文件、fixtures或构建产物改动；不修改png-palettes。
+- 最终diff复核、已跟踪改动及6份新增文件的空白检查、6份变更文档内45个本地相对链接检查通过；暂存区为空，参考仓库工作区干净。统一检查后仅修改文档，因此未重复执行全套测试。
+
+下一步从P3应用级所有权开工：以现有import::scan/ImportScan::plan和BatchService为唯一核心入口，先完成单次导入/启动门闩、可取消后台扫描、参数修正状态与安全退出，再实现Rust DTO/TS生成、Channel先订阅后启动和快照恢复；最后接最小权限文件/目录/原生拖放入口。验收要覆盖双击/重复导入、扫描取消、参数修正只启动一次、窗口重挂载不重跑、断线可恢复和退出不遗留计算；核心与IPC模拟测试不替代Windows原生GUI操作。P4再承接既有原型，不另铺一次性演示页面。当前无用户决策阻塞；所有本轮改动留在工作区，未暂存、提交或推送。
+
+## 2026-09-22 P2提交与推送
+
+- 用户明确授权提交、推送。开工核对分支dev、HEAD 448b5bc及origin地址，改动与前轮P2交接范围一致，暂存区为空；没有发现无关改动，参考仓库仍干净。
+- 沿用前轮通过的Windows统一检查（73项Rust测试、2项编译型doctest、5项前端测试、32份语料校验）及release桌面构建。本次只补提交记录，不重复未变化业务代码的全套测试；提交前重新检查diff、6份新增文件空白及实际暂存范围。
+- 正常提交并推送origin/dev，不改写历史、不强推；包含P1平台专用测试导入修复，远端CI需以新SHA复验。实际提交号与推送结果在成功后补记，本次不开展P3开发。

@@ -131,7 +131,7 @@ pub struct JobFailure {
     pub cause: Option<Arc<ProcessingError>>,
 }
 impl JobFailure {
-    pub(super) fn processing(error: ProcessingError) -> Self {
+    pub(crate) fn processing(error: ProcessingError) -> Self {
         let code = match &error {
             ProcessingError::InvalidLimits
             | ProcessingError::InvalidPath
@@ -265,6 +265,7 @@ pub enum PathConflictKind {
     DuplicateSource,
     DuplicateOutput,
     OutputIsInput,
+    OutputHierarchy,
 }
 
 /// 服务/准入失败尚未启动新任务；单文件处理失败则保留在 JobState 中。

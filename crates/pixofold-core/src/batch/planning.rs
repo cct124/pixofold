@@ -1,8 +1,9 @@
 //! 整批只读准入：复用输出层路径边界，检查跨任务冲突，不持有源句柄进入编码。
 
-use std::{collections::HashMap, ffi::OsString, fs, path::Path};
+use std::{collections::HashMap, ffi::OsString, fs};
 
 use super::{Job, model::*};
+use crate::output::paths::key;
 use crate::{
     model::{ByteCount, OutputPolicy, PngMode, PngRequest, ProcessingError},
     output, quality,
@@ -44,19 +45,6 @@ struct Paths {
     copy: bool,
 }
 
-fn key(path: &Path) -> OsString {
-    #[cfg(windows)]
-    // 仅用于保守冲突判定，绝不用于I/O。大小写敏感目录也保守拒绝折叠后重名。
-    // 非Unicode名称会保守合并；原始OsString路径始终原样保留给输出层。
-    {
-        path.as_os_str().to_string_lossy().to_uppercase().into()
-    }
-    #[cfg(not(windows))]
-    {
-        path.as_os_str().to_owned()
-    }
-}
-
 pub(super) fn prepare(
     requests: Vec<PngRequest>,
     budget: ByteCount,
@@ -86,35 +74,31 @@ pub(super) fn prepare(
             }
         };
         let mut copy_identity = None;
-        let copy = matches!(request.output, OutputPolicy::Copy { .. });
-        let target = if let OutputPolicy::Copy { destination } = &mut request.output {
-            match output::absolute_leaf(destination) {
-                Ok(path) => {
-                    *destination = path;
-                    match fs::symlink_metadata(&*destination) {
-                        Ok(_) => {
-                            // 已有目标无条件失败；身份仅补充硬链接诊断，读取失败也不会放行。
-                            copy_identity = same_file::Handle::from_path(&*destination).ok();
-                            failure.get_or_insert_with(|| {
-                                JobFailure::processing(ProcessingError::TargetConflict)
-                            });
-                        }
-                        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-                        Err(e) => {
-                            failure.get_or_insert_with(|| {
-                                JobFailure::processing(ProcessingError::io("检查批量目标", e))
-                            });
-                        }
+        let copy = !matches!(request.output, OutputPolicy::Overwrite);
+        let target = match output::paths::copy_destination(&mut request.output) {
+            Ok(Some(destination)) => {
+                match fs::symlink_metadata(&destination) {
+                    Ok(_) => {
+                        // 已有目标无条件失败；身份仅补充硬链接诊断，读取失败也不会放行。
+                        copy_identity = same_file::Handle::from_path(&destination).ok();
+                        failure.get_or_insert_with(|| {
+                            JobFailure::processing(ProcessingError::TargetConflict)
+                        });
                     }
-                    Some(key(destination))
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(e) => {
+                        failure.get_or_insert_with(|| {
+                            JobFailure::processing(ProcessingError::io("检查批量目标", e))
+                        });
+                    }
                 }
-                Err(e) => {
-                    failure.get_or_insert_with(|| JobFailure::processing(e));
-                    None
-                }
+                Some(key(&destination))
             }
-        } else {
-            source.clone()
+            Ok(None) => source.clone(),
+            Err(e) => {
+                failure.get_or_insert_with(|| JobFailure::processing(e));
+                None
+            }
         };
         let parameters = BatchParameters {
             mode: request.mode,
@@ -170,12 +154,20 @@ pub(super) fn prepare(
             return Err(conflict(first, i, PathConflictKind::DuplicateSource));
         }
         if let Some(target) = &path.target
-            && let Some(first) = targets.insert(target, i)
+            && let Some(first) = targets.insert(target.clone(), i)
         {
             return Err(conflict(first, i, PathConflictKind::DuplicateOutput));
         }
     }
     for (i, path) in paths.iter().enumerate().filter(|(_, p)| p.copy) {
+        // CopyTree尚不存在的目录也可能是另一项的最终文件，不能等worker争抢创建才发现。
+        if let Some(target) = &path.target {
+            for ancestor in std::path::Path::new(target).ancestors().skip(1) {
+                if let Some(first) = targets.get(ancestor.as_os_str()) {
+                    return Err(conflict(*first, i, PathConflictKind::OutputHierarchy));
+                }
+            }
+        }
         let first = path
             .target
             .as_ref()

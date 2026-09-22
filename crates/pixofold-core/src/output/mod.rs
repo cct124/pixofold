@@ -2,6 +2,8 @@
 //! 不采用先删除源文件的回退；覆盖备份在成功和提交失败后均保留。
 //! 检查点不是文件系统 compare-and-swap；不承诺抵御恶意路径竞争或断电事务性。
 
+pub(crate) mod paths;
+
 use std::{
     fs::{self, File, Metadata},
     io::{self, Read, Write},
@@ -106,6 +108,7 @@ impl Source {
 pub(crate) struct Destination {
     pub path: PathBuf,
     overwrite: bool,
+    tree: Option<(PathBuf, PathBuf)>,
 }
 
 impl Destination {
@@ -121,21 +124,44 @@ impl Destination {
                 Ok(Self {
                     path: source.path.clone(),
                     overwrite: true,
+                    tree: None,
                 })
             }
-            OutputPolicy::Copy { destination } => {
-                let path = absolute_leaf(destination)?;
+            OutputPolicy::Copy { .. } | OutputPolicy::CopyTree { .. } => {
+                let mut policy = policy.clone();
+                let path =
+                    paths::copy_destination(&mut policy)?.ok_or(ProcessingError::InvalidPath)?;
                 ensure_absent(&path)?;
+                let tree = if let OutputPolicy::CopyTree { root, relative } = policy {
+                    Some((root, relative))
+                } else {
+                    None
+                };
                 Ok(Self {
                     path,
                     overwrite: false,
+                    tree,
                 })
             }
         }
     }
 
     pub fn stage(&self) -> Result<NamedTempFile, ProcessingError> {
-        new_temp(parent(&self.path)?, ".pixofold-output-", ".tmp")
+        if let Some((root, relative)) = &self.tree
+            && paths::tree_path(root, relative, true)? != self.path
+        {
+            return Err(ProcessingError::TargetConflict);
+        }
+        new_temp(parent(&self.path)?, paths::OUTPUT_PREFIX, ".tmp")
+    }
+
+    fn verify_tree(&self) -> Result<(), ProcessingError> {
+        if let Some((root, relative)) = &self.tree
+            && paths::tree_path(root, relative, false)? != self.path
+        {
+            return Err(ProcessingError::TargetConflict);
+        }
+        Ok(())
     }
 }
 
@@ -196,9 +222,10 @@ pub(crate) fn commit(
     let mut backup = None;
     let prepared = (|| {
         cancel.check()?;
+        destination.verify_tree()?;
         source.verify_unchanged(limits)?;
         if destination.overwrite {
-            let mut file = new_temp(parent(&source.path)?, ".pixofold-backup-", ".png")?;
+            let mut file = new_temp(parent(&source.path)?, paths::BACKUP_PREFIX, ".png")?;
             if let Err(error) = write_candidate(&mut file, &source.bytes, &source) {
                 return Err(discard(file, error));
             }
@@ -218,6 +245,7 @@ pub(crate) fn commit(
         }
         source.verify_unchanged(limits)?;
         if !destination.overwrite {
+            destination.verify_tree()?;
             ensure_absent(&destination.path)?;
         }
         cancel.check()?;
@@ -311,6 +339,7 @@ fn new_temp(
     Builder::new()
         .prefix(prefix)
         .suffix(suffix)
+        .rand_bytes(paths::RANDOM_LEN)
         .tempfile_in(directory)
         .map_err(|e| ProcessingError::io("创建独占临时文件", e))
 }
@@ -321,15 +350,7 @@ fn parent(path: &Path) -> Result<&Path, ProcessingError> {
 
 pub(crate) fn absolute_leaf(path: &Path) -> Result<PathBuf, ProcessingError> {
     let leaf = path.file_name().ok_or(ProcessingError::InvalidPath)?;
-    #[cfg(windows)]
-    {
-        use std::os::windows::ffi::OsStrExt;
-        let units: Vec<_> = leaf.encode_wide().collect();
-        // 不将 NTFS 备用数据流或 Win32 尾随字符别名当作独立图片输出。
-        if units.contains(&u16::from(b':')) || matches!(units.last(), Some(32 | 46)) {
-            return Err(ProcessingError::InvalidPath);
-        }
-    }
+    paths::validate_leaf(leaf)?;
     let directory = parent(path)?;
     let directory = if directory.as_os_str().is_empty() {
         Path::new(".")
@@ -345,16 +366,8 @@ pub(crate) fn absolute_leaf(path: &Path) -> Result<PathBuf, ProcessingError> {
 pub(crate) fn regular_metadata(path: &Path) -> Result<Metadata, ProcessingError> {
     let metadata =
         fs::symlink_metadata(path).map_err(|e| ProcessingError::io("读取文件属性", e))?;
-    if !metadata.is_file() || metadata.file_type().is_symlink() {
+    if !metadata.is_file() || paths::is_link(&metadata) {
         return Err(ProcessingError::InvalidPath);
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::MetadataExt;
-        const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
-        if metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
-            return Err(ProcessingError::InvalidPath);
-        }
     }
     Ok(metadata)
 }

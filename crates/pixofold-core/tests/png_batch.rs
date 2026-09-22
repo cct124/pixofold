@@ -2,10 +2,7 @@
 
 use pixofold_core::{
     batch::*,
-    model::{
-        ByteCount, OutputPolicy, PngMode, PngProcessing, ProcessingError, ProcessingOutcome,
-        QualityValue,
-    },
+    model::{ByteCount, OutputPolicy, PngMode, PngProcessing, ProcessingOutcome, QualityValue},
 };
 use std::{
     fs,
@@ -338,6 +335,7 @@ fn missing_sources_and_decode_limits_are_per_job_failures_and_retryable() {
 #[cfg(windows)]
 #[test]
 fn commit_failure_retains_recoverable_backup_in_job_error_and_retry_does_not_remove_it() {
+    use pixofold_core::model::ProcessingError;
     use std::os::windows::fs::OpenOptionsExt;
     let dir = tempfile::tempdir().unwrap();
     let (src, original) = source(dir.path(), "source.png", "rgb8.png");

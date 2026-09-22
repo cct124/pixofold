@@ -94,7 +94,11 @@ pub(crate) fn chunks(data: &[u8]) -> Result<Vec<Chunk<'_>>, ProcessingError> {
     Err(ProcessingError::InvalidPng("缺少 IEND"))
 }
 
-pub(crate) fn decode(data: &[u8], limits: ResourceLimits) -> Result<DecodedPng, ProcessingError> {
+/// 导入用结构预检：检查全部chunk/CRC及头部资源上限，不解压像素或声称像素有效。
+pub(crate) fn inspect_structure(
+    data: &[u8],
+    limits: ResourceLimits,
+) -> Result<ImageInfo, ProcessingError> {
     limits.validate()?;
     if data.len() as u64 > limits.max_input_bytes.0 {
         return Err(ProcessingError::ResourceLimit("输入文件字节数"));
@@ -136,6 +140,17 @@ pub(crate) fn decode(data: &[u8], limits: ResourceLimits) -> Result<DecodedPng, 
     if decoded_bytes > limits.max_decoded_bytes.0 {
         return Err(ProcessingError::ResourceLimit("解码像素字节数"));
     }
+    Ok(ImageInfo {
+        width,
+        height,
+        bit_depth: header[8],
+        color_type,
+        interlaced: header[12] == 1,
+    })
+}
+
+pub(crate) fn decode(data: &[u8], limits: ResourceLimits) -> Result<DecodedPng, ProcessingError> {
+    let info = inspect_structure(data, limits)?;
     let mut decoder = png::Decoder::new(Cursor::new(data));
     decoder.set_limits(png::Limits {
         bytes: limits.max_decoded_bytes.0 as usize,
@@ -158,16 +173,7 @@ pub(crate) fn decode(data: &[u8], limits: ResourceLimits) -> Result<DecodedPng, 
     let frame = reader.next_frame(&mut pixels).map_err(decode_error)?;
     pixels.truncate(frame.buffer_size());
     reader.finish().map_err(decode_error)?;
-    Ok(DecodedPng {
-        info: ImageInfo {
-            width,
-            height,
-            bit_depth: header[8],
-            color_type,
-            interlaced: header[12] == 1,
-        },
-        pixels,
-    })
+    Ok(DecodedPng { info, pixels })
 }
 
 fn decode_error(error: png::DecodingError) -> ProcessingError {

@@ -2,7 +2,7 @@
 
 基于 Tauri、React 和 Rust 的本地批量图片压缩工具，计划支持 PNG、JPEG、GIF 和 APNG，由 png-palettes 重构演进。
 
-当前已建立 **Tauri 2 + React + TypeScript + Rust workspace 脚手架**，实现可独立调用的 **静态 PNG 无损/有损核心及纯 Rust 批量任务服务**：内容识别、资源限制、版本化质量映射、保护性无损回退、真实产物验证、覆盖备份、副本提交，以及显式文件列表的有界执行、快照、取消和重试。桌面仍为工程启动页，包含亮暗主题、中英文、偏好持久化和构建信息 IPC；**目录导入、桌面压缩 IPC 与正式业务界面尚未实现。** 单文件核心已通过三平台 CI；新增批量服务目前只完成 Windows 本机验证，具体证据见开发记录。
+当前已建立 **Tauri 2 + React + TypeScript + Rust workspace 脚手架**，实现可独立调用的 **静态 PNG 无损/有损核心、纯 Rust 批量任务服务及统一导入/输出规划**：内容识别、资源限制、版本化质量映射、保护性无损回退、真实产物验证、覆盖备份，以及文件/目录扫描、去重、有界执行、快照、取消和重试。桌面仍为工程启动页，包含亮暗主题、中英文、偏好持久化和构建信息 IPC；**原生导入入口、桌面压缩 IPC 与正式业务界面尚未接通。** 单文件核心已通过三平台 CI；批量代码的 Windows CI 通过，Ubuntu/macOS 的测试导入问题已在工作区修复、待 CI 复验；新增核心导入完成 Windows 本机验证，具体证据见开发记录。
 
 UI 设计与可交互 HTML 原型保留作为实现依据：质量采用 0–100 连续滑块和精细输入，默认 80；当前质量描述以纯文字显示在标题行右侧。
 
@@ -94,7 +94,7 @@ cargo run -p pixofold-core --release --locked --example optimize_png -- path/to/
 - 16-bit、ICC/cHRM/HDR、依赖原始表示的 sBIT/bKGD 等元数据保守回退；不隐式降位深或删除颜色信息。支持有效 gAMA 和 sRGB，保留适用元数据及其 IDAT 前后位置。纯透明 alpha=0、不透明 alpha=255 必须保持；半透明仍在 1–254 且 alpha 误差不超过 8。有损不承诺透明像素的隐藏 RGB 不变。
 - `PngRequest::new` 继续默认无损，显式设置 `PngMode::Lossy` 才进行量化；`QualityValue` 默认 80。产品界面默认有损 80 的设计尚未接入。报告区分实际量化、保护性回退与无收益，并返回输入/实际输出属性。
 - 默认请求采用原图覆盖，但每次成功覆盖都保留同目录 `.pixofold-backup-*.png` 原始备份，路径在结果中返回，核心不会自动删除。提交失败也返回备份路径。确认新图可用后再由用户处理备份。
-- 副本必须给出完整新路径、父目录必须存在，同名、目录或链接冲突均拒绝；无收益不创建最终副本或备份。只读输入允许另存，副本不继承只读属性。
+- `OutputPolicy::Copy` 副本必须给出完整新路径、父目录必须存在，同名、目录或链接冲突均拒绝；新增的 `CopyTree` 显式允许输出层在既有目标根内创建结构目录，契约见下方导入入口。无收益不创建最终副本或备份；只读输入允许另存，副本不继承只读属性。
 - 输入默认 64 MiB，单个解码缓冲区 128 MiB，16M 像素、单边 16384；有损 RGBA 展开另按缓冲区上限检查。单文件同步、编码器单线程；oxipng 有 30 秒软期限，imagequant 在进度回调协作取消，但无硬超时。这不是进程硬内存限额或即时取消保证；批量调用由下述任务服务额外限制文件并发和估算工作集。
 - 无损/有损单文件核心均已通过 Windows 本机及三平台 CI 核心文件测试/桌面构建。文件同步不等于目录元数据的断电事务；源文件关闭到替换仍有外部竞争窗口，不承诺网络文件系统、特殊 ACL/ADS、xattr 或断电恢复。正式桌面接入前继续平台和真实业务样本验收。
 
@@ -102,7 +102,7 @@ cargo run -p pixofold-core --release --locked --example optimize_png -- path/to/
 
 ## 纯 Rust 批量开发入口
 
-`batch::BatchService` 接收 `BatchRequest { items, parameters }`，每项显式提供源路径与 `OutputPolicy`。API 用法及可编译示例见 [服务入口](crates/pixofold-core/src/batch/mod.rs)，真实混合批次及备份回归见 [集成测试](crates/pixofold-core/tests/png_batch.rs)。不扫描目录、不生成副本文件名、不连接窗口；核心参数默认无损，产品有损 80 仍由后续适配层显式传入。
+`batch::BatchService` 接收 `BatchRequest { items, parameters }`，每项显式提供源路径与 `OutputPolicy`。API 用法及可编译示例见 [服务入口](crates/pixofold-core/src/batch/mod.rs)，真实混合批次及备份回归见 [集成测试](crates/pixofold-core/tests/png_batch.rs)。服务本身不扫描目录、不生成副本文件名、不连接窗口；文件/目录入口由下一节的 `import` 模块提供。核心参数默认无损，产品有损 80 仍由后续适配层显式传入。
 
 | API | 契约 |
 | --- | --- |
@@ -114,11 +114,25 @@ cargo run -p pixofold-core --release --locked --example optimize_png -- path/to/
 | `shutdown` / `Drop` | 服务自身取消并锁外等待所有线程；无法硬中断的编码可能延长退出。显式关闭可返回基础设施错误。 |
 
 - 默认 1 worker、最多 1000 行、4 GiB **估算准入预算**；可配置 worker 为 1–32、行数为 1–100000，预算必须非零。估算按请求上限计算：`8×max_input_bytes + 8×max_decoded_bytes + 有损时128×max_pixels + 16 MiB`。预算不实际预分配，也不是进程 RSS 上限；没有峰值 RSS 实测前不提高默认并发。默认有损上限下，即使配置两个 worker 也可能因预算而串行。
-- 预检拒绝重复源/硬链接、重复目标及输出覆盖其他输入；单项坏文件、目标已存在、超预算等独立失败，不中断其余项。预检关闭全部身份句柄后才编码，最终文件仍仅由 output 层复查和提交。Windows 比较键保守折叠大小写，可能过度拒绝；其他平台不存在的目标别名可能直到最终提交才冲突，不承诺跨文件系统预检完全一致或抵御外部路径竞争。
+- 预检拒绝重复源/硬链接、重复目标、输出覆盖其他输入，以及一个计划产物同时成为另一产物父目录；单项坏文件、目标已存在、超预算等独立失败，不中断其余项。预检关闭全部身份句柄后才编码，最终文件仍仅由 output 层复查和提交。Windows 比较键保守折叠大小写，可能过度拒绝；其他平台不存在的目标别名可能直到最终提交才冲突，不承诺跨文件系统预检完全一致或抵御外部路径竞争。
 - 单项执行异常转为失败并释放预算；`WorkerPanicked` 的文件结果未知，需先检查源/目标/备份。锁故障停止接纳但仍可读快照；`CleanupFailed` 保留原始错误和残留路径，不伪装成成功取消。
 - 汇总仅成功项计节省量，其余保留源大小；未知大小/溢出返回 `None`。阶段与数量不是耗时百分比。批量模型保留 `PathBuf`、`Duration` 和错误上下文，**不是 IPC DTO**，TS 生成文件本阶段不变。
 
-本阶段 Windows 通过新增 19 项批量回归及 1 项编译型 doctest；目录扫描、Tauri DTO/订阅和正式界面依次见 [批量桌面计划](docs/devlog/_plan/260922/png-batch-desktop.md)。
+P1 新增的 19 项批量回归及 1 项编译型 doctest 在本轮 Windows 检查中继续通过；后续 Tauri DTO/订阅和正式界面见 [批量桌面计划](docs/devlog/_plan/260922/png-batch-desktop.md)。
+
+## 纯 Rust 导入与输出规划入口
+
+调用链为 `import::scan` → `ImportScan::plan` → `BatchService::start` → 原有 pipeline/output。用法见 [导入入口与可编译示例](crates/pixofold-core/src/import/mod.rs)，隔离目录的真实闭环见 [导入集成测试](crates/pixofold-core/tests/png_import.rs)。扫描与规划均为同步、只读 API，后续 Tauri 必须在有界后台任务中调用，不能阻塞 UI。
+
+- 文件与目录列表共用入口，目录内排序、根列表按传入顺序；重叠目录和已接受候选的硬链接去重，以首次归属决定输出布局。不跟随叶节点或枚举节点的符号链接/Windows reparse；显式祖先别名仍沿用规范化边界，不是文件系统沙箱。
+- 显式根硬上限为 1000，且不得超过条目限制；默认 1000 个候选、10000 个发现条目、32 层目录及累计读取 1 GiB，单文件沿用 64 MiB 等资源限制。候选数可设 1–100000、条目数 1–1000000、深度 0–256（0 允许根目录直接文件），累计读取预算须非零。条目与每 64 KiB 读取边界检查取消；一次只保留一张图片的压缩数据，不展开像素。句柄数量有界但仍可能受系统限制，OS 调用和单次 CRC 不能硬中断。
+- 按内容识别静态 PNG，检查 chunk/CRC、头部资源上限并拒绝 APNG；JPEG/GIF/WebP 等明确反馈未支持。扫描候选不是完整解码成功的保证，坏像素数据仍可能在流水线失败；逐项错误不阻断其他条目。
+- 仅完整扫描且有候选时允许规划。取消或触及全局限制返回可展示的部分结果，**不得自动启动部分批次**；空输入不建立批次。参数/目标预检失败保留冻结清单，修正后可重新规划；冻结的是路径与归属，不锁定文件内容，实际处理仍重新校验。
+- `Overwrite` 保持覆盖备份契约；`CopyBeside` 输出到原目录；`CopyTo` 支持指定目录的扁平或 `PreserveRoots` 布局。副本统一为 `stem_compressed.png`，不沿用误导性扩展名；保留结构时为 `目标/导入根名/相对父目录/副本名`，单独文件直接放目标根。无名称的文件系统根使用 `_root`。不同根同名、扁平重名、输出与输入交叉均拒绝，不自动编号或覆盖。
+- 选定目标根必须已存在；`OutputPolicy::CopyTree { root, relative }` 只接受普通相对组件，规划不创建目录。只有 output 暂存阶段创建必要子目录，最终仍执行 noclobber；取消/失败/无收益可能保留空结构目录，避免并发任务误删共有目录。旧 `Copy` 契约不变；Rust 下游完整匹配 `OutputPolicy` 时需处理新增变体，IPC/TS 类型未变。
+- 默认排除输出层保留名：`.pixofold-output-` + 六位 ASCII 字母数字 + `.tmp`，以及 `.pixofold-backup-` + 六位 ASCII 字母数字 + `.png`；可用 `include_artifacts` 显式包含。命名匹配不是来源证明，合法用户文件恰好使用保留名也会收到排除反馈；普通隐藏图和 `_compressed` 图片不排除。目标在输入树内时，必须先扫描结束，再开始写产物。
+
+P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；Unix 符号链接用例已编写，尚待远端平台运行。
 
 ## 工程边界
 
@@ -140,7 +154,7 @@ docs/                       方案、HTML 原型和开发交接
 
 Rust DTO 通过可选 `bindings` feature 使用 ts-rs 12 生成 TypeScript，普通核心与桌面发布不启用该工具。TypeScript 7 超过当前 typescript-eslint 的声明兼容范围，因此采用 Oxlint 做 lint，并由 TypeScript 编译器执行严格类型检查。
 
-2026-09-21 脚手架已通过冻结安装、统一检查、Windows 可执行文件构建/启动及浏览器外观交互验证。2026-09-22 无损提交 `3f6c617`、包含有损功能的 `ab9b2bb` 分别通过 Windows、macOS、Ubuntu 的 CI 统一检查和桌面构建。新增批量代码通过 Windows `pnpm check`（54 项 Rust 测试、1 项编译型 doctest、5 项前端测试及 32 份语料清单）及 `pnpm tauri build --no-bundle --ci`；尚无本轮批量代码的远端 CI。本轮未重新执行 GUI 视觉/运行验收，安装包仍未验证。完整证据与后续交接见 [开发记录](docs/devlog/README.md)。
+2026-09-21 脚手架已通过冻结安装、统一检查、Windows 可执行文件构建/启动及浏览器外观交互验证。2026-09-22 无损提交 `3f6c617`、包含有损功能的 `ab9b2bb` 分别通过三平台 CI 统一检查和桌面构建。包含 P1 批量功能的 `448b5bc` 在 CI run `35706902280` 中 Windows 成功，Ubuntu/macOS 因 Windows 专用测试导入在其他平台未使用而触发 Clippy 失败；导入局部化修复尚未提交，需 CI 复验。本轮含 P2 的 Windows `pnpm check` 通过（73 项 Rust 测试、2 项编译型 doctest、5 项前端测试及 32 份语料清单），`pnpm tauri build --no-bundle --ci` 通过。本轮未执行 GUI 视觉/运行验收、峰值 RSS 实测或安装包验证，不能将本机结果写成新代码的三平台验收。完整证据与后续交接见 [开发记录](docs/devlog/README.md)。
 
 ## 项目方案
 
