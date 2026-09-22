@@ -1,0 +1,248 @@
+{
+  "source": "PixoFold 自生成；GPL-3.0-or-later；无私人图片或外部素材",
+  "generator": "tests/fixtures/generate.mjs",
+  "fixtures": [
+    {
+      "file": "rgb8.png",
+      "bytes": 9332,
+      "sha256": "0900f4a4ad5844fa48ff4673d1b25910dae434fd8b4d5b09ec35bee29f9c8243",
+      "expected": "static",
+      "width": 64,
+      "height": 48,
+      "color": 2,
+      "depth": 8
+    },
+    {
+      "file": "rgba8.png",
+      "bytes": 12404,
+      "sha256": "26357365a264f3171bd05984407ff2b80c5ddfc473484d9ca280d12e28b9fe47",
+      "expected": "static",
+      "width": 64,
+      "height": 48,
+      "color": 6,
+      "depth": 8
+    },
+    {
+      "file": "gray8.png",
+      "bytes": 3188,
+      "sha256": "7f071a6df46db477fc8ccbd7e793a01e2c2788d03ea70f16cb94ce05e6c580be",
+      "expected": "static",
+      "width": 64,
+      "height": 48,
+      "color": 0,
+      "depth": 8
+    },
+    {
+      "file": "gray16.png",
+      "bytes": 6260,
+      "sha256": "493952bfb72bc70060960074c7bb8f28fef70b609c3b9b3cc1604446ae55cdd9",
+      "expected": "static",
+      "width": 64,
+      "height": 48,
+      "color": 0,
+      "depth": 16
+    },
+    {
+      "file": "gray-alpha8.png",
+      "bytes": 6260,
+      "sha256": "90f1444d32633b4e67a5bea456575f87af3bfe4282955d9855b1813ac7ee12e3",
+      "expected": "static",
+      "width": 64,
+      "height": 48,
+      "color": 4,
+      "depth": 8
+    },
+    {
+      "file": "gray-alpha16.png",
+      "bytes": 12404,
+      "sha256": "9d9e4def75f64c05f031a1641fea0d5d23bbab33c05661799e86b5d045c88a45",
+      "expected": "static",
+      "width": 64,
+      "height": 48,
+      "color": 4,
+      "depth": 16
+    },
+    {
+      "file": "rgb16.png",
+      "bytes": 18548,
+      "sha256": "f8c4efdd909f051aa012dece4f9f37854374401cc2e9a1cbf0f2284dfe472004",
+      "expected": "static",
+      "width": 64,
+      "height": 48,
+      "color": 2,
+      "depth": 16
+    },
+    {
+      "file": "rgba16.png",
+      "bytes": 24692,
+      "sha256": "4887c8a2962c1d4ec856809545e1e2797743a8df55a972761bac3dc1e89902ba",
+      "expected": "static",
+      "width": 64,
+      "height": 48,
+      "color": 6,
+      "depth": 16
+    },
+    {
+      "file": "indexed1.png",
+      "bytes": 532,
+      "sha256": "fd10d87c549fb1738eb22bf39f1c905089394ffd188add7d0c29fbd6765b4b5f",
+      "expected": "static",
+      "width": 64,
+      "height": 48,
+      "color": 3,
+      "depth": 1
+    },
+    {
+      "file": "indexed2.png",
+      "bytes": 924,
+      "sha256": "5dedef350b4425d4b2b383f8ce3436e3e330b96a9af95e5fb4c29823dfdc39a5",
+      "expected": "static",
+      "width": 64,
+      "height": 48,
+      "color": 3,
+      "depth": 2
+    },
+    {
+      "file": "indexed4.png",
+      "bytes": 1740,
+      "sha256": "6dbec50eb2a79ea330b80044f1565ae24d7f73680e9b69b2435bad9648e356ea",
+      "expected": "static",
+      "width": 64,
+      "height": 48,
+      "color": 3,
+      "depth": 4
+    },
+    {
+      "file": "indexed8.png",
+      "bytes": 4236,
+      "sha256": "5620e95d5228c7aa5e69af4b67bb951bc756f08620726fa644baf3a11b1d9736",
+      "expected": "static",
+      "width": 64,
+      "height": 48,
+      "color": 3,
+      "depth": 8
+    },
+    {
+      "file": "gray1.png",
+      "bytes": 500,
+      "sha256": "1d1b99dfd7119adf5a88de5dfc8b064fff9b4693847d4fce215a45ed95d9f20b",
+      "expected": "static",
+      "width": 64,
+      "height": 48,
+      "color": 0,
+      "depth": 1
+    },
+    {
+      "file": "adam7-rgba8.png",
+      "bytes": 12446,
+      "sha256": "018e31df71422fda2186d191520681bd111e6dee13902852219241f17319f3a4",
+      "expected": "static",
+      "width": 64,
+      "height": 48,
+      "color": 6,
+      "depth": 8,
+      "interlaced": true
+    },
+    {
+      "file": "display-metadata.png",
+      "bytes": 12537,
+      "sha256": "395647c99c0712dd62f5718f4c799b9b237b796a2defc29b50796781497a86a2",
+      "expected": "static",
+      "metadata": [
+        "gAMA",
+        "sRGB",
+        "pHYs",
+        "eXIf",
+        "tEXt"
+      ]
+    },
+    {
+      "file": "icc-rgb8.png",
+      "bytes": 9523,
+      "sha256": "e60023660bac26853d54c2a2aabb2153afecb92d3b6755c03085f3c8ffa23b49",
+      "expected": "static",
+      "metadata": [
+        "iCCP"
+      ]
+    },
+    {
+      "file": "trns-rgb8.png",
+      "bytes": 9350,
+      "sha256": "0407d3a01774e10b0e465ceffddc45ebbe79865e6eb1b4bcbcda678d50f215fb",
+      "expected": "static",
+      "metadata": [
+        "tRNS"
+      ]
+    },
+    {
+      "file": "trns-gray16.png",
+      "bytes": 6274,
+      "sha256": "9f31ef05448ea8de1a62a2a330297bf589e58730e5e1f1b361c0ab592d9fe681",
+      "expected": "static",
+      "metadata": [
+        "tRNS"
+      ]
+    },
+    {
+      "file": "already-optimized.png",
+      "bytes": 67,
+      "sha256": "a4d4c009619311d9b83904acfd62fe3b7f918c312522bbcc6ad51cdec4fd1edf",
+      "expected": "no-gain",
+      "width": 1,
+      "height": 1,
+      "depth": 8,
+      "color": 0
+    },
+    {
+      "file": "real-png.jpg",
+      "bytes": 9332,
+      "sha256": "0900f4a4ad5844fa48ff4673d1b25910dae434fd8b4d5b09ec35bee29f9c8243",
+      "expected": "static",
+      "note": "扩展名不能决定格式"
+    },
+    {
+      "file": "fake.png",
+      "bytes": 13,
+      "sha256": "c04bee9d659201c6647cbc29f7c2e1556b8370c54f4a50a32d84ceab2fddf6cd",
+      "expected": "unsupported-format"
+    },
+    {
+      "file": "truncated.png",
+      "bytes": 12399,
+      "sha256": "8db1689d82ad4839e2d77564a386eec5fa5b13b835f677b9c8bd40d7396c57e3",
+      "expected": "invalid"
+    },
+    {
+      "file": "bad-crc.png",
+      "bytes": 12404,
+      "sha256": "28c362fadd6ec102aa4c7b92b206aae1157e9fdb4d49a7d9126c98f7804c26e3",
+      "expected": "invalid"
+    },
+    {
+      "file": "trailing-data.png",
+      "bytes": 12414,
+      "sha256": "60ee58b23eb6959cfcac822ac3c7dc56e8581f28df07f6835dfc3cf0b48348f3",
+      "expected": "invalid"
+    },
+    {
+      "file": "bad-deflate.png",
+      "bytes": 61,
+      "sha256": "5df681bcb3972b5f817cececd9cb0dffa1e1d87c77a5b6f11bd87b901a051f2a",
+      "expected": "invalid"
+    },
+    {
+      "file": "animated.png",
+      "bytes": 24863,
+      "sha256": "89cfb34923010f9053977fb3e9892c3e86c180ebb1ce0a5f36e31474adea3259",
+      "expected": "unsupported-animation",
+      "frames": 2
+    },
+    {
+      "file": "animation-after-idat.png",
+      "bytes": 24825,
+      "sha256": "c2982ada2c3f98d329225a911ef415bf70c297ea9869f94a01a0d73df2ba3c9b",
+      "expected": "unsupported-animation",
+      "defaultImageSeparate": true
+    }
+  ]
+}

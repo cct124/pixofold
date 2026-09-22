@@ -2,7 +2,7 @@
 
 基于 Tauri、React 和 Rust 的本地批量图片压缩工具，计划支持 PNG、JPEG、GIF 和 APNG，由 png-palettes 重构演进。
 
-当前已建立 **Tauri 2 + React + TypeScript + Rust workspace 脚手架**：包含工程启动页、亮暗主题、中英文、偏好持久化、真实构建信息 IPC 与生成的 TypeScript 类型。**图片压缩、任务队列和正式业务界面尚未实现。**
+当前已建立 **Tauri 2 + React + TypeScript + Rust workspace 脚手架**，并实现了可独立调用的 **静态 PNG 严格无损单文件核心**：内容识别、资源限制、真实优化、完整解码验证、覆盖备份与副本提交。桌面仍为工程启动页，包含亮暗主题、中英文、偏好持久化和构建信息 IPC；**压缩尚未接入桌面，任务队列、有损与正式业务界面尚未实现。**
 
 UI 设计与可交互 HTML 原型保留作为实现依据：质量采用 0–100 连续滑块和精细输入，默认 80；当前质量描述以纯文字显示在标题行右侧。
 
@@ -22,6 +22,8 @@ HTML 原型采用导入即自动模拟的交互：空闲时显示中央识别区
 | TypeScript / Vite | 7.0.2 / 8.3.0 |
 | Zustand | 5.0.15 |
 | Oxlint / Prettier / Vitest | 1.83.0 / 3.9.8 / 5.0.1 |
+| oxipng / png（2026-09-22 核对） | 10.2.1 / 0.18.1 |
+| tempfile / same-file / crc32fast | 3.27.0 / 1.0.6 / 1.5.2 |
 
 Node 使用 Current 稳定版，版本记录于 `.node-version`；Rust 由 `rust-toolchain.toml` 固定，rustup 在工程目录运行时会选择该工具链。pnpm 版本由 `packageManager` 指定，只维护 `pnpm-lock.yaml`；Rust workspace 共用根目录的 `Cargo.lock`。所有直接依赖固定精确版本，间接依赖按兼容约束锁定。
 
@@ -68,8 +70,28 @@ pnpm desktop:dev
 | `pnpm tauri build --no-bundle --ci` | 构建桌面可执行文件，不生成安装包 |
 | `pnpm desktop:build` | 构建当前平台的应用和安装包 |
 | `cargo test -p pixofold-core --locked` | 独立测试核心，不需要 GUI |
+| `pnpm fixtures:check` | 只读重生成并核对 PNG 语料与 SHA256 清单 |
+| `cargo run -p pixofold-core --release --locked --example png_baseline` | 在隔离目录测量静态 PNG 体积与耗时基线 |
 
 Windows 可执行文件位于 `target/release/pixofold.exe`，安装包位于 `target/release/bundle/`。安装包工具可能需要首次联网下载；签名、自动更新与正式发行尚未配置。
+
+## 静态 PNG 核心开发入口
+
+Rust API 为 `pipeline::optimize_png`，不经过 Tauri，也不创建任务队列。手动运行必须显式选择输出策略：
+
+```powershell
+cargo run -p pixofold-core --release --locked --example optimize_png -- tests/fixtures/png/rgba8.png --copy output.png
+# 覆盖实验只使用自己复制到隔离目录的图片，不要覆盖已提交的 fixtures。
+cargo run -p pixofold-core --release --locked --example optimize_png -- path/to/test.png --overwrite
+```
+
+- 只接收真实静态 PNG，扩展名不是判断依据；APNG 明确拒绝。保留原始像素、位深、隐藏 RGB、调色板及全部非 IDAT chunk；未知不可安全搬运的元数据拒绝处理。
+- 默认请求采用原图覆盖，但每次成功覆盖都保留同目录 `.pixofold-backup-*.png` 原始备份，路径在结果中返回，核心不会自动删除。提交失败也返回备份路径。确认新图可用后再由用户处理备份。
+- 副本必须给出完整新路径、父目录必须存在，同名、目录或链接冲突均拒绝；无收益不创建最终副本或备份。只读输入允许另存，副本不继承只读属性。
+- 输入默认 64 MiB，单个解码缓冲区 128 MiB，16M 像素、单边 16384；单文件同步、编码器单线程、30 秒软期限。这不是进程硬内存限额或即时取消保证，后续任务服务必须限制文件并发。
+- 当前覆盖/故障语义仅在 Windows 本机验证；文件同步不等于目录元数据的断电事务。源文件关闭到替换仍有外部竞争窗口，不承诺网络文件系统、特殊 ACL/ADS、xattr 或断电恢复。正式桌面接入前继续平台验收。
+
+样本与再生成方式见 [语料说明](tests/fixtures/README.md)，实际基线、错误边界及后续动作见 [PNG 任务记录](docs/devlog/_plan/260921/png-core-foundation.md)。
 
 ## 工程边界
 
@@ -91,7 +113,7 @@ docs/                       方案、HTML 原型和开发交接
 
 Rust DTO 通过可选 `bindings` feature 使用 ts-rs 12 生成 TypeScript，普通核心与桌面发布不启用该工具。TypeScript 7 超过当前 typescript-eslint 的声明兼容范围，因此采用 Oxlint 做 lint，并由 TypeScript 编译器执行严格类型检查。
 
-本机已通过冻结依赖安装、`pnpm check`、Windows 可执行文件构建和后台启动检查（事件循环、窗口响应、WebView2）；浏览器另验证了亮暗主题、中英文、偏好恢复与窄窗口。CI 配置覆盖 Windows、macOS、Ubuntu；macOS/Linux、远端 CI 和安装包构建尚未实际验证。完整记录与后续交接见 [开发记录](docs/devlog/README.md)。
+2026-09-21 脚手架已通过冻结安装、统一检查、Windows 可执行文件构建/启动及浏览器外观交互验证。2026-09-22 新增 PNG 核心通过统一检查、最终 workspace Clippy/测试和 release 单文件基线；本轮未重新执行 GUI 视觉/运行验收。CI 配置覆盖 Windows、macOS、Ubuntu，但 macOS/Linux、远端 CI 和安装包尚未实际验证。完整证据与后续交接见 [开发记录](docs/devlog/README.md)。
 
 ## 项目方案
 
@@ -105,4 +127,4 @@ Rust DTO 通过可选 `bindings` feature 使用 ts-rs 12 生成 TypeScript，普
 
 除另有声明外，本项目依据 GNU General Public License 第 3 版或其后版本（`GPL-3.0-or-later`）发布，完整条款见 [LICENSE](LICENSE)。
 
-第三方组件保留各自的版权和许可声明，当前直接依赖见 [第三方组件说明](THIRD_PARTY_NOTICES.md)。计划中的 PNG/APNG 量化核心继续使用 imagequant；本阶段尚未接入任何压缩编码器或独立图片工具。
+第三方组件保留各自的版权和许可声明，当前直接依赖见 [第三方组件说明](THIRD_PARTY_NOTICES.md)。本阶段接入 oxipng / png，并通过 libdeflater 静态构建 libdeflate；未分发独立编码工具。PNG/APNG 有损量化核心 imagequant 尚待后续接入。

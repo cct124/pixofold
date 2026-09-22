@@ -1,7 +1,11 @@
 //! PixoFold 核心入口，不依赖 Tauri、窗口或前端状态。
-//! 当前只定义项目能力描述；扫描、编码与输出随后按模块接入。
+//! 静态 PNG 单文件处理独立于 IPC；桌面入口尚未开放压缩。
 
+mod codecs;
 pub mod model;
+mod output;
+pub mod pipeline;
+pub mod probe;
 
 use model::{AppInfo, ImageFormat};
 

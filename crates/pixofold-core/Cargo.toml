@@ -8,6 +8,11 @@ description = "PixoFold 独立图片处理核心"
 publish = false
 
 [dependencies]
+crc32fast.workspace = true
+oxipng.workspace = true
+png.workspace = true
+same-file.workspace = true
+tempfile.workspace = true
 serde.workspace = true
 ts-rs = { workspace = true, optional = true }
 

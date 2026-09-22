@@ -18,16 +18,18 @@
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint --deny-warnings src tools vite.config.ts vitest.config.ts",
-    "format": "prettier --write src tools *.json *.ts .github .oxlintrc.json && cargo fmt --all",
-    "format:check": "prettier --check src tools *.json *.ts .github .oxlintrc.json && cargo fmt --all -- --check",
+    "lint": "oxlint --deny-warnings src tools tests/fixtures/generate.mjs vite.config.ts vitest.config.ts",
+    "format": "prettier --write src tools tests/fixtures/generate.mjs *.json *.ts .github .oxlintrc.json && cargo fmt --all",
+    "format:check": "prettier --check src tools tests/fixtures/generate.mjs *.json *.ts .github .oxlintrc.json && cargo fmt --all -- --check",
+    "fixtures:generate": "node tests/fixtures/generate.mjs",
+    "fixtures:check": "node tests/fixtures/generate.mjs --check",
     "test": "vitest run",
     "test:watch": "vitest",
     "types:generate": "node tools/generate-bindings.mjs",
     "types:check": "node tools/generate-bindings.mjs --check",
     "rust:check": "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
     "rust:test": "cargo test --workspace --all-features --locked",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm types:check && pnpm rust:check && pnpm rust:test"
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm fixtures:check && pnpm types:check && pnpm rust:check && pnpm rust:test"
   },
   "dependencies": {
     "@tauri-apps/api": "2.11.1",

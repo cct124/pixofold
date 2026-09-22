@@ -2,7 +2,7 @@
 
 ## 项目与入口
 
-- PixoFold（轻图）是本地批量图片压缩工具，计划支持 PNG、JPEG、GIF、APNG，采用 GPL-3.0-or-later。已建立 Tauri 2、React、TypeScript 与独立 Rust 核心的脚手架；压缩引擎、任务队列及正式业务界面尚未实现。
+- PixoFold（轻图）是本地批量图片压缩工具，计划支持 PNG、JPEG、GIF、APNG，采用 GPL-3.0-or-later。已建立 Tauri 2、React、TypeScript 与独立 Rust 核心，并实现静态 PNG 严格无损单文件处理与备份输出；尚未接入桌面，任务队列、有损及正式业务界面尚未实现。已验证范围以 devlog 为准。
 - 从 [README.md](README.md) 了解项目；架构与引擎选型见[项目方案](docs/架构设计文档/pixofold-proposal.md)，交互规则见[UI 交互设计](docs/架构设计文档/ui-interaction-design.md)。
 - 界面以 [HTML 原型](docs/UI界面设计/PixoFold.html)及[原型说明](docs/UI界面设计/HTML原型说明.md)为准，生成的 UI 图片仅作历史参考。旧项目 png-palettes 用于参考，未经任务要求不修改。
 - 实际工具链与命令以 README、`package.json`、`rust-toolchain.toml` 为准；不把规划或未运行的跨平台 CI 写成已验证能力。

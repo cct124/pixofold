@@ -1,4 +1,8 @@
-//! IPC 可复用的数据模型。Rust 定义通过可选的 bindings 工具生成前端类型。
+//! 领域模型与 IPC 模型。只有 IPC DTO 通过 bindings 工具生成前端类型。
+
+mod compression;
+
+pub use compression::*;
 
 use serde::Serialize;
 
