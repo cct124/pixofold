@@ -319,7 +319,7 @@ fn parent(path: &Path) -> Result<&Path, ProcessingError> {
     path.parent().ok_or(ProcessingError::InvalidPath)
 }
 
-fn absolute_leaf(path: &Path) -> Result<PathBuf, ProcessingError> {
+pub(crate) fn absolute_leaf(path: &Path) -> Result<PathBuf, ProcessingError> {
     let leaf = path.file_name().ok_or(ProcessingError::InvalidPath)?;
     #[cfg(windows)]
     {
@@ -342,7 +342,7 @@ fn absolute_leaf(path: &Path) -> Result<PathBuf, ProcessingError> {
     Ok(directory.join(leaf))
 }
 
-fn regular_metadata(path: &Path) -> Result<Metadata, ProcessingError> {
+pub(crate) fn regular_metadata(path: &Path) -> Result<Metadata, ProcessingError> {
     let metadata =
         fs::symlink_metadata(path).map_err(|e| ProcessingError::io("读取文件属性", e))?;
     if !metadata.is_file() || metadata.file_type().is_symlink() {
