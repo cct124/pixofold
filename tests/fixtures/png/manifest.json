@@ -144,6 +144,61 @@
       "interlaced": true
     },
     {
+      "file": "gradient-rgb8.png",
+      "bytes": 73929,
+      "sha256": "a8d51470715260dc0cb17c5f3fc8f6cb36e1e7e49c347f2a208bb66f430c1e24",
+      "expected": "static",
+      "width": 192,
+      "height": 128,
+      "depth": 8,
+      "color": 2,
+      "purpose": "有损质量与透明边界校准"
+    },
+    {
+      "file": "gradient-rgba8.png",
+      "bytes": 98510,
+      "sha256": "b43ebb55bbfe030e494ea9be2ce7aa48f3383c836e436ae5d863eb841066f2e5",
+      "expected": "static",
+      "width": 192,
+      "height": 128,
+      "depth": 8,
+      "color": 6,
+      "purpose": "有损质量与透明边界校准"
+    },
+    {
+      "file": "gradient-binary-alpha.png",
+      "bytes": 98510,
+      "sha256": "86d733e4a09fa4b27f0135aa795259970bc8f31cd0d4bed70022bba45bc88840",
+      "expected": "static",
+      "width": 192,
+      "height": 128,
+      "depth": 8,
+      "color": 6,
+      "purpose": "有损质量与透明边界校准"
+    },
+    {
+      "file": "gradient-display.png",
+      "bytes": 74017,
+      "sha256": "9b3f4d3ec44b7b180c6f49160b46949017e2661e1c245286ace081a6772f2faa",
+      "expected": "static",
+      "width": 192,
+      "height": 128,
+      "depth": 8,
+      "color": 2,
+      "purpose": "有损质量与透明边界校准"
+    },
+    {
+      "file": "gradient-gamma.png",
+      "bytes": 73945,
+      "sha256": "0528a4fb5d38c6420b967fd438f00c441120cc180864cfd34857511c3e802841",
+      "expected": "static",
+      "width": 192,
+      "height": 128,
+      "depth": 8,
+      "color": 2,
+      "purpose": "有损质量与透明边界校准"
+    },
+    {
       "file": "display-metadata.png",
       "bytes": 12537,
       "sha256": "395647c99c0712dd62f5718f4c799b9b237b796a2defc29b50796781497a86a2",

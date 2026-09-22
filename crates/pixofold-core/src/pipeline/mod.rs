@@ -4,20 +4,21 @@
 use std::time::Instant;
 
 use crate::{
-    codecs::png,
+    codecs::{png, png_lossy},
     model::{
-        ByteCount, CancellationToken, PngRequest, ProcessingError, ProcessingOutcome,
-        ProcessingReport, ProcessingStage,
+        ByteCount, CancellationToken, PngProcessing, PngRequest, ProcessingError,
+        ProcessingOutcome, ProcessingReport, ProcessingStage,
     },
     output::{self, Destination, Source},
     probe,
 };
 
-/// 执行静态 PNG 严格无损处理，结果包含真实体积和耗时。
+/// 执行静态 PNG 处理，默认无损，有损按版本化质量映射生成候选；结果包含真实路径与回退原因。
 ///
 /// 只通过输出层写入临时产物并提交；无收益不生成副本或备份，覆盖必保留原始备份。
 /// 阶段回调在当前线程执行，应快速返回，不应 panic；没有虚构编码百分比。
-/// 编码不支持即时取消：等待编码返回后检查令牌，提交临界区内不再响应取消。
+/// imagequant 在进度回调协作取消；其他不可中断阶段等待返回后检查令牌。
+/// 取消不等于即时终止计算，提交临界区内不再响应取消。
 ///
 /// # Errors
 /// 非 PNG/APNG、损坏或资源超限、校验失败、取消、源变化、冲突和 I/O 失败均有独立错误。
@@ -37,15 +38,35 @@ pub fn optimize_png(
     let destination = Destination::plan(&source, &request.output)?;
     on_stage(ProcessingStage::Optimizing);
     cancel.check()?;
-    let candidate = png::optimize(&source.bytes, request.limits)?;
+    let candidate = png_lossy::prepare(
+        &source.bytes,
+        &decoded,
+        request.mode,
+        request.limits,
+        cancel,
+    )?;
     cancel.check()?;
+    // 量化器已对最终 palette/indices 做独立 RGBA 回读比较。落盘后以该候选为验证基准；
+    // 无损及回退仍必须与原始输入逐像素、逐元数据比较。
+    let quantized = matches!(candidate.processing, PngProcessing::Lossy { .. });
+    let expected = if quantized {
+        Some(probe::decode(&candidate.bytes, request.limits)?)
+    } else {
+        None
+    };
+    let output_image = expected.as_ref().unwrap_or(&decoded).info.clone();
+    let processing = candidate.processing;
     let mut temp = destination.stage()?;
     let validated = (|| {
-        output::write_candidate(&mut temp, &candidate, &source)?;
+        output::write_candidate(&mut temp, &candidate.bytes, &source)?;
         on_stage(ProcessingStage::Validating);
         cancel.check()?;
         let stored = output::read_candidate(&temp, request.limits)?;
-        png::validate(&source.bytes, &decoded, &stored, request.limits)?;
+        if let Some(expected) = &expected {
+            png::validate(&candidate.bytes, expected, &stored, request.limits)?;
+        } else {
+            png::validate(&source.bytes, &decoded, &stored, request.limits)?;
+        }
         source.verify_unchanged(request.limits)?;
         cancel.check()?;
         Ok(stored)
@@ -74,6 +95,8 @@ pub fn optimize_png(
     };
     Ok(ProcessingReport {
         image: decoded.info,
+        output_image,
+        processing,
         input_bytes,
         output_bytes,
         elapsed: started.elapsed(),

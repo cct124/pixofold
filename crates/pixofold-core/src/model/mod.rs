@@ -1,8 +1,10 @@
 //! 领域模型与 IPC 模型。只有 IPC DTO 通过 bindings 工具生成前端类型。
 
 mod compression;
+mod quality;
 
 pub use compression::*;
+pub use quality::*;
 
 use serde::Serialize;
 

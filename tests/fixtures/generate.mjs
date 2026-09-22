@@ -42,13 +42,24 @@ function makePng({
   before = [],
   after = [],
   level = 0,
+  pattern = 'tiles',
+  binaryAlpha = false,
 } = {}) {
   const samples = channels[color];
   const sample = (x, y, c) => {
+    if (binaryAlpha && ((color === 6 && c === 3) || (color === 4 && c === 1)))
+      return x < width / 4 ? 0 : 255;
     if ((color === 6 && c === 3) || (color === 4 && c === 1))
       return [0, 1, 85, 128, 254, 255][x % 6] * (depth === 16 ? 257 : 1);
     if (color === 3 || depth < 8) return (x + y) % (1 << depth);
-    const value = ((x % 8) * 19 + (y % 4) * 23 + c * 47) & 255;
+    // 整数确定性纹理：平滑底色叠加少量高频细节，不依赖平台浮点三角函数。
+    const detail =
+      (((Math.imul(x + c * 17, 73856093) ^ Math.imul(y + 31, 19349663)) >>> 0) % 17) - 8;
+    const gradient = Math.floor((x * (c + 1) * 173 + y * (3 - c) * 97) / (width + height));
+    const value =
+      pattern === 'gradient'
+        ? Math.max(0, Math.min(255, gradient + detail))
+        : ((x % 8) * 19 + (y % 4) * 23 + c * 47) & 255;
     return depth === 16 ? value * 256 + ((x * 3 + c * 7) & 255) : value;
   };
   const passes = adam7
@@ -187,6 +198,26 @@ const display = [
   chunk('pHYs', Buffer.concat([u32(3780), u32(3780), Buffer.from([1])])),
   chunk('eXIf', exif),
 ];
+for (const [name, color, binaryAlpha, metadata] of [
+  ['gradient-rgb8.png', 2, false, []],
+  ['gradient-rgba8.png', 6, false, []],
+  ['gradient-binary-alpha.png', 6, true, []],
+  ['gradient-display.png', 2, false, display],
+  ['gradient-gamma.png', 2, false, [chunk('gAMA', u32(50000))]],
+]) {
+  store(
+    name,
+    makePng({ width: 192, height: 128, color, pattern: 'gradient', binaryAlpha, before: metadata }),
+    {
+      expected: 'static',
+      width: 192,
+      height: 128,
+      depth: 8,
+      color,
+      purpose: '有损质量与透明边界校准',
+    },
+  );
+}
 store(
   'display-metadata.png',
   makePng({

@@ -10,6 +10,7 @@ license = "GPL-3.0-or-later"
 
 [workspace.dependencies]
 crc32fast = "=1.5.2"
+imagequant = { version = "=4.4.1", default-features = false }
 oxipng = { version = "=10.2.1", default-features = false }
 png = "=0.18.1"
 same-file = "=1.0.6"

@@ -9,6 +9,7 @@ PixoFold 自有代码采用 GPL-3.0-or-later；第三方组件适用其自身许
 | serde、serde_json | Rust 序列化与契约测试 | MIT OR Apache-2.0 |
 | ts-rs | 开发时生成 TypeScript 类型 | MIT |
 | oxipng 10.2.1 | 单线程 PNG 无损 IDAT 优化，关闭 binary / parallel / zopfli 默认功能 | MIT |
+| imagequant 4.4.1 | PNG 有损调色板量化，关闭默认 threads | GPL-3.0-or-later |
 | png 0.18.1、crc32fast 1.5.2 | 完整 PNG 解码验证、chunk CRC 校验 | MIT OR Apache-2.0 |
 | tempfile 3.27.0 | 独占临时文件与最终持久化 | MIT OR Apache-2.0 |
 | same-file 1.0.6 | 基于文件句柄复查源/临时路径身份 | Unlicense OR MIT |
@@ -21,4 +22,6 @@ PixoFold 自有代码采用 GPL-3.0-or-later；第三方组件适用其自身许
 
 应用图标沿用本仓库已确认的 PixoFold SVG 设计，桌面尺寸由 Tauri CLI 生成；本轮没有复制旧 png-palettes 业务代码。
 
-当前未引入 imagequant、MozJPEG、Gifsicle 等压缩引擎。准备正式发行时，应根据实际平台构建产物收集全部第三方版权与许可正文、必要通知和对应源码资料；本表不是完整发行许可清单。
+imagequant 来自 [ImageOptim/libimagequant](https://github.com/ImageOptim/libimagequant)，以锁定的 crates.io 源码依赖使用，未复制或修改其实现。其 COPYRIGHT 记载 Kornel Lesiński 的 GPLv3+ 改动及 Jef Poskanzer、Greg Roelofs 的原始许可/版权；分发时需保留完整 COPYRIGHT 和相应源码，不只保留本表。
+
+当前未引入 MozJPEG、Gifsicle 等其他格式压缩引擎。准备正式发行时，应根据实际平台构建产物收集全部第三方版权与许可正文、必要通知和对应源码资料；本表不是完整发行许可清单。

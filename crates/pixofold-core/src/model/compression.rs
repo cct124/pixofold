@@ -1,4 +1,6 @@
-//! 单文件无损处理契约；不引入队列状态或无损路径不需要的质量值。
+//! 单文件处理契约；无损/有损参数分离，不引入队列状态。
+
+use super::{PngMode, PngProcessing};
 
 use std::{
     fmt, io,
@@ -14,7 +16,7 @@ use std::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ByteCount(pub u64);
 
-/// 本阶段保留 PNG 的原始色型，不自动转为 RGBA 或索引色。
+/// PNG 源或实际输出的色型；无损保留色型，有损可能转为索引色。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PngColorType {
     Grayscale,
@@ -37,7 +39,7 @@ pub struct ImageInfo {
 /// 单文件资源上限，所有值须非零。不是操作系统级硬内存/时间配额。
 ///
 /// 默认输入 64 MiB、单个解码缓冲区 128 MiB、16M 像素、单边 16384；
-/// 编码器使用单线程及固定低强度预设，调用方仍须限制并行文件数。
+/// 编码器使用单线程及固定速度预设，调用方仍须限制并行文件数和总工作集。
 #[derive(Debug, Clone, Copy)]
 pub struct ResourceLimits {
     pub max_input_bytes: ByteCount,
@@ -82,12 +84,13 @@ pub enum OutputPolicy {
     },
 }
 
-/// 启动时固定的静态 PNG 无损请求。路径在执行时验证，默认覆盖原图。
+/// 启动时固定的静态 PNG 请求。路径在执行时验证，默认无损并覆盖原图。
 #[derive(Debug, Clone)]
 pub struct PngRequest {
     pub source: PathBuf,
     pub output: OutputPolicy,
     pub limits: ResourceLimits,
+    pub mode: PngMode,
 }
 
 impl PngRequest {
@@ -97,6 +100,7 @@ impl PngRequest {
             source: source.into(),
             output: OutputPolicy::default(),
             limits: ResourceLimits::default(),
+            mode: PngMode::Lossless,
         }
     }
 }
@@ -148,7 +152,10 @@ pub enum ProcessingOutcome {
 /// 真实文件大小与墙钟耗时；无收益时 output_bytes == input_bytes。
 #[derive(Debug, Clone)]
 pub struct ProcessingReport {
+    /// 源图片属性；有损输出色型与交错方式可能不同。
     pub image: ImageInfo,
+    pub output_image: ImageInfo,
+    pub processing: PngProcessing,
     pub input_bytes: ByteCount,
     pub output_bytes: ByteCount,
     pub elapsed: Duration,

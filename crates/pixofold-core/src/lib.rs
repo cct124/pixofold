@@ -6,6 +6,7 @@ pub mod model;
 mod output;
 pub mod pipeline;
 pub mod probe;
+pub mod quality;
 
 use model::{AppInfo, ImageFormat};
 

@@ -3,34 +3,50 @@
 use std::{env, error::Error, path::PathBuf, process::ExitCode};
 
 use pixofold_core::{
-    model::{CancellationToken, OutputPolicy, PngRequest, ProcessingError},
+    model::{CancellationToken, OutputPolicy, PngMode, PngRequest, ProcessingError, QualityValue},
     pipeline::optimize_png,
 };
 
 fn run() -> Result<(), Box<dyn Error>> {
-    let args: Vec<_> = env::args_os().skip(1).collect();
-    let output = match args.as_slice() {
-        [_, mode] if mode == "--overwrite" => OutputPolicy::Overwrite,
-        [_, mode, destination] if mode == "--copy" => OutputPolicy::Copy {
-            destination: PathBuf::from(destination),
-        },
-        _ => {
-            return Err(
-                "用法：optimize_png <源文件> --copy <新文件> | <源文件> --overwrite".into(),
-            );
+    let mut args = env::args_os().skip(1);
+    let source = args.next().ok_or("缺少源文件；用法：optimize_png <源文件> --copy <新文件> | --overwrite [--lossy 0..100 | --lossless]")?;
+    let mut output = None;
+    let mut mode = None;
+    while let Some(arg) = args.next() {
+        if arg == "--copy" && output.is_none() {
+            output = Some(OutputPolicy::Copy {
+                destination: PathBuf::from(args.next().ok_or("--copy 缺少目标文件")?),
+            });
+        } else if arg == "--overwrite" && output.is_none() {
+            output = Some(OutputPolicy::Overwrite);
+        } else if arg == "--lossless" && mode.is_none() {
+            mode = Some(PngMode::Lossless);
+        } else if arg == "--lossy" && mode.is_none() {
+            let value = args.next().ok_or("--lossy 缺少质量值")?;
+            let value = value
+                .to_str()
+                .ok_or("质量必须为 0–100 整数")?
+                .parse::<i32>()?;
+            mode = Some(PngMode::Lossy {
+                quality: QualityValue::new(value)?,
+            });
+        } else {
+            return Err("未知、重复或冲突的选项".into());
         }
-    };
-    let mut request = PngRequest::new(&args[0]);
-    request.output = output;
+    }
+    let mut request = PngRequest::new(source);
+    request.output = output.ok_or("必须显式选择 --copy 或 --overwrite")?;
+    request.mode = mode.unwrap_or_default();
     let report = optimize_png(&request, &CancellationToken::default(), |stage| {
         eprintln!("{stage:?}")
     })?;
     println!(
-        "{} -> {} bytes, {:.3} ms\n{:?}",
+        "{} -> {} bytes, {:.3} ms\n{:?}\n{:?}",
         report.input_bytes.0,
         report.output_bytes.0,
         report.elapsed.as_secs_f64() * 1000.0,
-        report.outcome
+        report.outcome,
+        report.processing,
     );
     Ok(())
 }

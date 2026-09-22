@@ -9,6 +9,7 @@ publish = false
 
 [dependencies]
 crc32fast.workspace = true
+imagequant.workspace = true
 oxipng.workspace = true
 png.workspace = true
 same-file.workspace = true
