@@ -186,6 +186,8 @@ pnpm types:generate/types:check 同时运行核心与桌面生成器，后者需
 
 P3a 在 Windows 通过 `pnpm check`（90 项 Rust 测试、2 项编译型 doctest、5 项前端测试及 32 份语料清单）和 `pnpm tauri build --no-bundle --ci`；包含相同业务代码的 `36a1174` 已通过三平台 CI（run35808907663）。历史 release 空闲关闭退出码为 0，但 stderr 有 `Chrome_WidgetWin_0` 注销告警（1412），仍待排查。原生导入/处理中的 GUI 关闭、完整任务订阅、视觉复验、峰值 RSS 及安装包尚未验收；P3b 新代码的本机验证单独见 [开发记录](docs/devlog/README.md)，不沿用旧 CI 或空闲窗口冒烟证据。
 
+P3b 只读查询功能提交 `048ecf8` 已于 2026-09-23 推送至 `origin/dev`。本机 `pnpm check`（105 项 Rust 运行测试、2 项编译型 doctest、14 项前端测试）和 Windows release 构建通过，最终测试断言更新后也复验了桌面 Clippy/29项测试；新代码远端 CI 尚未核查。只读查询、mock 权限测试不等同于原生桌面压缩闭环验收。
+
 ## 项目方案
 
 设计、图片引擎选型、架构、实施阶段和验收标准见 [项目方案](docs/架构设计文档/pixofold-proposal.md)。
