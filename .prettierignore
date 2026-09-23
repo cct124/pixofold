@@ -5,4 +5,5 @@ target/
 .tools/
 pnpm-lock.yaml
 src/lib/ipc/generated.ts
+src/lib/ipc/tasks.generated.ts
 src-tauri/gen/

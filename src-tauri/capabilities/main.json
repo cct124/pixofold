@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "主窗口只允许读取应用构建信息；文件和系统插件在实际使用时再授权。",
+  "description": "主窗口只允许读取应用信息与有界任务快照；不授权路径读写或任务变更。",
   "windows": ["main"],
-  "permissions": ["allow-get-app-info"]
+  "permissions": ["allow-get-app-info", "allow-get-task-snapshot"]
 }

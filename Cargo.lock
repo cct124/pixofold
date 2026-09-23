@@ -2305,9 +2305,12 @@ name = "pixofold-desktop"
 version = "0.1.0"
 dependencies = [
  "pixofold-core",
+ "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tempfile",
+ "ts-rs",
 ]
 
 [[package]]

@@ -2,7 +2,7 @@
 
 基于 Tauri、React 和 Rust 的本地批量图片压缩工具，计划支持 PNG、JPEG、GIF 和 APNG，由 png-palettes 重构演进。
 
-当前已建立 **Tauri 2 + React + TypeScript + Rust workspace 脚手架**，实现可独立调用的 **静态 PNG 无损/有损核心、纯 Rust 批量任务服务及统一导入/输出规划**。P3a 新增应用级任务协调器，桌面持有唯一服务并在常规退出时取消、等待线程收尾。桌面界面仍为工程启动页，包含亮暗主题、中英文、偏好持久化和构建信息 IPC；**任务 DTO/订阅、原生导入入口、桌面压缩 IPC 与正式业务界面尚未接通。** 包含 P1/P2 及平台导入修复的 `11c55fa` 已通过三平台 CI 检查/桌面构建；本轮 P3a 的验证单独记载，不沿用前序证据。
+当前已建立 **Tauri 2 + React + TypeScript + Rust workspace 脚手架**，实现可独立调用的 **静态 PNG 无损/有损核心、纯 Rust 批量任务服务及统一导入/输出规划**。P3a 提供应用级任务协调器，桌面持有唯一服务并在常规退出时取消、等待线程收尾；P3b 首步新增任务 DTO 与有界只读快照 IPC。桌面界面仍为工程启动页，包含亮暗主题、中英文、偏好持久化和构建信息；**Channel 订阅、原生导入入口、任务变更 IPC 与正式业务界面尚未接通。** 包含 P3a 的 `36a1174` 已通过三平台 CI 检查/桌面构建；本轮新增代码的验证单独记载，不沿用前序证据。
 
 UI 设计与可交互 HTML 原型保留作为实现依据：质量采用 0–100 连续滑块和精细输入，默认 80；当前质量描述以纯文字显示在标题行右侧。
 
@@ -65,7 +65,7 @@ pnpm desktop:dev
 | `pnpm desktop:dev` | 启动 Tauri 桌面开发模式 |
 | `pnpm build` | 前端类型检查与生产构建，输出 `dist/` |
 | `pnpm check` | 格式、lint、类型、前端测试、生成类型一致性、Clippy 和 Rust 测试 |
-| `pnpm types:generate` | 从 Rust DTO 更新 `src/lib/ipc/generated.ts` |
+| `pnpm types:generate` | 从 Rust DTO 更新 `src/lib/ipc/generated.ts` 与 `tasks.generated.ts` |
 | `pnpm types:check` | 只读核对生成类型，过期时失败，不修改文件 |
 | `pnpm format` | 主动格式化工程源文件及 Rust；不格式化历史设计文档或 HTML 原型 |
 | `pnpm tauri build --no-bundle --ci` | 构建桌面可执行文件，不生成安装包 |
@@ -145,9 +145,20 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 - 扫描回调提供真实计数；活跃批次按 100ms 间隔采样核心快照，空闲等待通知，不忙轮询。`wait_for_change` 使用单调应用 revision，超时只停止等待；阶段/数量不是编码耗时百分比，轮询采样不是逐事件无损日志。批次全部取消后外层仍为 Finished，具体结果以核心状态和计数为准。
 - 取消令牌贯穿扫描、只读规划、批次预检和执行，避免预检期间取消后仍正常入队。外部取消被观察后与核心 revision 一起更新，不暴露相同版本却不同阶段的快照；重复取消不持续唤醒空闲 worker。
 - 主窗口关闭或常规退出先停止接纳，只有一个后台收尾任务等待协调/编码线程全部 join，再允许事件循环退出；不得在 UI 线程等待。不可中断的 OS/编码调用可能延长关闭，OS 强杀/断电/重启不提供恢复保证；关闭提示和 UI 状态尚待 P4。
-- `TaskSettings::default()` 明确采用产品默认有损 80、原图覆盖；核心 `PngRequest` 默认无损不变。新增 `BatchError::Cancelled` 需要 Rust 下游完整 match 补分支；桌面 `run` 返回可包含任务初始化原因的错误链。任务 DTO、TS、权限和现有 `get_app_info` 契约未变，`compressionAvailable` 仍为 false。
+- `TaskSettings::default()` 明确采用产品默认有损 80、原图覆盖；核心 `PngRequest` 默认无损不变。新增 `BatchError::Cancelled` 需要 Rust 下游完整 match 补分支；桌面 `run` 返回可包含任务初始化原因的错误链。P3a阶段未改任务 DTO、TS、权限和现有 `get_app_info` 契约，`compressionAvailable` 仍为 false；后续只读查询见下节。
 
-下一步 P3b：在该唯一所有者上实现 Rust DTO→TS、Channel 先订阅后启动及快照恢复，再接最小权限的原生选择/拖放；不要从每个命令或 React 组件新建 TaskRuntime。
+## 任务只读快照（P3b第一步）
+
+[桌面IPC模块](src-tauri/src/ipc/mod.rs) 与 [前端适配器](src/lib/ipc/tasks.ts) 复用唯一 TaskControl。主窗口可调用 get_task_snapshot 查询状态；不启动导入、重试或压缩，也不创建第二个任务服务。界面尚未使用该接口，compressionAvailable 仍为 false。
+
+- Rust DTO 与协议常量为权威来源，生成 [tasks.generated.ts](src/lib/ipc/tasks.generated.ts)；原有核心 generated.ts 和 get_app_info 契约保持不变。协议版本当前为 1。
+- 应用/批次 revision、selection/batch ID、字节数、elapsedMs 均为规范 u64 十进制字符串，前端用 BigInt 比较；不经过 Number。毫秒向下取整，异常溢出返回 invalid_snapshot；未知大小保留 null。行 ID、候选/问题索引、attempt 与数量使用检查过的整数；行身份由 selection/batch/id/attempt 共同界定，不是文件名。
+- 查询指定 jobs、candidates 或 issues，limit 为 1–100。offset=0、expectedRevision=null 读取最新版本；后续页必须带该 revision。一次响应的摘要与行来自同一份 Arc 快照；版本不匹配返回 stale_snapshot/currentRevision，应丢弃旧分页并从第一页重新读取，不拼接不同版本，也不保存无限历史快照。高频变化时翻页可能反复失效；本阶段不保证活跃批次全量遍历，后续订阅需按视口更新并在终态恢复完整清单。
+- 只转换被请求的最多100行，所有展示名最多240个Unicode字符，分别标明截断、非Unicode替换及控制字符清理；只返回文件名，不返回完整路径、图像数据或底层错误字符串。错误保持稳定代码，清理失败可同时保留原始取消/错误及备份/临时产物名称。原生恢复路径仍留在Rust，展示名不构成定位、读取或覆盖权限。
+- TaskSnapshotReader 管理单个可见页面：仅应用最后一次查询，拒绝版本回退，卸载后丢弃迟到成功/失败；错误保留最后一份好快照。没有定时轮询或隐式重跑；浏览器返回 null，不模拟后端。
+- 仅主窗口授权 allow-get-task-snapshot；未开放通用文件读写、dialog、opener 或 shell。Rust 请求反序列化拒绝额外字段/非法表示；合法结构但非法分页返回稳定错误码，传输/反序列化失败仍由 Tauri 错误通道报告。
+
+下一步继续 P3b：先设计有界 Channel 订阅、确认/替换/销毁和断线恢复，保证终态可查询，不用每100ms广播全量数组；随后接原生选择/拖放授权与任务变更命令，再由 P4 沿既有原型接入真实交互。不要按窗口或命令创建 TaskRuntime。
 
 ## 工程边界
 
@@ -165,13 +176,15 @@ tools/                      类型生成/一致性检查
 docs/                       方案、HTML 原型和开发交接
 ```
 
-最小链路为 `getAppInfo()` → Tauri `get_app_info` → `pixofold_core::app_info()`，返回真实核心版本及规划能力，不提供假压缩。主窗口只授权该命令，尚未接入文件系统、dialog、opener 或 shell 插件。生产 CSP 保持同源资源，开发 CSP 仅额外允许本机 Vite/HMR 所需连接和样式。
+启动页链路为 `getAppInfo()` → Tauri `get_app_info` → `pixofold_core::app_info()`；只读任务链路为 `getTaskSnapshot()` → get_task_snapshot → 应用 TaskControl 快照。主窗口只授权这两个查询命令，尚未接入文件系统、dialog、opener 或 shell 插件。生产 CSP 保持同源资源，开发 CSP 仅额外允许本机 Vite/HMR 所需连接和样式。
 
 Rust DTO 通过可选 `bindings` feature 使用 ts-rs 12 生成 TypeScript，普通核心与桌面发布不启用该工具。TypeScript 7 超过当前 typescript-eslint 的声明兼容范围，因此采用 Oxlint 做 lint，并由 TypeScript 编译器执行严格类型检查。
 
+pnpm types:generate/types:check 同时运行核心与桌面生成器，后者需具备桌面编译系统依赖，但不启动窗口或任务线程。桌面全部单元/mock测试由显式 tests/desktop.rs target 承载（库默认 test harness 关闭以免重复运行），Windows MSVC 通过 build.rs 复用 Tauri 生成的资源 manifest；这保证 mock 使用的 Common Controls v6 可加载，不修改发行行为或跳过旧测试。
+
 2026-09-21 脚手架已通过冻结安装、统一检查、Windows 可执行文件构建/启动及浏览器外观交互验证。2026-09-22 无损 `3f6c617`、有损 `ab9b2bb`、包含 P1/P2 的 `11c55fa` 分别通过三平台 CI 统一检查和桌面构建；最后一轮为 run `35713030818`，已复验旧批量提交的 Ubuntu/macOS 测试导入修复。
 
-本轮 P3a 在 Windows 通过 `pnpm check`（90 项 Rust 测试、2 项编译型 doctest、5 项前端测试及 32 份语料清单）和 `pnpm tauri build --no-bundle --ci`。release 启动后读取到正常窗口标题，发送正常关闭请求后退出码为 0；stderr 仍有 `Chrome_WidgetWin_0` 注销告警（1412），原因待查，不视为无告警验收。原生导入/处理中的 GUI 关闭、任务 IPC、主题/语言/窗口视觉复验、峰值 RSS 及安装包未执行；P3a 功能提交 `aa84974` 已于 2026-09-23 推送至 `origin/dev`，新代码的远端 CI 尚未核查。完整证据与下一步见 [开发记录](docs/devlog/README.md)。
+P3a 在 Windows 通过 `pnpm check`（90 项 Rust 测试、2 项编译型 doctest、5 项前端测试及 32 份语料清单）和 `pnpm tauri build --no-bundle --ci`；包含相同业务代码的 `36a1174` 已通过三平台 CI（run35808907663）。历史 release 空闲关闭退出码为 0，但 stderr 有 `Chrome_WidgetWin_0` 注销告警（1412），仍待排查。原生导入/处理中的 GUI 关闭、完整任务订阅、视觉复验、峰值 RSS 及安装包尚未验收；P3b 新代码的本机验证单独见 [开发记录](docs/devlog/README.md)，不沿用旧 CI 或空闲窗口冒烟证据。
 
 ## 项目方案
 

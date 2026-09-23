@@ -10,6 +10,12 @@ default-run = "pixofold"
 
 [lib]
 name = "pixofold_desktop_lib"
+test = false
+
+# 显式测试target允许Windows仅给测试链接Tauri资源；仍运行lib.rs的全部#[test]。
+[[test]]
+name = "desktop"
+path = "tests/desktop.rs"
 
 [[bin]]
 name = "pixofold"
@@ -21,9 +27,21 @@ tauri-build.workspace = true
 [dependencies]
 pixofold-core.workspace = true
 tauri.workspace = true
+serde.workspace = true
+ts-rs = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile.workspace = true
+serde_json.workspace = true
+tauri = { workspace = true, features = ["test"] }
+
+[features]
+bindings = ["dep:ts-rs", "pixofold-core/bindings"]
+
+[[bin]]
+name = "export-task-bindings"
+path = "src/bin/export-task-bindings.rs"
+required-features = ["bindings"]
 
 [lints]
 workspace = true

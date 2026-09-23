@@ -1,10 +1,17 @@
 //! 桌面装配层：注册窗口权限与薄 IPC 命令，不执行图片处理。
 
 mod commands;
-mod lifecycle;
+pub(crate) mod ipc;
+pub(crate) mod lifecycle;
 pub mod tasks;
 
 use tauri::Manager;
+
+/// 只在bindings构建中为生成工具提供权威任务DTO声明；不启动桌面或任务。
+#[cfg(feature = "bindings")]
+pub fn task_type_declarations() -> String {
+    ipc::declarations()
+}
 
 /// 启动桌面事件循环。
 ///
@@ -14,7 +21,10 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let runtime = tasks::TaskRuntime::new(tasks::TaskConfig::default())?;
     let app = tauri::Builder::default()
         .manage(lifecycle::DesktopTasks::new(runtime))
-        .invoke_handler(tauri::generate_handler![commands::get_app_info])
+        .invoke_handler(tauri::generate_handler![
+            commands::get_app_info,
+            commands::get_task_snapshot
+        ])
         .on_window_event(|window, event| {
             if window.label() == "main"
                 && let tauri::WindowEvent::CloseRequested { api, .. } = event

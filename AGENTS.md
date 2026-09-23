@@ -2,7 +2,7 @@
 
 ## 项目与入口
 
-- PixoFold（轻图）是本地批量图片压缩工具，计划支持 PNG、JPEG、GIF、APNG，采用 GPL-3.0-or-later。已实现静态 PNG 无损/有损核心、备份输出、批量服务、有界导入/输出规划，以及应用级任务协调与常规退出收尾。TaskRuntime属于应用，不能按窗口/命令重复创建；任务DTO/订阅、原生导入入口、压缩IPC及正式业务界面尚未接通。已验证范围以devlog为准，不沿用前序三平台CI作为新增代码证据。
+- PixoFold（轻图）是本地批量图片压缩工具，计划支持 PNG、JPEG、GIF、APNG，采用 GPL-3.0-or-later。已实现静态 PNG 无损/有损核心、备份输出、批量服务、有界导入/输出规划、应用级协调/常规退出，以及任务DTO生成与有界只读快照查询。TaskRuntime属于应用，不能按窗口/命令重复创建；Channel订阅、原生导入入口、任务变更IPC及正式业务界面尚未接通。查询展示名不是路径授权，分页须保持同一revision。已验证范围以devlog为准，不沿用前序三平台CI作为新增代码证据。
 - 从 [README.md](README.md) 了解项目；架构与引擎选型见[项目方案](docs/架构设计文档/pixofold-proposal.md)，交互规则见[UI 交互设计](docs/架构设计文档/ui-interaction-design.md)。
 - 界面以 [HTML 原型](docs/UI界面设计/PixoFold.html)及[原型说明](docs/UI界面设计/HTML原型说明.md)为准，生成的 UI 图片仅作历史参考。旧项目 png-palettes 用于参考，未经任务要求不修改。
 - 实际工具链与命令以 README、`package.json`、`rust-toolchain.toml` 为准；不把规划或未运行的跨平台 CI 写成已验证能力。
