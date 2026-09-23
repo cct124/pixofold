@@ -171,7 +171,7 @@ Rust DTO 通过可选 `bindings` feature 使用 ts-rs 12 生成 TypeScript，普
 
 2026-09-21 脚手架已通过冻结安装、统一检查、Windows 可执行文件构建/启动及浏览器外观交互验证。2026-09-22 无损 `3f6c617`、有损 `ab9b2bb`、包含 P1/P2 的 `11c55fa` 分别通过三平台 CI 统一检查和桌面构建；最后一轮为 run `35713030818`，已复验旧批量提交的 Ubuntu/macOS 测试导入修复。
 
-本轮 P3a 在 Windows 通过 `pnpm check`（90 项 Rust 测试、2 项编译型 doctest、5 项前端测试及 32 份语料清单）和 `pnpm tauri build --no-bundle --ci`。release 启动后读取到正常窗口标题，发送正常关闭请求后退出码为 0；stderr 仍有 `Chrome_WidgetWin_0` 注销告警（1412），原因待查，不视为无告警验收。原生导入/处理中的 GUI 关闭、任务 IPC、主题/语言/窗口视觉复验、峰值 RSS 及安装包未执行；本轮未提交，尚无新代码的远端 CI。完整证据与下一步见 [开发记录](docs/devlog/README.md)。
+本轮 P3a 在 Windows 通过 `pnpm check`（90 项 Rust 测试、2 项编译型 doctest、5 项前端测试及 32 份语料清单）和 `pnpm tauri build --no-bundle --ci`。release 启动后读取到正常窗口标题，发送正常关闭请求后退出码为 0；stderr 仍有 `Chrome_WidgetWin_0` 注销告警（1412），原因待查，不视为无告警验收。原生导入/处理中的 GUI 关闭、任务 IPC、主题/语言/窗口视觉复验、峰值 RSS 及安装包未执行；P3a 功能提交 `aa84974` 已于 2026-09-23 推送至 `origin/dev`，新代码的远端 CI 尚未核查。完整证据与下一步见 [开发记录](docs/devlog/README.md)。
 
 ## 项目方案
 
