@@ -13,7 +13,7 @@ const appInfo = {
   compressionAvailable: false,
 };
 
-describe('scaffold startup', () => {
+describe('workspace shell', () => {
   beforeEach(() => {
     localStorage.clear();
     usePreferences.setState({ theme: 'light', language: 'zh-CN' });
@@ -23,7 +23,8 @@ describe('scaffold startup', () => {
   it('shows browser preview and keeps appearance changes independent of IPC', async () => {
     vi.mocked(getAppInfo).mockResolvedValue(null);
     render(<App />);
-    expect(await screen.findByRole('status')).toHaveTextContent('浏览器预览');
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('浏览器预览'));
+    expect(screen.getByRole('button', { name: '选择图片' })).toBeDisabled();
     const darkButton = screen.getByRole('button', { name: '深色' });
     expect(darkButton.textContent).toBe('');
     fireEvent.click(darkButton);
@@ -41,16 +42,14 @@ describe('scaffold startup', () => {
     });
   });
 
-  it('reports an IPC failure and reconnects to real version information', async () => {
+  it('retries version information independently of the task connection', async () => {
     vi.mocked(getAppInfo)
       .mockRejectedValueOnce(new Error('unavailable'))
       .mockResolvedValueOnce({ ...appInfo, plannedFormats: [...appInfo.plannedFormats] });
     render(<App />);
-    fireEvent.click(await screen.findByRole('button', { name: '重新连接' }));
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('桌面核心已连接'));
-    expect(screen.getByRole('status')).toHaveTextContent('v0.1.0');
-    expect(screen.getByRole('list', { name: '规划支持的图片格式' })).toHaveTextContent('PNG');
-    expect(screen.getByText('尚未接入压缩引擎，不会读取或修改您的图片。')).toBeVisible();
+    fireEvent.click(await screen.findByRole('button', { name: '重新读取版本' }));
+    expect(await screen.findByText('v0.1.0')).toBeVisible();
+    expect(screen.getByText('当前支持静态 PNG；拖放、JPEG、GIF 与 APNG 尚未接入。')).toBeVisible();
   });
 
   it('falls back safely for corrupted persisted preferences', async () => {

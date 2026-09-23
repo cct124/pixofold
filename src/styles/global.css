@@ -13,12 +13,17 @@ body {
 }
 
 button,
+input,
 select {
   font: inherit;
+}
+button,
+select {
   cursor: pointer;
 }
 
 button:focus-visible,
+input:focus-visible,
 select:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;

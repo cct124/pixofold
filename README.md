@@ -2,7 +2,7 @@
 
 基于 Tauri、React 和 Rust 的本地批量图片压缩工具，计划支持 PNG、JPEG、GIF 和 APNG，由 png-palettes 重构演进。
 
-当前已建立 **Tauri 2 + React + TypeScript + Rust workspace 脚手架**，实现可独立调用的 **静态 PNG 无损/有损核心、纯 Rust 批量任务服务及统一导入/输出规划**。P3a提供应用级任务协调与安全收尾；P3b已有任务DTO、有界查询、Channel订阅/恢复，并新增受控原生文件/目录选择及导入、启动、取消、重试、清除IPC适配。**正式UI仍为启动页，尚未使用业务适配器；拖放、自选输出目录和原生GUI验收尚未完成，compressionAvailable仍为false。** 包含订阅的b0105b9已通过三平台CI检查/桌面构建；本轮新增选择/变更代码的验证单独记载，不沿用前序证据。
+当前已接通 **静态 PNG 真实工作台**：Tauri 2 + React 界面经受控原生选择、应用级任务协调和有界快照驱动独立 Rust 无损/有损核心，支持文件/目录导入、批量处理、备份覆盖/同目录副本、取消、重试与清除记录。大小、状态和进度均来自实际任务。**仅支持静态 PNG；拖放、自选输出目录、缩略图及其他格式尚未接入。** compressionAvailable=true仅表示已有一种可用压缩格式，不表示全部plannedFormats已实现。含原生入口的584d1e9已通过三平台CI；本轮工作台验证见[开发记录](docs/devlog/_plan/260922/png-batch-desktop.md)，不沿用旧CI作为新代码证据。
 
 UI 设计与可交互 HTML 原型保留作为实现依据：质量采用 0–100 连续滑块和精细输入，默认 80；当前质量描述以纯文字显示在标题行右侧。
 
@@ -92,7 +92,7 @@ cargo run -p pixofold-core --release --locked --example optimize_png -- path/to/
 - 只接收真实静态 PNG，扩展名不是判断依据；APNG 明确拒绝。默认无损保留原始像素、位深、隐藏 RGB、调色板及全部非 IDAT chunk；未知不可安全搬运的元数据拒绝处理。
 - 有损模式采用 imagequant 的 min=0、target=q（映射版本 1），独立固定 speed=4、dither=1.0。实际 remapping 评分低于 q、透明端点/半透明保护不通过，或体积不优于源文件及无损候选时，明确回退到严格无损。100 不等同于通用无损；评分也不等同于 SSIM。
 - 16-bit、ICC/cHRM/HDR、依赖原始表示的 sBIT/bKGD 等元数据保守回退；不隐式降位深或删除颜色信息。支持有效 gAMA 和 sRGB，保留适用元数据及其 IDAT 前后位置。纯透明 alpha=0、不透明 alpha=255 必须保持；半透明仍在 1–254 且 alpha 误差不超过 8。有损不承诺透明像素的隐藏 RGB 不变。
-- `PngRequest::new` 继续默认无损，显式设置 `PngMode::Lossy` 才进行量化；`QualityValue` 默认 80。产品界面默认有损 80 的设计尚未接入。报告区分实际量化、保护性回退与无收益，并返回输入/实际输出属性。
+- `PngRequest::new` 继续默认无损，显式设置 `PngMode::Lossy` 才进行量化；`QualityValue` 默认 80，工作台默认有损80。报告区分实际量化、保护性回退与无收益，并返回输入/实际输出属性。
 - 默认请求采用原图覆盖，但每次成功覆盖都保留同目录 `.pixofold-backup-*.png` 原始备份，路径在结果中返回，核心不会自动删除。提交失败也返回备份路径。确认新图可用后再由用户处理备份。
 - `OutputPolicy::Copy` 副本必须给出完整新路径、父目录必须存在，同名、目录或链接冲突均拒绝；新增的 `CopyTree` 显式允许输出层在既有目标根内创建结构目录，契约见下方导入入口。无收益不创建最终副本或备份；只读输入允许另存，副本不继承只读属性。
 - 输入默认 64 MiB，单个解码缓冲区 128 MiB，16M 像素、单边 16384；有损 RGBA 展开另按缓冲区上限检查。单文件同步、编码器单线程；oxipng 有 30 秒软期限，imagequant 在进度回调协作取消，但无硬超时。这不是进程硬内存限额或即时取消保证；批量调用由下述任务服务额外限制文件并发和估算工作集。
@@ -149,7 +149,7 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 
 ## 任务只读快照（P3b第一步）
 
-[桌面IPC模块](src-tauri/src/ipc/mod.rs) 与 [前端适配器](src/lib/ipc/tasks.ts) 复用唯一 TaskControl。主窗口可调用 get_task_snapshot 查询状态；不启动导入、重试或压缩，也不创建第二个任务服务。界面尚未使用该接口，compressionAvailable 仍为 false。
+[桌面IPC模块](src-tauri/src/ipc/mod.rs) 与 [前端适配器](src/lib/ipc/tasks.ts) 复用唯一 TaskControl。主窗口可调用 get_task_snapshot 查询状态；该查询本身不启动导入、重试或压缩，也不创建第二个任务服务。P4工作台通过订阅复用此有界查询。
 
 - Rust DTO 与协议常量为权威来源，生成 [tasks.generated.ts](src/lib/ipc/tasks.generated.ts)；原有核心 generated.ts 和 get_app_info 契约保持不变。协议版本当前为 1。
 - 应用/批次 revision、selection/batch ID、字节数、elapsedMs 均为规范 u64 十进制字符串，前端用 BigInt 比较；不经过 Number。毫秒向下取整，异常溢出返回 invalid_snapshot；未知大小保留 null。行 ID、候选/问题索引、attempt 与数量使用检查过的整数；行身份由 selection/batch/id/attempt 共同界定，不是文件名。
@@ -180,15 +180,25 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 - apply_task_mutation接收可辨识操作联合。import使用授权及固定settings；settings=null只扫描，非null完整扫描后自动启动。start仅用于Ready清单修正。模式复用严格PngMode，输出仅overwrite/copy_beside，不允许任意路径、输出目录或资源预算字符串/覆盖。
 - cancel/clear/start携带当前selectionId；retry额外要求expectedBatchRevision和最多1000个唯一失败/取消行ID（不是数组/页码索引），沿用Rust原行输出目标，仅修改模式，成功/无收益项不重跑。clear只清记录，不删除原图、结果或备份；UI须先展示需保留的恢复信息。
 - 首次查询/ACK握手完成后才能操作。后端在订阅锁内原子校验会话并短时接纳，锁序为订阅→授权槽→任务，无文件I/O/await；旧会话、旧授权、旧selection/revision不影响新任务。命令返回selectionId仅表示接纳，后台成功/失败仍经任务快照查询。
-- TaskActions固定点击时的参数并限制一个在途操作；默认有损80/覆盖，浏览器明确不可用。选择期间断开/重连的迟到结果不能自动启动；操作传输失败可能已经接纳，不自动重试，应先恢复权威快照。尚未接入正式业务控件，不伪造进度或提前提升能力声明。
+- TaskActions固定点击时的参数并限制一个在途操作；默认有损80/覆盖，浏览器明确不可用。选择期间断开/重连的迟到结果不能自动启动；操作传输失败可能已经接纳，不自动重试，应先恢复权威快照。P4工作台复用此适配器，不构造模拟进度。
 
-下一步先补原生WebView文件/目录选择、重载和退出验收，再实现受控拖放/输出目录授权并进入P4正式UI；这些入口不能通过开放通用fs/dialog/event权限代替。
+## PNG 工作台（P4最小纵向闭环）
+
+[Workspace](src/features/workspace/Workspace.tsx)沿HTML原型呈现中央列表、右侧设置与固定底部汇总。[控制器](src/features/workspace/controller.ts)是页面唯一会话所有者；StrictMode、外观切换与组件重挂载不创建重复Channel，不取消后台任务。卸载后异步释放订阅，重挂载等待旧会话清理。
+
+- 选择文件/目录后自动扫描及处理，默认有损80/覆盖。质量仅接受完整0–100整数；空值/非法文本可导入但只扫描，修正后同一清单自动启动一次。Esc恢复最后合法值，无损不携带质量。只持久化合法设置，不保存授权、任务或临时输入文本。
+- 点击导入时冻结参数；运行中调整草稿不修改批次。后台规划失败保留清单与错误，同设置不会无限重发；重载恢复的Ready清单需用户主动调整设置才继续。操作返回仅表示接纳，连接或写操作失败保留最后快照、禁止进一步写入，要求显式重连；未知会话归属要求重载页面。
+- jobs/candidates/issues每页50项；状态更新时回到首屏，额外分页最多一个在途查询。过期页不拼接，按最新revision恢复。未知大小显示“—”，精确字节按bigint计算；进度为processed/total，取消不冒充100%成功。
+- 重试只接纳当前同revision可见页内失败/取消行的稳定ID，使用草稿模式但保留原输出位置；清除需确认，仅清记录，不删除文件。结果展示实际回退原因、输出/备份名及失败恢复信息；展示名不是可访问路径，截断或替换明确标注。
+- main页面Started生命周期在同一订阅锁域撤销会话与授权，不清除或重跑任务；尚未关闭的物理对话框仍占槽，晚到结果拒绝后才释放。非main或Finished事件不撤销新会话，不依赖unload必达。
+- 浏览器仅预览，不读取图片或模拟业务。未开放拖放、自选输出目录、缩略图、高级编码参数、新格式和通用fs/dialog/event权限；这些入口及原生GUI覆盖范围按开发记录后续验收。
 
 ## 工程边界
 
 ```text
 src/                        React 界面
-  app/                      启动页、语言和主题装配
+  app/                      工作台、语言和主题装配
+  features/workspace/        真实列表、设置草稿与唯一页面控制器
   components/ui/            通用可访问控件
   lib/ipc/                  原生调用边界与生成类型
   stores/                   版本化偏好设置
@@ -200,7 +210,7 @@ tools/                      类型生成/一致性检查
 docs/                       方案、HTML 原型和开发交接
 ```
 
-启动页链路为 `getAppInfo()` → Tauri `get_app_info` → `pixofold_core::app_info()`；只读任务链路为 `getTaskSnapshot()` → get_task_snapshot → 应用TaskControl快照。主窗口授权两个查询、三个订阅管理及两个受控选择/任务操作命令。dialog仅由Rust调用，未授予dialog/fs/event/opener/shell通用前端权限；传递依赖tauri-plugin-fs不等于启用其插件或权限。生产CSP保持同源资源，开发CSP仅额外允许本机Vite/HMR所需连接和样式。
+版本链路为 `getAppInfo()` → Tauri `get_app_info` → `pixofold_core::app_info()`；只读任务链路为 `getTaskSnapshot()` → get_task_snapshot → 应用TaskControl快照。主窗口授权两个查询、三个订阅管理及两个受控选择/任务操作命令。dialog仅由Rust调用，未授予dialog/fs/event/opener/shell通用前端权限；传递依赖tauri-plugin-fs不等于启用其插件或权限。生产CSP保持同源资源，开发CSP仅额外允许本机Vite/HMR所需连接和样式。
 
 Rust DTO 通过可选 `bindings` feature 使用 ts-rs 12 生成 TypeScript，普通核心与桌面发布不启用该工具。TypeScript 7 超过当前 typescript-eslint 的声明兼容范围，因此采用 Oxlint 做 lint，并由 TypeScript 编译器执行严格类型检查。
 

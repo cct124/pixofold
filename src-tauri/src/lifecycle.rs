@@ -41,6 +41,12 @@ impl DesktopTasks {
     pub(crate) fn ready(&self) -> bool {
         self.ready_to_exit.load(Ordering::Acquire)
     }
+    pub(crate) fn page_load(&self, label: &str, event: tauri::webview::PageLoadEvent) {
+        if label == "main" && matches!(event, tauri::webview::PageLoadEvent::Started) {
+            // 与任务变更保持订阅→授权锁序，不依赖旧页面unload/JS清理必达。
+            self.subscriptions.invalidate_page(|| self.imports.revoke());
+        }
+    }
     fn take_for_shutdown(&self) -> Option<(DesktopRuntime, bool)> {
         self.subscriptions.request_close();
         self.imports.close();
@@ -85,6 +91,100 @@ pub(crate) fn request_exit(app: &AppHandle, code: i32) {
 mod tests {
     use super::*;
     use crate::tasks::{TaskConfig, TaskError, TaskPhase};
+
+    #[test]
+    fn only_main_started_revokes_page_and_preserves_native_dialog_bound() {
+        use crate::ipc::{MutationError, SubscriptionError, TaskChangeAck};
+        use tauri::{ipc::Channel, webview::PageLoadEvent};
+        let tasks = DesktopTasks::new(TaskRuntime::new(TaskConfig::default()).unwrap()).unwrap();
+        let first = tasks
+            .subscriptions
+            .subscribe(Channel::new(|_| Ok(())))
+            .unwrap();
+        tasks
+            .subscriptions
+            .acknowledge(TaskChangeAck {
+                subscription_id: first.subscription_id,
+                revision: first.revision,
+            })
+            .unwrap();
+        let pending = tasks.imports.reserve(first.subscription_id).unwrap();
+        tasks.page_load("other", PageLoadEvent::Started);
+        tasks.page_load("main", PageLoadEvent::Finished);
+        assert!(
+            tasks
+                .subscriptions
+                .with_ready(first.subscription_id, || ())
+                .is_ok()
+        );
+        tasks.page_load("main", PageLoadEvent::Started);
+        assert_eq!(
+            tasks.subscriptions.with_ready(first.subscription_id, || ()),
+            Err(SubscriptionError::StaleSubscription)
+        );
+        let second = tasks
+            .subscriptions
+            .subscribe(Channel::new(|_| Ok(())))
+            .unwrap();
+        assert!(matches!(
+            tasks.imports.reserve(second.subscription_id),
+            Err(MutationError::SelectionBusy)
+        ));
+        assert!(matches!(
+            pending.complete(Some(vec![std::env::temp_dir()])),
+            Err(MutationError::StaleGrant)
+        ));
+        assert!(tasks.imports.reserve(second.subscription_id).is_ok());
+        assert_eq!(tasks.control.snapshot().phase, TaskPhase::Idle);
+    }
+
+    #[test]
+    fn reload_does_not_cancel_accepted_png_or_recreate_its_terminal_snapshot() {
+        use crate::tasks::TaskSettings;
+        use pixofold_core::import::ImportOutput;
+        use std::time::{Duration, Instant};
+        use tauri::webview::PageLoadEvent;
+        let tasks = DesktopTasks::new(TaskRuntime::new(TaskConfig::default()).unwrap()).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("reload.png");
+        let fixture =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/png/rgb8.png");
+        std::fs::copy(fixture, &source).unwrap();
+        let original = std::fs::read(&source).unwrap();
+        let id = tasks
+            .control
+            .import(
+                vec![source.clone()],
+                Some(TaskSettings {
+                    output: ImportOutput::CopyBeside,
+                    ..TaskSettings::default()
+                }),
+            )
+            .unwrap();
+        tasks.page_load("main", PageLoadEvent::Started);
+        let deadline = Instant::now() + Duration::from_secs(20);
+        let mut view = tasks.control.snapshot();
+        while view.phase != TaskPhase::Finished {
+            assert!(!matches!(
+                view.phase,
+                TaskPhase::Cancelled | TaskPhase::Rejected | TaskPhase::Closed
+            ));
+            view = tasks
+                .control
+                .wait_for_change(
+                    view.revision,
+                    deadline.saturating_duration_since(Instant::now()),
+                )
+                .unwrap();
+        }
+        assert_eq!(view.selection, Some(id));
+        assert_eq!(std::fs::read(source).unwrap(), original);
+        tasks.page_load("main", PageLoadEvent::Started);
+        let after = tasks.control.snapshot();
+        assert_eq!(after.revision, view.revision);
+        assert_eq!(after.selection, view.selection);
+        assert_eq!(after.phase, view.phase);
+    }
 
     #[test]
     fn repeated_exit_takes_owner_once_and_closes_all_handles() {

@@ -158,6 +158,19 @@ impl SubscriptionControl {
         Ok(removed)
     }
 
+    /// 页面撤销与授权回收在同一接纳锁域完成；闭包只做短内存操作。
+    /// Channel在锁外释放，不停止任务或永久关闭订阅服务。
+    pub(crate) fn invalidate_page(&self, revoke: impl FnOnce()) {
+        let retired = {
+            let mut state = self.shared.state.lock().unwrap_or_else(|e| e.into_inner());
+            let retired = state.session.take();
+            revoke();
+            self.shared.changed.notify_all();
+            retired
+        };
+        drop(retired);
+    }
+
     pub(crate) fn request_close(&self) {
         self.shared.close(false);
     }

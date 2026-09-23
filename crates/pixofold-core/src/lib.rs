@@ -1,5 +1,5 @@
 //! PixoFold 核心入口，不依赖 Tauri、窗口或前端状态。
-//! 静态 PNG 单文件处理独立于 IPC；桌面入口尚未开放压缩。
+//! 静态 PNG 单文件处理独立于 IPC；桌面工作台经任务服务接入。
 
 pub mod batch;
 mod codecs;
@@ -23,6 +23,6 @@ pub fn app_info() -> AppInfo {
             ImageFormat::Gif,
             ImageFormat::Apng,
         ],
-        compression_available: false,
+        compression_available: true,
     }
 }

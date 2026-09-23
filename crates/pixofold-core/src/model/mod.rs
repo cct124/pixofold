@@ -19,7 +19,8 @@ pub enum ImageFormat {
     Apng,
 }
 
-/// 启动页使用的构建版本与能力信息，不包含任务状态或私人路径。
+/// 构建版本与能力信息，不包含任务状态或私人路径。
+/// compression_available表示至少一种格式可压缩，当前仅静态PNG，不等于支持全部规划格式。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "bindings", derive(ts_rs::TS))]

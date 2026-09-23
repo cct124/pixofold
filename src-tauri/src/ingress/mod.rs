@@ -16,6 +16,7 @@ enum Slot {
     Dialog {
         id: u64,
         session: u64,
+        revoked: bool,
     },
     Grant {
         id: u64,
@@ -61,6 +62,7 @@ impl NativeImports {
         state.slot = Some(Slot::Dialog {
             id,
             session: session.0,
+            revoked: false,
         });
         Ok(SelectionPermit {
             owner: self.clone(),
@@ -109,6 +111,16 @@ impl NativeImports {
         Ok(result)
     }
 
+    /// 页面重载撤销授权；物理对话框仍占槽，直到permit完成或释放。
+    pub(crate) fn revoke(&self) {
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(Slot::Dialog { revoked, .. }) = &mut state.slot {
+            *revoked = true;
+        } else {
+            state.slot = None;
+        }
+    }
+
     pub(crate) fn close(&self) {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         state.closed = true;
@@ -135,7 +147,7 @@ impl SelectionPermit {
         if state.closed {
             return Err(MutationError::Closed);
         }
-        if !matches!(state.slot, Some(Slot::Dialog { id, session }) if id == self.id && session == self.session)
+        if !matches!(state.slot, Some(Slot::Dialog { id, session, revoked: false }) if id == self.id && session == self.session)
         {
             return Err(MutationError::StaleGrant);
         }

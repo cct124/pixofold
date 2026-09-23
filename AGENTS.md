@@ -2,7 +2,7 @@
 
 ## 项目与入口
 
-- PixoFold（轻图）是本地批量图片压缩工具，计划支持 PNG、JPEG、GIF、APNG，采用 GPL-3.0-or-later。已实现静态PNG核心、备份输出、批量/导入规划、应用协调/退出、任务DTO/有界查询/Channel订阅，并新增原生文件/目录选择及受控任务操作适配。TaskRuntime与SubscriptionRuntime属于应用；订阅每会话最多一条未确认通知，前端页面单连接，未知首次响应失败须重载。变更前完成订阅握手；原生路径只留Rust，单槽/会话绑定/单次授权，不接受任意路径IPC；输出暂限覆盖/同目录副本，重试用稳定行ID而非数组下标。正式UI尚未接业务，拖放、自选输出目录及原生GUI验收待完成。查询展示名不是路径授权，分页须同一revision；验证以devlog为准，不沿用旧CI为新代码背书。
+- PixoFold（轻图）是本地批量图片压缩工具，计划支持 PNG、JPEG、GIF、APNG，采用 GPL-3.0-or-later。静态PNG真实工作台已接通核心、备份输出、批量/导入规划、应用协调、快照订阅及原生文件/目录选择。TaskRuntime与SubscriptionRuntime属于应用；WorkspaceController属于页面，StrictMode单连接，首次未知响应失败须重载。变更前完成握手；原生路径只留Rust，单槽/会话绑定/单次授权，不接受任意路径IPC。main页面开始重载会撤销旧订阅/授权，物理对话框仍占槽且后台任务不重跑。输出暂限覆盖/同目录副本，重试只用当前页稳定行ID与批次revision。设置草稿与批次分离，非法质量只扫描，修正自动启动，不自动重发不确定写操作。拖放、自选输出目录、缩略图及其他格式待接；查询名不是路径授权，分页保持同revision。实际GUI/平台验证以devlog为准，不沿用旧CI为新代码背书。
 - 从 [README.md](README.md) 了解项目；架构与引擎选型见[项目方案](docs/架构设计文档/pixofold-proposal.md)，交互规则见[UI 交互设计](docs/架构设计文档/ui-interaction-design.md)。
 - 界面以 [HTML 原型](docs/UI界面设计/PixoFold.html)及[原型说明](docs/UI界面设计/HTML原型说明.md)为准，生成的 UI 图片仅作历史参考。旧项目 png-palettes 用于参考，未经任务要求不修改。
 - 实际工具链与命令以 README、`package.json`、`rust-toolchain.toml` 为准；不把规划或未运行的跨平台 CI 写成已验证能力。

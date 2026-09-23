@@ -4,6 +4,34 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 fn root() -> PathBuf {
     std::env::temp_dir().join("native-selected.png")
 }
+
+#[test]
+fn page_revocation_drops_grants_but_keeps_physical_dialog_occupied() {
+    let imports = Arc::new(NativeImports::default());
+    let issued = grant(&imports, 1);
+    imports.revoke();
+    assert!(matches!(
+        imports.consume(DecimalU64(1), issued.grant_id, |_| Ok(())),
+        Err(MutationError::StaleGrant)
+    ));
+    let pending = imports.reserve(DecimalU64(2)).unwrap();
+    imports.revoke();
+    imports.revoke();
+    assert!(matches!(
+        imports.reserve(DecimalU64(3)),
+        Err(MutationError::SelectionBusy)
+    ));
+    assert!(matches!(
+        pending.complete(Some(vec![root()])),
+        Err(MutationError::StaleGrant)
+    ));
+    // 晚到结果拒绝，permit的Drop仍负责释放真实占位；新页面才能重新选择。
+    let new = grant(&imports, 3);
+    assert_eq!(
+        imports.consume(DecimalU64(3), new.grant_id, Ok).unwrap(),
+        vec![root()]
+    );
+}
 fn grant(imports: &Arc<NativeImports>, session: u64) -> NativeImportGrant {
     imports
         .reserve(DecimalU64(session))

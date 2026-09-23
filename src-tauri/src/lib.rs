@@ -28,6 +28,11 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let runtime = tasks::TaskRuntime::new(tasks::TaskConfig::default())?;
     let builder = tauri::Builder::default().manage(lifecycle::DesktopTasks::new(runtime)?);
     let app = commands::register(builder)
+        .on_page_load(|webview, payload| {
+            webview
+                .state::<lifecycle::DesktopTasks>()
+                .page_load(webview.label(), payload.event());
+        })
         .on_window_event(|window, event| {
             if window.label() == "main"
                 && let tauri::WindowEvent::CloseRequested { api, .. } = event

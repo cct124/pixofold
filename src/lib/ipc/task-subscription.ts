@@ -67,12 +67,14 @@ export class TaskSnapshotSubscription {
   readonly #limit: number;
   readonly #onSnapshot: (snapshot: TaskSnapshotDto) => void;
   readonly #onError: (error: unknown) => void;
+  readonly #onState: (state: TaskConnectionState) => void;
 
   constructor(
     onSnapshot: (snapshot: TaskSnapshotDto) => void = () => {},
     onError: (error: unknown) => void = () => {},
     collection: TaskCollection = 'jobs',
     limit = MAX_TASK_PAGE_SIZE,
+    onState: (state: TaskConnectionState) => void = () => {},
   ) {
     if (
       !['jobs', 'candidates', 'issues'].includes(collection) ||
@@ -85,6 +87,16 @@ export class TaskSnapshotSubscription {
     this.#limit = limit;
     this.#onSnapshot = onSnapshot;
     this.#onError = onError;
+    this.#onState = onState;
+  }
+
+  #setState(state: TaskConnectionState): void {
+    this.#state = state;
+    try {
+      this.#onState(state);
+    } catch (error) {
+      this.#report(error);
+    }
   }
 
   get state(): TaskConnectionState {
@@ -116,7 +128,7 @@ export class TaskSnapshotSubscription {
     }
     if (this.#state === 'reload_required') return Promise.reject(new Error('Reload required'));
     if (!isTauri()) {
-      this.#state = 'unavailable';
+      this.#setState('unavailable');
       return Promise.resolve(null);
     }
     if (liveOwner) return Promise.reject(new Error('Another task subscription owns this page'));
@@ -127,7 +139,7 @@ export class TaskSnapshotSubscription {
       channel = new Channel<unknown>();
     } catch (error) {
       // 构造未完成时也不能证明回调未注册；保守保留页面槽，重载才释放。
-      this.#state = 'reload_required';
+      this.#setState('reload_required');
       this.#report(error);
       return Promise.reject(error);
     }
@@ -148,7 +160,7 @@ export class TaskSnapshotSubscription {
       processing: false,
     };
     this.#connection = connection;
-    this.#state = 'connecting';
+    this.#setState('connecting');
     this.#error = null;
     channel.onmessage = (value) => this.#receive(connection, value);
     connection.opening = this.#open(connection);
@@ -162,7 +174,7 @@ export class TaskSnapshotSubscription {
       await this.#refresh(connection, connection.ticket);
       if (connection.stopped) return null;
       connection.ready = true;
-      this.#state = 'connected';
+      this.#setState('connected');
       this.#drain(connection);
       return this.#current;
     } catch (error) {
@@ -277,13 +289,13 @@ export class TaskSnapshotSubscription {
     connection.stopped = true;
     connection.pending = null;
     connection.channel.onmessage = () => {};
-    this.#state = 'disconnecting';
+    this.#setState('disconnecting');
     connection.closing = (async () => {
       let id: string;
       try {
         id = subscriptionId(await connection.registration);
       } catch (error) {
-        this.#state = 'reload_required';
+        this.#setState('reload_required');
         throw new Error(
           'Subscription identity is unknown; reload the WebView to release its callback',
           { cause: error },
@@ -295,14 +307,14 @@ export class TaskSnapshotSubscription {
         });
         if (typeof removed !== 'boolean') throw new Error('Invalid unsubscribe response');
       } catch (error) {
-        this.#state = 'failed';
+        this.#setState('failed');
         this.#error = error;
         throw error;
       }
       if (this.#connection === connection) {
         this.#connection = null;
         if (liveOwner === connection.owner) liveOwner = null;
-        this.#state = this.#error === null ? 'idle' : 'failed';
+        this.#setState(this.#error === null ? 'idle' : 'failed');
       }
     })().finally(() => {
       connection.closing = null;
