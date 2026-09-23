@@ -7,29 +7,49 @@ use crate::{
 use serde_json::{Value, json};
 use tauri::{
     Manager,
-    test::{INVOKE_KEY, get_ipc_response, mock_builder},
+    test::{INVOKE_KEY, MockRuntime, get_ipc_response, mock_builder},
     webview::InvokeRequest,
 };
 
+fn app(context: tauri::Context<MockRuntime>) -> tauri::App<MockRuntime> {
+    let runtime = TaskRuntime::new(TaskConfig::default()).unwrap();
+    super::register(mock_builder().manage(DesktopTasks::new(runtime)))
+        .build(context)
+        .unwrap()
+}
+
+fn window(app: &tauri::App<MockRuntime>, label: &str) -> tauri::WebviewWindow<MockRuntime> {
+    tauri::WebviewWindowBuilder::new(app, label, Default::default())
+        .build()
+        .unwrap()
+}
+
+fn snapshot_request() -> Value {
+    json!({"request": {"expectedRevision": null, "collection": "jobs", "offset": 0, "limit": 100}})
+}
+
 fn invoke(
-    window: &tauri::WebviewWindow<tauri::test::MockRuntime>,
+    window: &tauri::WebviewWindow<MockRuntime>,
+    command: &str,
     body: Value,
 ) -> Result<Value, Value> {
-    invoke_at(window, body, "http://tauri.localhost")
+    // 来源跟随实际配置/平台，不把Windows打包协议当作所有平台的本地页面。
+    invoke_at(window, command, body, window.url().unwrap())
 }
 
 fn invoke_at(
-    window: &tauri::WebviewWindow<tauri::test::MockRuntime>,
+    window: &tauri::WebviewWindow<MockRuntime>,
+    command: &str,
     body: Value,
-    origin: &str,
+    origin: tauri::Url,
 ) -> Result<Value, Value> {
     get_ipc_response(
         window,
         InvokeRequest {
-            cmd: "get_task_snapshot".into(),
+            cmd: command.into(),
             callback: tauri::ipc::CallbackFn(0),
             error: tauri::ipc::CallbackFn(1),
-            url: origin.parse().unwrap(),
+            url: origin,
             body: tauri::ipc::InvokeBody::Json(body),
             headers: Default::default(),
             invoke_key: INVOKE_KEY.to_string(),
@@ -38,42 +58,120 @@ fn invoke_at(
     .map(|response| response.deserialize().unwrap())
 }
 
+fn assert_permission_denied(response: Result<Value, Value>, command: &str) {
+    let error = response.unwrap_err();
+    assert!(
+        error.as_str().is_some_and(|message| {
+            // Tauri在debug带权限诊断，release仅返回短错误；二者都不是业务失败。
+            message.starts_with(&format!("{command} not allowed on window"))
+                || message == format!("Command {command} not allowed by ACL")
+        }),
+        "应由ACL拒绝，而非反序列化或业务错误：{error}"
+    );
+}
+
+fn assert_local_queries_and_permissions(app: &tauri::App<MockRuntime>) {
+    let main = window(app, "main");
+    let other = window(app, "other");
+    let before = app.state::<DesktopTasks>().control.snapshot();
+    assert_eq!(
+        invoke(&main, "get_app_info", json!({})).unwrap(),
+        serde_json::to_value(pixofold_core::app_info()).unwrap()
+    );
+    assert_eq!(
+        invoke(&main, "get_task_snapshot", snapshot_request()).unwrap()["phase"],
+        "idle"
+    );
+    for (command, body) in [
+        ("get_app_info", json!({})),
+        ("get_task_snapshot", snapshot_request()),
+    ] {
+        assert_permission_denied(invoke(&other, command, body.clone()), command);
+        // 只构造IPC来源，不发起网络请求；远程页面/相似域名均不能继承main权限。
+        for origin in [
+            "https://example.invalid",
+            "http://tauri.localhost.example.invalid",
+            "tauri://example.invalid",
+        ] {
+            assert_permission_denied(
+                invoke_at(&main, command, body.clone(), origin.parse().unwrap()),
+                command,
+            );
+        }
+    }
+    let after = app.state::<DesktopTasks>().control.snapshot();
+    assert_eq!(after.revision, before.revision);
+    assert_eq!(after.phase, before.phase);
+    assert!(after.selection.is_none());
+}
+
 #[test]
-fn snapshot_command_uses_app_owner_and_main_only_permission() {
-    let runtime = TaskRuntime::new(TaskConfig::default()).unwrap();
-    let app = mock_builder()
-        .manage(DesktopTasks::new(runtime))
-        .invoke_handler(tauri::generate_handler![
-            super::get_app_info,
-            super::get_task_snapshot
-        ])
-        .build(tauri::generate_context!())
-        .unwrap();
-    let main = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
-        .build()
-        .unwrap();
-    let other = tauri::WebviewWindowBuilder::new(&app, "other", Default::default())
-        .build()
-        .unwrap();
-    let request = json!({"request": {"expectedRevision": null, "collection": "jobs", "offset": 0, "limit": 100}});
-    assert_eq!(invoke(&main, request.clone()).unwrap()["phase"], "idle");
-    assert!(invoke(&other, request.clone()).is_err());
-    // 只更换IPC请求来源，无网络访问；远程页面不能沿用main窗口的本地权限。
-    assert!(invoke_at(&main, request.clone(), "https://example.invalid").is_err());
+fn queries_use_configured_app_origin_and_main_only_permissions() {
+    let app = app(super::super::app_context());
+    // 默认测试构建覆盖实际devUrl；custom-protocol构建仍由Tauri选择本地协议。
+    if tauri::is_dev() {
+        let probe = window(&app, "origin-probe");
+        assert_eq!(Some(probe.url().unwrap()), app.config().build.dev_url);
+    }
+    assert_local_queries_and_permissions(&app);
+}
+
+#[test]
+fn queries_use_platform_packaged_origin_and_main_only_permissions() {
+    let mut context = super::super::app_context();
+    // 只移除测试上下文的开发地址以覆盖打包协议，不修改真实capability/权限。
+    context.config_mut().build.dev_url = None;
+    let app = app(context);
+    let probe = window(&app, "origin-probe");
+    let url = probe.url().unwrap();
+    if cfg!(windows) || cfg!(target_os = "android") {
+        assert_eq!(url.scheme(), "http");
+        assert_eq!(url.host_str(), Some("tauri.localhost"));
+    } else {
+        assert_eq!(url.scheme(), "tauri");
+        assert_eq!(url.host_str(), Some("localhost"));
+    }
+    assert_local_queries_and_permissions(&app);
+}
+
+#[test]
+fn snapshot_command_rejects_invalid_requests_without_mutating_tasks() {
+    let app = app(super::super::app_context());
+    let main = window(&app, "main");
+    let request = snapshot_request();
+    let before = app.state::<DesktopTasks>().control.snapshot();
     let mut invalid = request.clone();
     invalid["request"]["limit"] = json!(101);
     assert_eq!(
-        invoke(&main, invalid).unwrap_err(),
+        invoke(&main, "get_task_snapshot", invalid).unwrap_err(),
         json!({"code": "invalid_page"})
     );
     let mut invalid = request;
     invalid["request"]["path"] = json!("arbitrary.png");
-    assert!(invoke(&main, invalid).is_err());
+    let error = invoke(&main, "get_task_snapshot", invalid).unwrap_err();
     assert!(
-        app.state::<DesktopTasks>()
-            .control
-            .snapshot()
-            .selection
-            .is_none()
+        error
+            .as_str()
+            .is_some_and(|message| message.contains("unknown field `path`")),
+        "额外路径应在反序列化边界被拒绝：{error}"
     );
+    let after = app.state::<DesktopTasks>().control.snapshot();
+    assert_eq!(after.revision, before.revision);
+    assert!(after.selection.is_none());
+}
+
+#[test]
+fn snapshot_command_observes_the_existing_application_owner() {
+    let app = app(super::super::app_context());
+    let main = window(&app, "main");
+    let before = invoke(&main, "get_task_snapshot", snapshot_request()).unwrap();
+    assert_eq!(before["phase"], "idle");
+    app.state::<DesktopTasks>().control.request_close();
+    // 协调线程可已收尾，也可仍在关闭；两种情况都必须读取原所有者而非新建空闲服务。
+    let after = invoke(&main, "get_task_snapshot", snapshot_request()).unwrap();
+    assert!(matches!(
+        after["phase"].as_str(),
+        Some("closing" | "closed")
+    ));
+    assert_ne!(after["revision"], before["revision"]);
 }

@@ -158,7 +158,7 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 - TaskSnapshotReader 管理单个可见页面：仅应用最后一次查询，拒绝版本回退，卸载后丢弃迟到成功/失败；错误保留最后一份好快照。没有定时轮询或隐式重跑；浏览器返回 null，不模拟后端。
 - 仅主窗口授权 allow-get-task-snapshot；未开放通用文件读写、dialog、opener 或 shell。Rust 请求反序列化拒绝额外字段/非法表示；合法结构但非法分页返回稳定错误码，传输/反序列化失败仍由 Tauri 错误通道报告。
 
-下一步继续 P3b：先设计有界 Channel 订阅、确认/替换/销毁和断线恢复，保证终态可查询，不用每100ms广播全量数组；随后接原生选择/拖放授权与任务变更命令，再由 P4 沿既有原型接入真实交互。不要按窗口或命令创建 TaskRuntime。
+下一步先复验 P3b 跨平台测试基线修复，再实现有界 Channel 订阅、确认/替换/销毁和断线恢复，保证终态可查询，不用每100ms广播全量数组；随后接原生选择/拖放授权与任务变更命令，再由 P4 沿既有原型接入真实交互。不要按窗口或命令创建 TaskRuntime。
 
 ## 工程边界
 
@@ -182,11 +182,13 @@ Rust DTO 通过可选 `bindings` feature 使用 ts-rs 12 生成 TypeScript，普
 
 pnpm types:generate/types:check 同时运行核心与桌面生成器，后者需具备桌面编译系统依赖，但不启动窗口或任务线程。桌面全部单元/mock测试由显式 tests/desktop.rs target 承载（库默认 test harness 关闭以免重复运行），Windows MSVC 通过 build.rs 复用 Tauri 生成的资源 manifest；这保证 mock 使用的 Common Controls v6 可加载，不修改发行行为或跳过旧测试。
 
+生产与mock共用一次Tauri上下文宏展开和同一命令注册入口，避免macOS重复嵌入plist符号及测试路由漂移。mock IPC从WebView实际URL获取正常来源，分别覆盖配置中的开发地址与平台打包协议；其他窗口、远程/相似域名仍由真实capability拒绝，不为测试开放额外权限。这些回归不启动原生WebView，也不证明原生GUI导航/拖放已经验收。
+
 2026-09-21 脚手架已通过冻结安装、统一检查、Windows 可执行文件构建/启动及浏览器外观交互验证。2026-09-22 无损 `3f6c617`、有损 `ab9b2bb`、包含 P1/P2 的 `11c55fa` 分别通过三平台 CI 统一检查和桌面构建；最后一轮为 run `35713030818`，已复验旧批量提交的 Ubuntu/macOS 测试导入修复。
 
 P3a 在 Windows 通过 `pnpm check`（90 项 Rust 测试、2 项编译型 doctest、5 项前端测试及 32 份语料清单）和 `pnpm tauri build --no-bundle --ci`；包含相同业务代码的 `36a1174` 已通过三平台 CI（run35808907663）。历史 release 空闲关闭退出码为 0，但 stderr 有 `Chrome_WidgetWin_0` 注销告警（1412），仍待排查。原生导入/处理中的 GUI 关闭、完整任务订阅、视觉复验、峰值 RSS 及安装包尚未验收；P3b 新代码的本机验证单独见 [开发记录](docs/devlog/README.md)，不沿用旧 CI 或空闲窗口冒烟证据。
 
-P3b 只读查询功能提交 `048ecf8` 已于 2026-09-23 推送至 `origin/dev`。本机 `pnpm check`（105 项 Rust 运行测试、2 项编译型 doctest、14 项前端测试）和 Windows release 构建通过，最终测试断言更新后也复验了桌面 Clippy/29项测试；新代码远端 CI 尚未核查。只读查询、mock 权限测试不等同于原生桌面压缩闭环验收。
+P3b 只读查询功能提交 `048ecf8` 已于 2026-09-23 推送至 `origin/dev`。本机 `pnpm check`（105 项 Rust 运行测试、2 项编译型 doctest、14 项前端测试）和 Windows release 构建通过。2026-09-23复核后续文档提交38af28a的CI run35825516745：Windows检查/构建成功，Ubuntu因测试来源地址导致权限用例失败，macOS因重复plist符号导致测试编译失败。本轮已修正上下文/路由复用与测试来源，具体本机验证见 [开发记录](docs/devlog/README.md)；修复代码仍需新SHA的三平台CI，不把前序成功结果或根因分析当作已通过。只读查询、mock权限测试不等同于原生桌面压缩闭环验收。
 
 ## 项目方案
 

@@ -9,6 +9,11 @@ use crate::{
 };
 use pixofold_core::model::AppInfo;
 
+// 生产装配与mock使用相同路由，避免测试独立注册命令后掩盖接线遗漏。
+pub(crate) fn register<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
+    builder.invoke_handler(tauri::generate_handler![get_app_info, get_task_snapshot])
+}
+
 #[tauri::command]
 pub(crate) fn get_app_info() -> AppInfo {
     pixofold_core::app_info()

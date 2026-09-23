@@ -1,7 +1,7 @@
 # PNG 批量任务与桌面闭环
 
 - 创建日期：2026-09-22（Asia/Shanghai）
-- 状态：包含P3a的36a1174已通过三平台CI检查/桌面构建。P3b首步任务DTO生成与有界只读查询已通过Windows统一检查/release构建，功能提交048ecf8已于2026-09-23推送origin/dev，新代码远端CI尚未核查；窗口类注销告警1412仍待查。后续为有界Channel订阅/恢复、原生授权入口与任务变更命令，再进入P4正式界面。完整桌面里程碑仍进行中，不归档本记录。
+- 状态：包含P3a的36a1174已通过三平台CI检查/桌面构建。P3b首步任务DTO与有界只读查询已推送；2026-09-23复核38af28a的run35825516745：Windows通过，Ubuntu权限测试失败、macOS测试编译失败。本轮上下文/路由复用与来源修复已通过Windows统一检查、release构建及打包协议release命令回归，尚未提交/推送，待新SHA跨平台CI；窗口类注销告警1412仍待查。后续为有界Channel订阅/恢复、原生授权入口与任务变更命令，再进入P4正式界面。完整桌面里程碑仍进行中，不归档本记录。
 - 分支与代码基准：dev；规划基准ab9b2bb680ec10de798df6dae5c3bc58af9001a9（有损功能5ceb0e1），P1交接基准7587c87d12e5a4466ae9f7f088ebef1c3756cc7a
 - 依据：[PNG 有损前序任务](../../_fin/260922/png-lossy-quality.md)、[项目方案](../../../架构设计文档/pixofold-proposal.md)、[交互设计](../../../架构设计文档/ui-interaction-design.md)、[HTML 原型说明](../../../UI界面设计/HTML原型说明.md)
 
@@ -261,3 +261,40 @@
 - 实际功能提交为048ecf85c5a4981d7c70c442403e39409484d161（feat: 实现任务 DTO 与有界只读快照查询），共25个文件；暂存空白检查通过，范围不含构建产物、日志或参考仓库。提交后工作区干净。
 - git push origin dev成功，远端从36a1174前进至048ecf8；本条实际结果及README/索引状态以独立文档提交收尾，不修改业务代码。本次未核查新代码远端CI，后续仍需复验；1412告警和未完成的Channel/原生导入/UI范围不变。
 - 文档收尾diff/空白及3份文档内30个本地链接检查通过；本次没有新增业务变更或重复运行测试/构建。
+
+## 2026-09-23 P3b跨平台基线修复开工
+
+- 用户要求深入分析当前仓库并执行合理的下一步。基准为dev/38af28a36bf553950784c918ad4d3a87e20543ab，HEAD与本地origin/dev一致，开工工作区和暂存区干净；本轮不提交或推送，不修改png-palettes。
+- 已核对任务所有权、只读DTO/分页、前端TaskSnapshotReader及未接通的产品链路。核心执行、输出安全与应用协调已有实现，但正式UI仍为启动页；Channel、原生授权导入和变更IPC尚未落地。在订阅增加线程/会话/权限之前，先解决已失败的桌面契约基线，比继续铺设UI或增加格式更优先。
+- GitHub核查证据：功能提交048ecf8的run35825344842被取消；包含相同功能的38af28a对应run35825516745已完成且失败。Windows job107066325620统一检查/桌面构建成功；Ubuntu job107066325817统一检查失败（桌面29项中28通过、1失败）；macOS job107066325841统一检查在桌面测试编译时失败。后二者桌面构建均跳过，不能沿用P3a三平台成功记录。
+- Ubuntu日志明确是get_task_snapshot在main窗口被ACL拒绝：测试把来源写死为http://tauri.localhost，而平台本地协议/开发服务器来源由Tauri配置决定。macOS日志明确为重复_EMBED_INFO_PLIST符号：生产run与命令mock测试各调用generate_context!，显式测试target又包含同一lib.rs。两者与历史Windows退出告警1412没有已证实的因果关系。
+- 本轮实施范围：集中真实Tauri上下文生成，生产与mock复用；正常IPC调用从mock WebView实际URL取来源，不放宽capability；补开发地址与打包协议、其他窗口/远程来源拒绝的回归，区分权限错误与命令参数错误。保留Windows显式测试target/manifest和全部既有测试，不升级依赖或关闭平台检查。
+- 验收：Windows桌面定向测试、全target/feature Clippy、统一检查与release构建；检查唯一上下文宏、权限文件/生成DTO无意外变化、diff/文档链接。Ubuntu/macOS修复验收必须等待后续用户授权提交后的新SHA CI，本地静态推断不冒充跨平台运行结果。
+- 后续顺序：①本次跨平台修复及新SHA CI；②有界只读Channel订阅（应用唯一所有者、有限在途通知、会话替换/确认/销毁、重挂载查询恢复终态）；③原生选择/拖放授权和导入/启动/取消/重试IPC；④沿既有原型接真实PNG业务UI，同时补真实素材、峰值RSS与GUI退出验收。Channel另作可验收步骤，本轮不捎带半成品订阅或轮询替代实现。
+
+### 跨平台基线实际修改与验证进展
+
+- src-tauri/src/lib.rs新增私有泛型app_context，生产Wry与mock均调用这一处generate_context!；未用cfg跳过生产装配或权限测试，保留显式desktop测试入口及Windows资源链接。commands::register统一两条实际查询路由，生产与mock不再各自维护handler列表；命令协议、TaskRuntime所有权、退出桥及默认权限不变。
+- 普通测试请求使用WebView实际URL。分别以原始配置和仅移除测试上下文devUrl的配置覆盖开发来源/打包协议；平台URL差异只用于断言实际装配结果，不再手造一个固定的正常请求来源。两个查询命令均验证main允许、其他窗口和远程/仿冒域名拒绝。权限断言识别Tauri debug诊断或release短ACL错误，避免把反序列化错误误认为权限通过。
+- 原1项命令测试拆分/扩展为4项，保留非法分页和额外path字段拒绝，并验证查询不改变revision/selection。新增通过应用现有control请求关闭后再经IPC读取Closing/Closed，防止命令误建独立空闲TaskRuntime；不依赖固定休眠，不要求线程恰好停在某个过渡时刻。
+- 首轮4项命令定向测试通过。随后Windows pnpm check通过：108项Rust运行测试（核心76+桌面32）、2项no_run编译型doctest、14项前端测试、32份PNG语料/SHA256、双生成类型一致性、Prettier/rustfmt、Oxlint、TypeScript及全workspace/all-targets/all-features Clippy -D warnings。未更新DTO、锁文件、权限或图片样本。
+- 沙箱内pnpm check因registry fetch failed无法验证锁定pnpm签名，按规则提升同一命令后通过；没有关闭签名校验、变更包管理器版本或绕过失败用例。公开job日志下载接口返回403后，通过已有GitHub连接器只读取对应两项失败job日志，未修改远端workflow或盲目重跑。
+- Windows pnpm tauri build --no-bundle --ci通过，产出target/release/pixofold.exe；cargo test -p pixofold-desktop --release --features tauri/custom-protocol --locked --test desktop commands::tests通过4项命令回归，实际覆盖release ACL错误与打包协议上下文，不仅是debug配置移除devUrl的模拟。macOS/Linux运行、原生WebView/GUI、1412告警、真实素材/RSS及安装包仍未验收，不因本机检查成功扩大已验证范围。
+
+### 下一开发步骤的边界与验收
+
+- 入口保持TaskControl::wait_for_change、ipc::query和前端TaskSnapshotReader。订阅只通知会话标识与最新revision，明细仍按视口查询有界页面，不把每次完整任务列表推入Channel。
+- 实施前明确订阅建立与首次快照的握手顺序，避免首次通知早于invoke返回或查询时发生变化造成漏更新。确认协议最多保留有限在途通知，慢客户端期间合并到最新revision；不以Channel发送成功当作前端已经消费。原始阶段可合并，但最终状态必须能经权威快照恢复，不承诺逐事件日志。
+- 旧会话的ack/unsubscribe不能干扰替换后的会话；组件销毁、WebView重载、断线、发送失败和应用退出各有清理路径。后台所有者属于应用，不按窗口或命令创建TaskRuntime/无限工作线程，不在锁内发送或等待退出。
+- 验收先覆盖确定性握手竞争、快速连续变化、慢客户端有界性、重复/迟到确认、会话替换与销毁、终态后重连和退出收尾，再做原生WebView冒烟。完成该只读链路后才接受控原生路径授权与变更命令；前端展示名始终不是文件访问授权，正式PNG业务UI继续沿既有原型实现。
+
+### 本轮交接
+
+- git diff --check与3份改动文档的31个本地链接检查通过；已复查完整代码diff，generate_context!和generate_handler!在桌面源码各仅一处。核心、前端、DTO生成文件、权限、依赖/锁文件、CI配置、显式测试target与Windows manifest均未改变，不掩盖旧失败或跳过测试。
+- 当前6份未提交改动：src-tauri/src/lib.rs、src-tauri/src/commands/{mod,tests}.rs、README.md、docs/devlog/README.md及本连续记录。暂存区为空，dev/HEAD仍为38af28a36bf553950784c918ad4d3a87e20543ab，png-palettes工作区干净；本轮未提交、推送或触发远端CI。
+- 本轮实施范围已完成，无新的产品决策阻塞。用户后续授权提交时先核对这6份改动和基准，再正常提交推送并按新SHA验证Ubuntu/macOS修复；下一功能开发按上节实施有界只读订阅，不直接跳到任意路径IPC或全量UI迁移。
+
+## 2026-09-23 基线修复提交与后续开发
+
+- 用户明确要求先提交推送现有代码，再分析并执行下一步开发。开工仍为dev/38af28a，6份改动与上次交接完全一致，暂存区为空；代码未变，沿用已完成的统一检查、release构建和release命令回归，不重复无变化的全套验证。
+- 本次正常提交并推送origin/dev，不改写历史或强推。实际提交号、推送与新SHA CI结果随后补记；推送后新开发改动保持本地，除非用户再次要求提交。png-palettes继续只读参考。
