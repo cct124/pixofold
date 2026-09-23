@@ -1,17 +1,20 @@
-//! 任务只读IPC：捕获一次权威视图，再在锁外转换有界页面。
-//! 展示名不等于路径授权；不读取文件、不创建线程、不改变任务或保存历史快照。
+//! 任务IPC：只读分页与受控变更分别适配应用服务，路径和原始错误不跨WebView。
+//! 展示名不等于路径授权；变更只接纳短命令，不在此执行文件I/O或创建任务服务。
 
 mod convert;
 mod dto;
+mod mutation_dto;
 #[cfg(test)]
 mod tests;
 
 use crate::tasks::TaskControl;
+pub(crate) use convert::task_error;
 pub(crate) use dto::{
     DecimalU64, SubscriptionError, TASK_PROTOCOL_VERSION, TaskChangeAck, TaskChangeNotice,
     TaskSubscriptionRequest,
 };
 pub(crate) use dto::{QueryError, TaskPageRequest, TaskSnapshotDto};
+pub(crate) use mutation_dto::*;
 
 pub(crate) fn query(
     control: &TaskControl,
@@ -24,5 +27,5 @@ pub(crate) fn query(
 
 #[cfg(feature = "bindings")]
 pub(crate) fn declarations() -> String {
-    dto::declarations()
+    dto::declarations() + &mutation_dto::declarations()
 }

@@ -6,6 +6,8 @@ fn main() {
             "subscribe_task_changes",
             "acknowledge_task_changes",
             "unsubscribe_task_changes",
+            "select_native_import",
+            "apply_task_mutation",
         ]),
     ))
     .expect("无法构建 PixoFold 桌面资源与权限清单");

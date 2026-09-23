@@ -1,6 +1,6 @@
 # PixoFold（轻图）项目方案
 
-调研日期：2026-09-20；工程更新：2026-09-23。状态：继续采用 GPL-3.0-or-later，已有独立 Git 仓库、亮暗主题 UI、圆角 SVG logo 与 HTML 原型；已创建 Tauri 2 / React / Rust 核心脚手架。静态PNG、批量/导入、P3a应用协调及P3b只读查询/跨平台修复已通过三平台CI（85d942a）。本轮新增有界只读Channel订阅及单页恢复适配器，原生导入入口、任务变更IPC与正式业务界面尚未接通；新增订阅代码验证、退出告警及未验证范围见devlog。
+调研日期：2026-09-20；工程更新：2026-09-23。状态：继续采用 GPL-3.0-or-later，已有独立Git仓库、亮暗主题UI、SVG logo与HTML原型及Tauri 2 / React / Rust脚手架。静态PNG、批量/导入、应用协调、只读查询与有界订阅已通过三平台CI（b0105b9）。本轮新增受控原生文件/目录选择及任务操作适配；正式业务UI、拖放、自选输出目录和原生GUI验收尚未完成。新代码验证、1412告警及未验证范围见devlog，不沿用旧CI。
 
 界面迭代入口：[HTML 交互原型](../UI界面设计/PixoFold.html) 与 [原型说明](../UI界面设计/HTML原型说明.md)。HTML 用于先行确认 UI 和操作流程，演示处理器不代表真实压缩实现。
 
@@ -117,7 +117,8 @@ pixofold/
     src/lib.rs              桌面应用装配
     src/tasks/              单槽后台协调、应用快照和线程所有者（P3a已实现）
     src/lifecycle.rs        常规关闭/退出的取消与后台join桥（P3a已实现）
-    src/commands/           薄 IPC 层
+    src/commands/           薄 IPC 层、受控任务接纳转换
+    src/ingress/            应用唯一原生选择槽与会话绑定的单次授权
     src/platform/           系统路径、受控子进程和平台适配
     capabilities/
   crates/pixofold-core/
@@ -145,7 +146,13 @@ P3b第二步实现subscriptions模块：应用唯一SubscriptionRuntime与通知
 
 前端TaskSnapshotSubscription限制页面单连接，通知后只读取所选集合第一页并确认，保留最后好快照；其他分页仍用TaskSnapshotReader保证同revision。disconnect屏蔽迟到结果，后续connect以查询恢复终态，没有自动无限重试或传输存活探测。锁定SDK的Channel没有公开close，正常清理由Rust drop/end帧完成；首次响应失败且会话ID未知时保留单个页面槽并要求重载，已知会话清理失败可重试disconnect，不能调用私有SDK回调接口。该边界不等于自动重连，原生WebView恢复还需单独验收。
 
-不在Rust持锁时序列化整批数组，也不承诺交付每个中间阶段。分页不保留历史版本，活跃批次全量遍历可能失效，应限制到可见页并在终态恢复。主窗口只开放查询和订阅管理，不授予文件路径权限；原生选择/拖放授权与变更类命令仍独立推进。
+不在Rust持锁时序列化整批数组，也不承诺交付每个中间阶段。分页不保留历史版本，活跃批次全量遍历可能失效，应限制到可见页并在终态恢复。
+
+P3b第三步由Rust侧tauri-plugin-dialog取得文件/目录路径，应用唯一NativeImports槽最多一个物理对话框或一份授权（1000根、路径总编码长度1 MiB、5分钟惰性过期）。前端只持grantId/rootCount；路径不经过JS输入或响应，新选择替换旧授权，成功导入单次消费，授权与已ACK的订阅会话绑定。对话框等待在槽位接纳后的后台执行，旧页面回调不得给新页面发授权；关闭先撤销授权，SDK无显式关闭对话框接口的边界及原生退出验证单独记录。
+
+主窗口新增select_native_import与apply_task_mutation两个命令，不授予通用dialog/fs/event权限。变更在订阅→授权槽→任务锁序内短时接纳，无I/O/await；start/cancel/clear复验selection，retry复验批次revision和有界唯一失败/取消行ID，沿用Rust原行输出，不重跑成功项。命令适配依赖IPC DTO/错误转换、授权槽与任务服务，IPC模型不反向依赖授权槽，核心不依赖Tauri。输出先限覆盖/同目录副本；自选目录授权和受控拖放后续独立实施，不接收任意路径字符串。
+
+TaskActions复用已握手的TaskSnapshotSubscription，最多一个在途操作，固定点击时的参数；选择过程中断开/替换后的迟到响应不能自动启动，写操作响应失败不自动重发。接纳票据不是完成结果，继续由快照恢复实际状态。正式业务UI仍未接入，不能据此提高compressionAvailable声明。
 
 ### 质量控制与主题边界
 

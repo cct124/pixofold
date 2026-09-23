@@ -97,6 +97,14 @@ export class TaskSnapshotSubscription {
     return this.#error;
   }
 
+  /** 仅首次快照/ACK已完成且未停止的会话可提交操作；不是文件访问凭据。 */
+  get mutationSession(): string | null {
+    const connection = this.#connection;
+    return this.#state === 'connected' && connection?.ready && !connection.stopped
+      ? (connection.ticket?.subscriptionId ?? null)
+      : null;
+  }
+
   /** 重复connect复用当前握手；不允许在未完成disconnect时抢占其他观察器。 */
   connect(): Promise<TaskSnapshotDto | null> {
     const existing = this.#connection;

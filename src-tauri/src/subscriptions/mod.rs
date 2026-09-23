@@ -72,6 +72,26 @@ pub(crate) struct SubscriptionControl {
     tasks: TaskControl,
 }
 impl SubscriptionControl {
+    /// 将一次短小的接纳操作绑定到当前已ACK会话；替换/取消订阅不能从校验与接纳之间穿过。
+    /// 闭包不得包含文件I/O、Channel发送、await或等待；锁序为订阅→授权槽→任务。
+    pub(crate) fn with_ready<T>(
+        &self,
+        id: DecimalU64,
+        action: impl FnOnce() -> T,
+    ) -> Result<T, SubscriptionError> {
+        let state = self.shared.lock()?;
+        state.available()?;
+        let session = state
+            .session
+            .as_ref()
+            .filter(|s| s.id == id.0)
+            .ok_or(SubscriptionError::StaleSubscription)?;
+        if session.acknowledged.is_none() {
+            return Err(SubscriptionError::InvalidAcknowledgement);
+        }
+        Ok(action())
+    }
+
     /// 替换唯一会话，返回首次待确认票据；确认之前不向Channel发送任何通知。
     pub(crate) fn subscribe(
         &self,

@@ -125,7 +125,7 @@ fn batch_error(error: &BatchError) -> Result<TaskFailureDto> {
         },
     })
 }
-fn task_error(error: &TaskError) -> Result<TaskFailureDto> {
+pub(crate) fn task_error(error: &TaskError) -> Result<TaskFailureDto> {
     Ok(match error {
         TaskError::Busy => TaskFailureDto::Busy,
         TaskError::Closed => TaskFailureDto::Closed,

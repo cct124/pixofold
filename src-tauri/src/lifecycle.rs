@@ -2,11 +2,12 @@
 //! 常规关闭/退出可等待；OS强杀、断电与未接入的重启路径不提供恢复保证。
 
 use crate::{
+    ingress::NativeImports,
     subscriptions::{SubscriptionControl, SubscriptionRuntime},
     tasks::{TaskControl, TaskRuntime},
 };
 use std::sync::{
-    Mutex,
+    Arc, Mutex,
     atomic::{AtomicBool, Ordering},
 };
 use tauri::{AppHandle, Manager};
@@ -15,6 +16,7 @@ pub(crate) struct DesktopTasks {
     runtime: Mutex<Option<DesktopRuntime>>,
     pub(crate) control: TaskControl,
     pub(crate) subscriptions: SubscriptionControl,
+    pub(crate) imports: Arc<NativeImports>,
     ready_to_exit: AtomicBool,
 }
 struct DesktopRuntime {
@@ -28,6 +30,7 @@ impl DesktopTasks {
         Ok(Self {
             control: runtime.control(),
             subscriptions: subscriptions.control(),
+            imports: Arc::new(NativeImports::default()),
             runtime: Mutex::new(Some(DesktopRuntime {
                 subscriptions,
                 tasks: runtime,
@@ -40,6 +43,7 @@ impl DesktopTasks {
     }
     fn take_for_shutdown(&self) -> Option<(DesktopRuntime, bool)> {
         self.subscriptions.request_close();
+        self.imports.close();
         self.control.request_close();
         // 只在锁内转移所有权；OS/I/O和join均不持锁，且不会再次创建收尾线程。
         match self.runtime.lock() {
@@ -87,6 +91,7 @@ mod tests {
         let tasks = DesktopTasks::new(TaskRuntime::new(TaskConfig::default()).unwrap()).unwrap();
         let old_handle = tasks.control.clone();
         let subscription_handle = tasks.subscriptions.clone();
+        let pending_selection = tasks.imports.reserve(crate::ipc::DecimalU64(1)).unwrap();
         let ticket = subscription_handle
             .subscribe(tauri::ipc::Channel::new(|_| Ok(())))
             .unwrap();
@@ -94,6 +99,10 @@ mod tests {
         assert!(!fault);
         assert!(tasks.take_for_shutdown().is_none());
         assert!(!tasks.ready());
+        assert!(matches!(
+            pending_selection.complete(Some(vec![std::env::temp_dir()])),
+            Err(crate::ipc::MutationError::Closed)
+        ));
         assert_eq!(
             subscription_handle.acknowledge(crate::ipc::TaskChangeAck {
                 subscription_id: ticket.subscription_id,

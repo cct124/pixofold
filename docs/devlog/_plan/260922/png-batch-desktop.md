@@ -1,7 +1,7 @@
 # PNG 批量任务与桌面闭环
 
 - 创建日期：2026-09-22（Asia/Shanghai）
-- 状态：85d942a跨平台基线修复已推送，run35830576186三平台统一检查/桌面构建全部通过，P3b只读查询前序失败已复验。本轮有界Channel订阅/单页恢复已实现并通过Windows统一检查、release构建及打包协议下41项release桌面回归；新代码未提交/推送，原生WebView/新SHA CI待验收。1412告警仍待查。下一步原生授权入口与任务变更命令，再进入P4正式界面。完整桌面里程碑仍进行中，不归档本记录。
+- 状态：P3b订阅b0105b9已推送，run35834973154三平台统一检查/桌面构建全部通过。本轮原生文件/目录选择、会话授权、任务操作IPC与前端适配已实现，通过Windows统一检查、release构建和打包协议下51项release桌面回归。新开发未提交/推送，原生WebView/新增依赖跨平台CI待验收。正式UI、拖放、自选输出目录、1412告警及真实素材/RSS仍待推进。完整桌面里程碑仍进行中，不归档本记录。
 - 分支与代码基准：dev；规划基准ab9b2bb680ec10de798df6dae5c3bc58af9001a9（有损功能5ceb0e1），P1交接基准7587c87d12e5a4466ae9f7f088ebef1c3756cc7a
 - 依据：[PNG 有损前序任务](../../_fin/260922/png-lossy-quality.md)、[项目方案](../../../架构设计文档/pixofold-proposal.md)、[交互设计](../../../架构设计文档/ui-interaction-design.md)、[HTML 原型说明](../../../UI界面设计/HTML原型说明.md)
 
@@ -333,3 +333,33 @@
 
 - 用户明确授权先提交推送现有订阅实现，再执行下一开发步骤。核对dev/85d942a和23份待提交文件与交接一致，暂存区为空；沿用上节未变化代码的统一检查、release构建及41项release桌面回归，本次复核暂存范围和空白，不重复无变化测试。
 - 正常提交并推送origin/dev，不改写历史；实际SHA及新CI随后记录。后续开发改动保留本地，不自动再次提交，png-palettes保持只读参考。
+- 实际提交b0105b94395f1916a69f5023a127578b709adf0a（feat: 实现有界任务订阅与快照恢复），23文件；暂存空白检查通过，git push origin dev成功，远端85d942a→b0105b9，提交后工作区干净。新CI run35834973154首次核查in_progress，本条与新开发留本地，不另推日志打断CI。
+
+### P3b原生选择与任务操作：实施边界
+
+- 复核TaskControl、批次重试和输出规划后，本轮收敛为原生文件/目录选择与变更IPC闭环；拖放和自选输出目录后续单独验收。现有Tauri拖放会发路径事件，不能直接照搬旧png-palettes的前端path数组/50ms去重/未释放listen；本轮不开放event/fs/dialog通用前端权限。
+- 新增精确锁定tauri-plugin-dialog 2.7.3，仅Rust调用，Apache-2.0 OR MIT，与Tauri 2.11.6兼容范围匹配；显式gtk3后端复用桌面Linux现有GTK依赖，不启用xdg-portal。原生对话框是现有Tauri核心缺少的能力；不移植旧Tauri1实现，不添加JS插件包。评估并记录新增传递依赖/锁文件，不升级既有依赖。
+- Rust持有唯一原生选择槽（最多一个物理对话框或一份待消费路径），最多1000根、路径总长度上限、5分钟惰性过期。授权绑定已ACK订阅会话，单调token只定位Rust记录，不是文件名/路径；新选择替换旧授权，成功导入只消费一次。旧会话回调/旧token/退出后结果拒绝，重载不能绕过尚未关闭的物理对话框限制。
+- 变更命令仅在当前订阅完成首次快照/ACK握手后接纳。导入设置支持PNG模式与覆盖/同目录副本；null为只扫描，设置随启动固定。启动/取消/清除核验selection，重试额外核验批次revision、唯一且有界的失败/取消行ID，并沿用Rust已授权输出策略，不重跑成功项。返回仅表示接纳，后台结果仍从权威快照恢复。
+- 前端适配器不生成模拟进度、不自动重试不确定的写操作；选择和变更前固定请求，连接销毁/替换后的迟到选择不可自动启动，浏览器不可调用。默认仍有损80/覆盖，正式UI和compressionAvailable维持现状。
+- 验收：选择取消/空列表、数量/路径边界、过期/替换/旧会话、单槽及panic释放、忙状态、重复导入/启动、旧selection/revision、失败行重试、真实PNG输出/源文件安全、严格DTO与ACL开发/打包矩阵，统一检查和Windowsrelease构建。原生GUI选择/WebView/退出与新依赖macOS/LinuxCI不以mock冒充，未执行则明确待验收。
+
+### 本轮实施与检查进展
+
+- b0105b9的CI run35834973154已完成：Windows job107096127224、macOS job107096127402、Ubuntu job107096127480均success，统一检查/桌面构建通过；只覆盖已推送订阅代码，不包括当前原生入口和新增依赖。
+- 新增ingress单槽与SelectionPermit RAII，仅保存Rust原生绝对路径；单次授权绑定订阅、过期/替换/关闭失效，接纳失败不消费，ID不回绕、锁poison失败关闭。对话框等待使用占位后spawn_blocking，插件通过主线程调度原生UI；旧页面结果回收占位而非发新授权，退出先关闭授权槽。SDK取消/某些系统失败均可返回None，且没有显式关闭API；本轮不宣称程序能主动取消物理对话框，实际原生退出仍需验收。
+- 新增select_native_import/apply_task_mutation及最小main权限。SubscriptionControl::with_ready在同一锁域校验当前已ACK会话并接纳短命令，顺序为订阅→授权→任务，不持锁做I/O或await。命令适配放在commands/mutations，依赖IPC DTO/错误转换、ingress和TaskControl；IPC模型不反向引用ingress，避免模块循环依赖。TaskRuntime、核心编码/扫描/输出实现不变。
+- TaskActions与mutationSession连接状态接通：浏览器拒绝变更，参数点击时冻结，默认有损80/覆盖，单个在途操作。迟到选择若连接已变不自动导入，接纳响应只回selectionId，不构造任务状态。Rust端严格拒绝路径/额外字段、非法质量与ID，前端额外检查授权和接纳信封；传输失败不自动重试写操作。
+- Cargo.lock新增14个包：dialog2.7.3、tauri-plugin2.6.3、tauri-plugin-fs2.5.2、rfd0.16.0及Windows绑定/架构支持包；未升级已有包，objc2-foundation仅增加libc依赖引用。按锁定源码核对许可，更新THIRD_PARTY_NOTICES；未注册fs插件或授予插件通用命令权限，未增加JS依赖/修改pnpm锁。
+- 首轮49项桌面测试通过；加入真实覆盖重试/备份与参数修正用例后，首次pnpm check到Rust桌面测试发现重试适配错误：把稳定JobId当数组下标，导致合法失败行被拒绝。修复为集合选ID、单次扫描权威batch.jobs，并用快照真实ID构建回归，覆盖重复/缺失/成功行与旧revision拒绝；10项命令定向回归全部通过。没有改为错误的0基ID契约或跳过失败测试。
+- 同次检查的40项前端测试、32 PNG/SHA256、双类型、格式/TS/Oxlint/Clippy通过，核心76项运行回归通过；整次check因上述桌面失败不计成功。ts-rs提示不支持enum上的deny_unknown_fields，已改为单来源严格variant载荷结构，保留相同wire形状，不全局关警告、不放宽运行时校验；生成器已更新，重新统一验证中。
+- pnpm types:generate首次沙箱registry签名验证fetch失败，按规则提升相同锁定命令后成功；不关闭签名校验。参考png-palettes仅确认旧前端路径数组、拖放监听和去重局限，未复制代码/修改参考仓库、HTML原型或真实业务UI。
+- 修复后pnpm check完整通过：127项Rust运行测试（核心76+桌面51）、2项no_run编译型doctest、40项前端测试、32份PNG/SHA256、双生成类型一致性、Prettier/rustfmt、Oxlint、严格TS与workspace/all-targets/all-features Clippy -D warnings；ts-rs新警告消除且严格反序列化测试通过。桌面较订阅基线增加10项，前端增加9项；真实PNG由mock生产命令调用同一应用服务，包含覆盖备份、失败重试、同目录副本、参数修正及清除不删产物，不代表原生对话框/WebView运行验证。
+- Windows pnpm tauri build --no-bundle --ci成功，生成target/release/pixofold.exe；cargo test -p pixofold-desktop --release --features tauri/custom-protocol --locked --test desktop全部51项通过，覆盖生产打包协议、release ACL、原生授权和真实任务操作回归。构建未生成安装包，未打开原生GUI执行选择或退出；正式UI仍为启动页，能力声明维持false。
+
+### 原生选择/任务操作交接
+
+- diff与8份新增文本空白检查通过，7份文档58个本地链接有效；已复核依赖/权限/源代码，未引入私有SDK接口、任意路径命令、额外TaskRuntime或模拟业务进度。核心/任务协调算法、PNG语料、前端业务UI/HTML原型、原核心generated.ts及pnpm-lock.yaml未改变，png-palettes工作区干净。
+- 本轮开始时订阅代码已作为b0105b94395f1916a69f5023a127578b709adf0a提交推送并完成三平台CI。随后原生入口开发保留本地：22份已跟踪修改、8份新增文件，暂存区为空，HEAD与origin/dev仍为b0105b9，未再次提交/推送。范围为原生选择依赖/锁/许可、ingress、commands、DTO/生成类型、权限、订阅握手接纳、生命周期、前端TaskActions/测试及配套文档。
+- 本轮边界内实现和自动回归完成，没有产品决策阻塞；完整PNG桌面里程碑尚未完成。下一入口为select_native_import、NativeImports/SelectionPermit、TaskActions和现有订阅器：先在Windows真实WebView验收文件/目录选择及取消、重载后旧结果拒绝、物理对话框打开时/处理中退出；旧1412告警做基线对照，不能宣称mock已解决。
+- 后续再明确原生拖放事件去重/区域归属/重载授权撤销，以及独立输出目录授权；复用同一所有者和任务门闩，不开放任意路径IPC或照搬前端path事件。P4沿HTML原型接真实列表/设置/汇总与失败提示；操作接纳不等于完成、传输不确定不自动重发。真实业务素材/色彩透明度、峰值RSS、macOS/Linux新增依赖CI及实际GUI/安装包继续独立验收。

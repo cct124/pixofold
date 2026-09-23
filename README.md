@@ -2,7 +2,7 @@
 
 基于 Tauri、React 和 Rust 的本地批量图片压缩工具，计划支持 PNG、JPEG、GIF 和 APNG，由 png-palettes 重构演进。
 
-当前已建立 **Tauri 2 + React + TypeScript + Rust workspace 脚手架**，实现可独立调用的 **静态 PNG 无损/有损核心、纯 Rust 批量任务服务及统一导入/输出规划**。P3a提供应用级任务协调与安全收尾；P3b已实现任务DTO、有界只读查询和Channel订阅/快照恢复适配器。桌面界面仍为工程启动页，包含亮暗主题、中英文、偏好持久化和构建信息；**原生导入入口、任务变更IPC与正式业务界面尚未接通，界面尚未使用订阅器。** 包含只读查询及跨平台修复的85d942a已通过三平台CI检查/桌面构建；本轮新增订阅代码的验证单独记载，不沿用前序证据。
+当前已建立 **Tauri 2 + React + TypeScript + Rust workspace 脚手架**，实现可独立调用的 **静态 PNG 无损/有损核心、纯 Rust 批量任务服务及统一导入/输出规划**。P3a提供应用级任务协调与安全收尾；P3b已有任务DTO、有界查询、Channel订阅/恢复，并新增受控原生文件/目录选择及导入、启动、取消、重试、清除IPC适配。**正式UI仍为启动页，尚未使用业务适配器；拖放、自选输出目录和原生GUI验收尚未完成，compressionAvailable仍为false。** 包含订阅的b0105b9已通过三平台CI检查/桌面构建；本轮新增选择/变更代码的验证单独记载，不沿用前序证据。
 
 UI 设计与可交互 HTML 原型保留作为实现依据：质量采用 0–100 连续滑块和精细输入，默认 80；当前质量描述以纯文字显示在标题行右侧。
 
@@ -169,7 +169,20 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 - [TaskSnapshotSubscription](src/lib/ipc/task-subscription.ts)是应用级单页适配器：connect后查询所选集合第一页（最多100行），每次通知读取快照再确认；页面最多一个连接，最多一个查询和一个待处理通知。拒绝倒退快照、忽略旧会话/迟到结果，错误保留最后好快照。其他页仍由TaskSnapshotReader管理同revision分页，界面不应按组件反复创建观察器。
 - 正常disconnect由Rust释放Channel并发送end帧，后续connect重新查询最新状态；没有自动无限重连或轮询探活，connected表示已建立观察关系，不保证传输持续可达。锁定SDK没有公开Channel.close接口：首次注册响应失败且会话归属未知时进入reload_required并保留页面槽，须重载WebView释放回调；已知会话清理失败可重试disconnect。不能用SDK私有接口强行清理，也不能把停止等待说成资源已释放。
 
-下一步接原生选择/拖放的受控路径授权与任务变更命令，再由P4沿既有原型接入真实交互；原生WebView订阅/重载也需单独验收。不要按窗口或命令创建TaskRuntime或SubscriptionRuntime。
+不要按窗口或命令创建TaskRuntime或SubscriptionRuntime；原生WebView订阅/重载仍需单独验收。
+
+## 受控原生选择与任务操作（P3b第三步）
+
+[原生授权槽](src-tauri/src/ingress/mod.rs)、[命令适配](src-tauri/src/commands/mutations.rs)和[TaskActions](src/lib/ipc/task-actions.ts)复用当前已握手的应用订阅与TaskControl，不把旧项目的path数组IPC迁入新工程。
+
+- select_native_import只接受files/folder与subscriptionId，通过Rust侧tauri-plugin-dialog 2.7.3打开主窗口所属原生对话框。最多一个物理对话框；等待由有界占位后的后台任务承担，不持服务锁或阻塞UI。取消/空选择返回null，不建任务；SDK也可能把系统对话框失败表示为null，不能解读为成功处理。插件未提供显式关闭对话框API，重载不释放物理占位；应用退出先撤销接纳/授权，晚到结果不启动任务，原生退出行为待GUI验收。
+- 路径只留Rust，前端仅得到grantId/rootCount（不是扫描数量、展示名或路径凭据）。授权绑定订阅会话，最多1000根、原生路径编码长度总和不超过1 MiB，5分钟惰性过期；新选择替换旧授权，成功导入消费一次，忙状态拒绝不消费。根数和重试行数上限随Rust DTO生成；路径身份、内容及输出安全继续由核心复查。
+- apply_task_mutation接收可辨识操作联合。import使用授权及固定settings；settings=null只扫描，非null完整扫描后自动启动。start仅用于Ready清单修正。模式复用严格PngMode，输出仅overwrite/copy_beside，不允许任意路径、输出目录或资源预算字符串/覆盖。
+- cancel/clear/start携带当前selectionId；retry额外要求expectedBatchRevision和最多1000个唯一失败/取消行ID（不是数组/页码索引），沿用Rust原行输出目标，仅修改模式，成功/无收益项不重跑。clear只清记录，不删除原图、结果或备份；UI须先展示需保留的恢复信息。
+- 首次查询/ACK握手完成后才能操作。后端在订阅锁内原子校验会话并短时接纳，锁序为订阅→授权槽→任务，无文件I/O/await；旧会话、旧授权、旧selection/revision不影响新任务。命令返回selectionId仅表示接纳，后台成功/失败仍经任务快照查询。
+- TaskActions固定点击时的参数并限制一个在途操作；默认有损80/覆盖，浏览器明确不可用。选择期间断开/重连的迟到结果不能自动启动；操作传输失败可能已经接纳，不自动重试，应先恢复权威快照。尚未接入正式业务控件，不伪造进度或提前提升能力声明。
+
+下一步先补原生WebView文件/目录选择、重载和退出验收，再实现受控拖放/输出目录授权并进入P4正式UI；这些入口不能通过开放通用fs/dialog/event权限代替。
 
 ## 工程边界
 
@@ -187,7 +200,7 @@ tools/                      类型生成/一致性检查
 docs/                       方案、HTML 原型和开发交接
 ```
 
-启动页链路为 `getAppInfo()` → Tauri `get_app_info` → `pixofold_core::app_info()`；只读任务链路为 `getTaskSnapshot()` → get_task_snapshot → 应用TaskControl快照。主窗口授权两个查询及三个订阅管理命令，尚未接入文件系统、dialog、opener或shell插件。生产CSP保持同源资源，开发CSP仅额外允许本机Vite/HMR所需连接和样式。
+启动页链路为 `getAppInfo()` → Tauri `get_app_info` → `pixofold_core::app_info()`；只读任务链路为 `getTaskSnapshot()` → get_task_snapshot → 应用TaskControl快照。主窗口授权两个查询、三个订阅管理及两个受控选择/任务操作命令。dialog仅由Rust调用，未授予dialog/fs/event/opener/shell通用前端权限；传递依赖tauri-plugin-fs不等于启用其插件或权限。生产CSP保持同源资源，开发CSP仅额外允许本机Vite/HMR所需连接和样式。
 
 Rust DTO 通过可选 `bindings` feature 使用 ts-rs 12 生成 TypeScript，普通核心与桌面发布不启用该工具。TypeScript 7 超过当前 typescript-eslint 的声明兼容范围，因此采用 Oxlint 做 lint，并由 TypeScript 编译器执行严格类型检查。
 
@@ -199,7 +212,7 @@ pnpm types:generate/types:check 同时运行核心与桌面生成器，后者需
 
 P3a 在 Windows 通过 `pnpm check`（90 项 Rust 测试、2 项编译型 doctest、5 项前端测试及 32 份语料清单）和 `pnpm tauri build --no-bundle --ci`；包含相同业务代码的 `36a1174` 已通过三平台 CI（run35808907663）。历史 release 空闲关闭退出码为 0，但 stderr 有 `Chrome_WidgetWin_0` 注销告警（1412），仍待排查。原生导入/处理中的 GUI 关闭、完整任务订阅、视觉复验、峰值 RSS 及安装包尚未验收；P3b 新代码的本机验证单独见 [开发记录](docs/devlog/README.md)，不沿用旧 CI 或空闲窗口冒烟证据。
 
-P3b只读查询048ecf8已于2026-09-23推送。后续38af28a的CI run35825516745仅Windows通过，Ubuntu来源权限测试和macOS重复plist符号失败；修复85d942a已推送，run35830576186的Windows/Ubuntu/macOS统一检查与桌面构建全部通过，包含108项Windows Rust运行测试及2项编译型doctest、14项前端测试。该结果不包含本轮未提交订阅代码，其本机验证见 [开发记录](docs/devlog/README.md)。只读查询、mock权限/Channel测试不等同于原生桌面压缩闭环验收。
+P3b只读查询048ecf8已于2026-09-23推送。后续38af28a的CI run35825516745仅Windows通过，Ubuntu来源权限测试和macOS重复plist符号失败；修复85d942a已推送，run35830576186三平台全部通过。订阅实现b0105b9随后推送，run35834973154的Windows/macOS/Ubuntu统一检查与桌面构建全部通过（Windows117项Rust运行测试、2项编译型doctest、31项前端测试）。这些结果不包含本轮未提交原生选择/任务操作，其本机验证见 [开发记录](docs/devlog/README.md)。只读查询、mock权限/Channel测试不等同于原生桌面压缩闭环验收。
 
 ## 项目方案
 
