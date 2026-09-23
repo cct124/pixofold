@@ -633,3 +633,99 @@ fn missing_size_and_sum_overflow_remain_unknown_in_summary() {
     }
     assert_eq!(BatchSummary::from_jobs(&finished.jobs).input_bytes, None);
 }
+
+#[test]
+fn external_token_before_admission_keeps_existing_batch_and_attempts() {
+    let h = Harness::new(BatchConfig::default());
+    let cancel = CancellationToken::default();
+    cancel.cancel();
+    assert!(matches!(
+        h.service
+            .start_with_cancel(h.request(&["a"]), cancel.clone()),
+        Err(BatchError::Cancelled)
+    ));
+    assert!(h.service.snapshot().is_none());
+    let id = h.service.start(h.request(&["fail"])).unwrap();
+    let first = h.finish(id);
+    let retry = RetryRequest {
+        parameters: BatchParameters::default(),
+        jobs: vec![RetryJob {
+            id: first.jobs[0].id,
+            output: OutputPolicy::Overwrite,
+        }],
+    };
+    assert!(matches!(
+        h.service.retry_with_cancel(id, retry, cancel),
+        Err(BatchError::Cancelled)
+    ));
+    let after = h.service.snapshot().unwrap();
+    assert_eq!(after.revision, first.revision);
+    assert_eq!(after.jobs[0].attempt, 1);
+}
+
+#[test]
+fn external_token_alone_cancels_running_and_queued_work_without_rewriting_commit() {
+    for name in ["a", "committed"] {
+        let h = Harness::new(BatchConfig::default());
+        let cancel = CancellationToken::default();
+        let id = h
+            .service
+            .start_with_cancel(h.request(&[name, "queued"]), cancel.clone())
+            .unwrap();
+        h.started();
+        let before = h.service.snapshot().unwrap();
+        cancel.cancel();
+        let cancelling = h.service.snapshot().unwrap();
+        assert_eq!(cancelling.phase, BatchPhase::Cancelling);
+        assert!(cancelling.revision > before.revision);
+        assert_eq!(cancelling.summary.queued, 0);
+        assert!(matches!(
+            cancelling.jobs[0].state,
+            JobState::Running {
+                cancel_requested: true,
+                ..
+            }
+        ));
+        let done = h.finish(id);
+        assert_eq!(
+            done.summary.cancelled,
+            if name == "committed" { 1 } else { 2 }
+        );
+        assert_eq!(done.summary.succeeded, usize::from(name == "committed"));
+        assert!(h.started.try_recv().is_err(), "排队项不得进入执行器");
+        assert_eq!(done.reserved_working_bytes.0, 0);
+        let revision = done.revision;
+        h.service.cancel(id).unwrap();
+        assert_eq!(h.service.snapshot().unwrap().revision, revision);
+    }
+}
+
+#[test]
+fn retry_external_cancel_uses_new_token_and_preserves_completed_rows() {
+    let h = Harness::new(BatchConfig::default());
+    let id = h.service.start(h.request(&["fail", "committed"])).unwrap();
+    h.gate.release(2);
+    let first = h.service.wait(id, WAIT).unwrap();
+    h.started();
+    h.started();
+    let cancel = CancellationToken::default();
+    h.service
+        .retry_with_cancel(
+            id,
+            RetryRequest {
+                parameters: BatchParameters::default(),
+                jobs: vec![RetryJob {
+                    id: first.jobs[0].id,
+                    output: OutputPolicy::Overwrite,
+                }],
+            },
+            cancel.clone(),
+        )
+        .unwrap();
+    h.started();
+    cancel.cancel();
+    let done = h.finish(id);
+    assert_eq!(done.summary.cancelled, 1);
+    assert_eq!(done.summary.succeeded, 1);
+    assert_eq!((done.jobs[0].attempt, done.jobs[1].attempt), (2, 1));
+}

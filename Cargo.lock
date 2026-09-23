@@ -2307,6 +2307,7 @@ dependencies = [
  "pixofold-core",
  "tauri",
  "tauri-build",
+ "tempfile",
 ]
 
 [[package]]

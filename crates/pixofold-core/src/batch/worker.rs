@@ -23,6 +23,15 @@ fn take(shared: &Shared) -> Option<Work> {
             return None;
         }
         if let Some(batch) = &mut state.batch
+            && batch.cancel.is_cancelled()
+        {
+            let revision = batch.revision;
+            batch.cancel(false);
+            if batch.revision != revision {
+                shared.changed.notify_all();
+            }
+        }
+        if let Some(batch) = &mut state.batch
             && let Some(index) = batch.queue.front().copied()
         {
             let job = &mut batch.jobs[index];

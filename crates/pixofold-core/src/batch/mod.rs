@@ -38,11 +38,18 @@ struct Batch {
     jobs: Vec<Job>,
     queue: VecDeque<usize>,
     cancel: CancellationToken,
+    cancelling: bool,
     running: usize,
     reserved: u64,
 }
 impl Batch {
-    fn new(id: BatchId, revision: u64, parameters: BatchParameters, jobs: Vec<Job>) -> Self {
+    fn new(
+        id: BatchId,
+        revision: u64,
+        parameters: BatchParameters,
+        jobs: Vec<Job>,
+        cancel: CancellationToken,
+    ) -> Self {
         let queue = jobs
             .iter()
             .enumerate()
@@ -54,7 +61,8 @@ impl Batch {
             parameters,
             jobs,
             queue,
-            cancel: CancellationToken::default(),
+            cancel,
+            cancelling: false,
             running: 0,
             reserved: 0,
         }
@@ -70,7 +78,7 @@ impl Batch {
             parameters: self.parameters,
             phase: if !self.active() {
                 BatchPhase::Finished
-            } else if self.cancel.is_cancelled() {
+            } else if self.cancelling {
                 BatchPhase::Cancelling
             } else {
                 BatchPhase::Running
@@ -82,9 +90,11 @@ impl Batch {
         }
     }
     fn cancel(&mut self, fault: bool) {
-        if !self.active() || self.cancel.is_cancelled() {
+        if !self.active() || self.cancelling {
             return;
         }
+        // 外部令牌可以先于服务通知置位，仍必须清空队列；重复请求不制造新revision。
+        self.cancelling = true;
         self.cancel.cancel();
         self.queue.clear();
         for job in &mut self.jobs {
@@ -282,6 +292,22 @@ impl BatchService {
     /// # Errors
     /// 空列表、队列上限、非法参数、服务忙/关闭、跨任务冲突均在启动前返回。
     pub fn start(&self, request: BatchRequest) -> Result<BatchId, BatchError> {
+        self.start_with_cancel(request, CancellationToken::default())
+    }
+
+    /// 与start相同，但共享外部取消令牌，覆盖同步预检到入队之间的取消竞争。
+    /// 准入前取消不创建批次；入队后的取消由worker观察，提交临界区成功仍保留成功。
+    /// 调用cancel可额外唤醒服务并立即标记排队项；仅令牌置位不能硬中断OS调用。
+    /// # Errors
+    /// 除start的错误外，准入前取消返回Cancelled，不改变已有批次。
+    pub fn start_with_cancel(
+        &self,
+        request: BatchRequest,
+        cancel: CancellationToken,
+    ) -> Result<BatchId, BatchError> {
+        if cancel.is_cancelled() {
+            return Err(BatchError::Cancelled);
+        }
         if request.items.is_empty() {
             return Err(BatchError::EmptyBatch);
         }
@@ -305,19 +331,34 @@ impl BatchService {
         if state.closed {
             return Err(BatchError::Closed);
         }
+        if cancel.is_cancelled() {
+            return Err(BatchError::Cancelled);
+        }
         let id = BatchId(state.next_id);
         state.next_id = state
             .next_id
             .checked_add(1)
             .ok_or(BatchError::IdExhausted)?;
-        state.batch = Some(Batch::new(id, 1, request.parameters, jobs));
+        state.batch = Some(Batch::new(id, 1, request.parameters, jobs, cancel));
         self.shared.changed.notify_all();
         Ok(id)
     }
 
     /// 获取独立只读快照；修改返回值不会影响后台参数。没有批次时为None。
     pub fn snapshot(&self) -> Option<BatchSnapshot> {
-        self.shared.lock().batch.as_ref().map(Batch::snapshot)
+        let mut state = self.shared.lock();
+        state.batch.as_mut().map(|batch| {
+            // 外部令牌无服务锁：读取时把取消实体化为带revision的权威变化，
+            // 避免同一revision却出现不同phase/排队状态。
+            if batch.cancel.is_cancelled() {
+                let revision = batch.revision;
+                batch.cancel(false);
+                if batch.revision != revision {
+                    self.shared.changed.notify_all();
+                }
+            }
+            batch.snapshot()
+        })
     }
 
     /// 请求整批取消；排队项立即取消，运行项仅标记取消中。结束批次调用为幂等无操作。
@@ -373,6 +414,21 @@ impl BatchService {
     /// # Errors
     /// 运行/取消中拒绝重试；重复、无效或不可重试行、路径冲突均不改变原快照。
     pub fn retry(&self, id: BatchId, request: RetryRequest) -> Result<(), BatchError> {
+        self.retry_with_cancel(id, request, CancellationToken::default())
+    }
+
+    /// 共享取消令牌的重试；预检取消不递增attempt或改写保留行。
+    /// # Errors
+    /// 除retry的错误外，准入前取消返回Cancelled；入队后继续遵循正常取消契约。
+    pub fn retry_with_cancel(
+        &self,
+        id: BatchId,
+        request: RetryRequest,
+        cancel: CancellationToken,
+    ) -> Result<(), BatchError> {
+        if cancel.is_cancelled() {
+            return Err(BatchError::Cancelled);
+        }
         estimate_working_set(request.parameters)?;
         let _guard = self.prepare_guard()?;
         let (old, revision) = {
@@ -417,7 +473,16 @@ impl BatchService {
         if state.closed {
             return Err(BatchError::Closed);
         }
-        state.batch = Some(Batch::new(id, revision + 1, request.parameters, jobs));
+        if cancel.is_cancelled() {
+            return Err(BatchError::Cancelled);
+        }
+        state.batch = Some(Batch::new(
+            id,
+            revision + 1,
+            request.parameters,
+            jobs,
+            cancel,
+        ));
         self.shared.changed.notify_all();
         Ok(())
     }

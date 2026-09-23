@@ -19,6 +19,10 @@ pub struct ScanOptions {
     /// 显式选择true才包含PixoFold保留名的临时/备份文件；普通_compressed图片不排除。
     pub include_artifacts: bool,
 }
+impl ScanOptions {
+    /// 显式根硬上限；应用接纳与核心扫描共用，根数仍不得超过max_entries。
+    pub const MAX_ROOTS: usize = 1000;
+}
 impl Default for ScanOptions {
     fn default() -> Self {
         Self {

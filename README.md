@@ -2,7 +2,7 @@
 
 基于 Tauri、React 和 Rust 的本地批量图片压缩工具，计划支持 PNG、JPEG、GIF 和 APNG，由 png-palettes 重构演进。
 
-当前已建立 **Tauri 2 + React + TypeScript + Rust workspace 脚手架**，实现可独立调用的 **静态 PNG 无损/有损核心、纯 Rust 批量任务服务及统一导入/输出规划**：内容识别、资源限制、版本化质量映射、保护性无损回退、真实产物验证、覆盖备份，以及文件/目录扫描、去重、有界执行、快照、取消和重试。桌面仍为工程启动页，包含亮暗主题、中英文、偏好持久化和构建信息 IPC；**原生导入入口、桌面压缩 IPC 与正式业务界面尚未接通。** 单文件核心已通过三平台 CI；批量代码的 Windows CI 通过，Ubuntu/macOS 的测试导入修复随 P2 提交 `3c06251` 推送、待 CI 复验；新增核心导入完成 Windows 本机验证，具体证据见开发记录。
+当前已建立 **Tauri 2 + React + TypeScript + Rust workspace 脚手架**，实现可独立调用的 **静态 PNG 无损/有损核心、纯 Rust 批量任务服务及统一导入/输出规划**。P3a 新增应用级任务协调器，桌面持有唯一服务并在常规退出时取消、等待线程收尾。桌面界面仍为工程启动页，包含亮暗主题、中英文、偏好持久化和构建信息 IPC；**任务 DTO/订阅、原生导入入口、桌面压缩 IPC 与正式业务界面尚未接通。** 包含 P1/P2 及平台导入修复的 `11c55fa` 已通过三平台 CI 检查/桌面构建；本轮 P3a 的验证单独记载，不沿用前序证据。
 
 UI 设计与可交互 HTML 原型保留作为实现依据：质量采用 0–100 连续滑块和精细输入，默认 80；当前质量描述以纯文字显示在标题行右侧。
 
@@ -107,6 +107,7 @@ cargo run -p pixofold-core --release --locked --example optimize_png -- path/to/
 | API | 契约 |
 | --- | --- |
 | `new` / `start` | 创建固定线程池；同步只读预检显式文件列表，再后台处理。同一服务只允许一个活动批次，只保留最近批次。调用方应在非 UI 线程执行预检。 |
+| `start_with_cancel` / `retry_with_cancel` | 共享应用取消令牌；准入前取消返回 `BatchError::Cancelled`，不创建新批次/尝试；入队后由核心协作取消，已提交成功不改写。旧 `start`/`retry` 用法不变。 |
 | `snapshot` / `wait` | Rust 权威快照含批次 ID、稳定行 ID、attempt、revision、真实阶段/结果/汇总。`wait` 超时不代表计算停止。 |
 | `cancel` | 未开始项立即取消；运行项显示取消中，实际返回/清理后才释放槽位；已提交成功不改写为取消。 |
 | `retry` | 批次结束后，只重试显式选择的失败/取消行，固定新的设置和目标；成功/无收益行保留参数、结果和备份信息。 |
@@ -132,7 +133,21 @@ P1 新增的 19 项批量回归及 1 项编译型 doctest 在本轮 Windows 检�
 - 选定目标根必须已存在；`OutputPolicy::CopyTree { root, relative }` 只接受普通相对组件，规划不创建目录。只有 output 暂存阶段创建必要子目录，最终仍执行 noclobber；取消/失败/无收益可能保留空结构目录，避免并发任务误删共有目录。旧 `Copy` 契约不变；Rust 下游完整匹配 `OutputPolicy` 时需处理新增变体，IPC/TS 类型未变。
 - 默认排除输出层保留名：`.pixofold-output-` + 六位 ASCII 字母数字 + `.tmp`，以及 `.pixofold-backup-` + 六位 ASCII 字母数字 + `.png`；可用 `include_artifacts` 显式包含。命名匹配不是来源证明，合法用户文件恰好使用保留名也会收到排除反馈；普通隐藏图和 `_compressed` 图片不排除。目标在输入树内时，必须先扫描结束，再开始写产物。
 
-P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；Unix 符号链接用例已编写，尚待远端平台运行。
+P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix 符号链接用例的适用平台测试已随 `11c55fa` 的三平台 CI 通过。
+
+## 应用级任务协调（P3a）
+
+桌面库的 [tasks 模块](src-tauri/src/tasks/mod.rs) 在核心之上统一管理导入、参数修正、启动、取消、重试和清除；[退出桥](src-tauri/src/lifecycle.rs) 将所有者装配到 Tauri 应用。模块本身无窗口/IPC 依赖，可用 [真实文件与确定性门闩测试](src-tauri/src/tasks/tests.rs) 脱离 GUI 验收，不等于前端已经可调用压缩。
+
+- `TaskRuntime` 是唯一线程所有者，持有一个协调线程及核心配置内的固定编码 worker；`TaskControl` 克隆不新建服务，句柄销毁不取消后台任务，窗口重载不改变所有权。默认仍为 1 个编码 worker，资源上限不提高。
+- 单槽命令接纳覆盖扫描、待修正清单、规划、运行与清除。`import(roots, Some(settings))` 完整扫描后自动规划启动；`None` 等待设置，`start(selection, settings)` 只允许 Ready。参数/输出错误保留同一冻结清单，取消/超限部分结果不能启动。接纳成功不代表后台处理成功，结果通过快照读取。
+- `SelectionId` 防止旧导入请求操作新清单；重试还要求最新批次 revision，防止旧请求重复增加 attempt。核心继续按行校验、保留成功项及备份；清除返回旧快照供恢复信息留存，不删除文件。Rust 快照不是 IPC DTO，也不承诺跨进程恢复/自动续跑。
+- 扫描回调提供真实计数；活跃批次按 100ms 间隔采样核心快照，空闲等待通知，不忙轮询。`wait_for_change` 使用单调应用 revision，超时只停止等待；阶段/数量不是编码耗时百分比，轮询采样不是逐事件无损日志。批次全部取消后外层仍为 Finished，具体结果以核心状态和计数为准。
+- 取消令牌贯穿扫描、只读规划、批次预检和执行，避免预检期间取消后仍正常入队。外部取消被观察后与核心 revision 一起更新，不暴露相同版本却不同阶段的快照；重复取消不持续唤醒空闲 worker。
+- 主窗口关闭或常规退出先停止接纳，只有一个后台收尾任务等待协调/编码线程全部 join，再允许事件循环退出；不得在 UI 线程等待。不可中断的 OS/编码调用可能延长关闭，OS 强杀/断电/重启不提供恢复保证；关闭提示和 UI 状态尚待 P4。
+- `TaskSettings::default()` 明确采用产品默认有损 80、原图覆盖；核心 `PngRequest` 默认无损不变。新增 `BatchError::Cancelled` 需要 Rust 下游完整 match 补分支；桌面 `run` 返回可包含任务初始化原因的错误链。任务 DTO、TS、权限和现有 `get_app_info` 契约未变，`compressionAvailable` 仍为 false。
+
+下一步 P3b：在该唯一所有者上实现 Rust DTO→TS、Channel 先订阅后启动及快照恢复，再接最小权限的原生选择/拖放；不要从每个命令或 React 组件新建 TaskRuntime。
 
 ## 工程边界
 
@@ -154,7 +169,9 @@ docs/                       方案、HTML 原型和开发交接
 
 Rust DTO 通过可选 `bindings` feature 使用 ts-rs 12 生成 TypeScript，普通核心与桌面发布不启用该工具。TypeScript 7 超过当前 typescript-eslint 的声明兼容范围，因此采用 Oxlint 做 lint，并由 TypeScript 编译器执行严格类型检查。
 
-2026-09-21 脚手架已通过冻结安装、统一检查、Windows 可执行文件构建/启动及浏览器外观交互验证。2026-09-22 无损提交 `3f6c617`、包含有损功能的 `ab9b2bb` 分别通过三平台 CI 统一检查和桌面构建。包含 P1 批量功能的 `448b5bc` 在 CI run `35706902280` 中 Windows 成功，Ubuntu/macOS 因 Windows 专用测试导入在其他平台未使用而触发 Clippy 失败；导入局部化修复及 P2 已随 `3c06251` 推送，需 CI 复验。含 P2 的 Windows `pnpm check` 通过（73 项 Rust 测试、2 项编译型 doctest、5 项前端测试及 32 份语料清单），`pnpm tauri build --no-bundle --ci` 通过。本次提交推送未重复执行未变化代码的全套检查，也未等待新 SHA 的远端 CI；GUI 视觉/运行验收、峰值 RSS 实测和安装包仍待完成，不能将本机结果写成新代码的三平台验收。完整证据与后续交接见 [开发记录](docs/devlog/README.md)。
+2026-09-21 脚手架已通过冻结安装、统一检查、Windows 可执行文件构建/启动及浏览器外观交互验证。2026-09-22 无损 `3f6c617`、有损 `ab9b2bb`、包含 P1/P2 的 `11c55fa` 分别通过三平台 CI 统一检查和桌面构建；最后一轮为 run `35713030818`，已复验旧批量提交的 Ubuntu/macOS 测试导入修复。
+
+本轮 P3a 在 Windows 通过 `pnpm check`（90 项 Rust 测试、2 项编译型 doctest、5 项前端测试及 32 份语料清单）和 `pnpm tauri build --no-bundle --ci`。release 启动后读取到正常窗口标题，发送正常关闭请求后退出码为 0；stderr 仍有 `Chrome_WidgetWin_0` 注销告警（1412），原因待查，不视为无告警验收。原生导入/处理中的 GUI 关闭、任务 IPC、主题/语言/窗口视觉复验、峰值 RSS 及安装包未执行；本轮未提交，尚无新代码的远端 CI。完整证据与下一步见 [开发记录](docs/devlog/README.md)。
 
 ## 项目方案
 

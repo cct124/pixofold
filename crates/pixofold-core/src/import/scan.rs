@@ -16,7 +16,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const MAX_ROOTS: usize = 1000;
 const READ_CHUNK: usize = 64 * 1024;
 const SIGNATURE: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
 
@@ -47,7 +46,7 @@ pub fn scan(
     {
         return Err(ImportError::InvalidOptions);
     }
-    if roots.len() > MAX_ROOTS || roots.len() > options.max_entries {
+    if roots.len() > ScanOptions::MAX_ROOTS || roots.len() > options.max_entries {
         return Err(ImportError::TooManyRoots);
     }
     let mut scanner = Scanner {

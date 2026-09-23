@@ -281,6 +281,8 @@ pub enum BatchError {
     InvalidRetry,
     IdExhausted,
     TimedOut,
+    /// 外部取消在准入提交前生效，未创建新批次/尝试。
+    Cancelled,
     InvalidParameters(ProcessingError),
     PathConflict {
         first: JobId,
@@ -302,6 +304,7 @@ impl fmt::Display for BatchError {
             Self::InvalidRetry => "重试只能选择不重复的失败或取消项",
             Self::IdExhausted => "任务标识或尝试次数已耗尽",
             Self::TimedOut => "等待超时，不代表计算已经停止",
+            Self::Cancelled => "准入已取消，未启动新任务",
             Self::InvalidParameters(_) => "批次参数无效",
             Self::PathConflict { .. } => "批量输入或输出路径相互冲突，未启动",
             Self::WorkerStart(_) => "无法创建后台工作线程",

@@ -22,5 +22,8 @@ tauri-build.workspace = true
 pixofold-core.workspace = true
 tauri.workspace = true
 
+[dev-dependencies]
+tempfile.workspace = true
+
 [lints]
 workspace = true
