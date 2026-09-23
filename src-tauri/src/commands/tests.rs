@@ -13,7 +13,7 @@ use tauri::{
 
 fn app(context: tauri::Context<MockRuntime>) -> tauri::App<MockRuntime> {
     let runtime = TaskRuntime::new(TaskConfig::default()).unwrap();
-    super::register(mock_builder().manage(DesktopTasks::new(runtime)))
+    super::register(mock_builder().manage(DesktopTasks::new(runtime).unwrap()))
         .build(context)
         .unwrap()
 }
@@ -82,9 +82,51 @@ fn assert_local_queries_and_permissions(app: &tauri::App<MockRuntime>) {
         invoke(&main, "get_task_snapshot", snapshot_request()).unwrap()["phase"],
         "idle"
     );
+    let ticket = invoke(
+        &main,
+        "subscribe_task_changes",
+        json!({"onChange":"__CHANNEL__:42"}),
+    )
+    .unwrap();
+    assert_eq!(ticket["protocolVersion"], 1);
+    let ack = json!({"request": {"subscriptionId": ticket["subscriptionId"], "revision": ticket["revision"]}});
+    assert_eq!(
+        invoke(&main, "acknowledge_task_changes", ack.clone()).unwrap(),
+        Value::Null
+    );
+    assert_eq!(
+        invoke(&main, "acknowledge_task_changes", ack).unwrap(),
+        Value::Null
+    );
+    let invalid_ack = json!({"request": {"subscriptionId": ticket["subscriptionId"], "revision": "18446744073709551615"}});
+    assert_eq!(
+        invoke(&main, "acknowledge_task_changes", invalid_ack).unwrap_err(),
+        json!({"code":"invalid_acknowledgement"})
+    );
+    let close = json!({"request": {"subscriptionId": ticket["subscriptionId"]}});
+    assert_eq!(
+        invoke(&main, "unsubscribe_task_changes", close.clone()).unwrap(),
+        true
+    );
+    assert_eq!(
+        invoke(&main, "unsubscribe_task_changes", close).unwrap(),
+        false
+    );
     for (command, body) in [
         ("get_app_info", json!({})),
         ("get_task_snapshot", snapshot_request()),
+        (
+            "subscribe_task_changes",
+            json!({"onChange":"__CHANNEL__:43"}),
+        ),
+        (
+            "acknowledge_task_changes",
+            json!({"request":{"subscriptionId":"0", "revision":"0"}}),
+        ),
+        (
+            "unsubscribe_task_changes",
+            json!({"request":{"subscriptionId":"0"}}),
+        ),
     ] {
         assert_permission_denied(invoke(&other, command, body.clone()), command);
         // 只构造IPC来源，不发起网络请求；远程页面/相似域名均不能继承main权限。

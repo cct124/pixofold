@@ -1,7 +1,7 @@
 # PNG 批量任务与桌面闭环
 
 - 创建日期：2026-09-22（Asia/Shanghai）
-- 状态：包含P3a的36a1174已通过三平台CI检查/桌面构建。P3b首步任务DTO与有界只读查询已推送；2026-09-23复核38af28a的run35825516745：Windows通过，Ubuntu权限测试失败、macOS测试编译失败。本轮上下文/路由复用与来源修复已通过Windows统一检查、release构建及打包协议release命令回归，尚未提交/推送，待新SHA跨平台CI；窗口类注销告警1412仍待查。后续为有界Channel订阅/恢复、原生授权入口与任务变更命令，再进入P4正式界面。完整桌面里程碑仍进行中，不归档本记录。
+- 状态：85d942a跨平台基线修复已推送，run35830576186三平台统一检查/桌面构建全部通过，P3b只读查询前序失败已复验。本轮有界Channel订阅/单页恢复已实现并通过Windows统一检查、release构建及打包协议下41项release桌面回归；新代码未提交/推送，原生WebView/新SHA CI待验收。1412告警仍待查。下一步原生授权入口与任务变更命令，再进入P4正式界面。完整桌面里程碑仍进行中，不归档本记录。
 - 分支与代码基准：dev；规划基准ab9b2bb680ec10de798df6dae5c3bc58af9001a9（有损功能5ceb0e1），P1交接基准7587c87d12e5a4466ae9f7f088ebef1c3756cc7a
 - 依据：[PNG 有损前序任务](../../_fin/260922/png-lossy-quality.md)、[项目方案](../../../架构设计文档/pixofold-proposal.md)、[交互设计](../../../架构设计文档/ui-interaction-design.md)、[HTML 原型说明](../../../UI界面设计/HTML原型说明.md)
 
@@ -298,3 +298,38 @@
 
 - 用户明确要求先提交推送现有代码，再分析并执行下一步开发。开工仍为dev/38af28a，6份改动与上次交接完全一致，暂存区为空；代码未变，沿用已完成的统一检查、release构建和release命令回归，不重复无变化的全套验证。
 - 本次正常提交并推送origin/dev，不改写历史或强推。实际提交号、推送与新SHA CI结果随后补记；推送后新开发改动保持本地，除非用户再次要求提交。png-palettes继续只读参考。
+- 实际提交85d942a8c00772cfb4e55624d4ddc5a488c73c10（fix: 修复桌面跨平台上下文与权限回归测试），git push origin dev成功，远端由38af28a前进至85d942a；提交后工作区干净。新CI为run35830576186，首次核查仍in_progress；不为了补写提交号立即再推文档取消这轮CI。
+
+### P3b有界只读订阅实施计划
+
+- 代码基准切换为dev/85d942a。本轮实现只读通知链路，不接文件选择/拖放、路径授权、任务变更或正式UI，不升级依赖、不改变核心TaskRuntime。新开发和本条推送补记留工作区。
+- 应用持有唯一SubscriptionRuntime/控制句柄和一个通知线程，最多一个主窗口订阅。subscribe替换旧会话并返回单调u64会话ID、当前revision和协议版本；返回值本身是首次待确认票据，不提前发送Channel消息。前端先读权威快照，再确认该票据，解决通知早于订阅响应的握手竞争。
+- 每会话最多一条未确认通知，只发送会话ID/revision，不传完整任务数组。ACK必须匹配会话与实际在途revision；重复旧ACK幂等但不能释放新版通知，未来ACK拒绝；旧会话unsubscribe不得清除新会话。背压期间不保存变化队列，确认后直接读取最新状态，终态和重连都靠现有有界快照恢复。
+- 发送、Channel释放和线程join均在锁外。无订阅/待确认时Condvar休眠，有订阅时使用有超时的wait_for_change以便受控退出；Closed相同revision不忙循环。发送失败只移除对应会话，不取消任务；应用退出先停止订阅接纳，再在唯一后台收尾路径join通知与任务线程。窗口重载不创建新任务服务。
+- 前端先提供可复用的单页TaskSnapshotSubscription（每页至多100行）而非临时UI：浏览器不模拟，首次/通知后查询权威快照，再确认，保留最后好快照；断开/重连、迟到消息、查询与确认失败有显式状态。页面最多一个连接，禁止无界自动重试。
+- 已核对锁定SDK：JS Channel没有公开close接口，正常释放由Rust drop的end帧完成；不能调用私有__TAURI_INTERNALS__。首次订阅响应失败且无法确认服务端会话归属时，前端阻止继续分配Channel并报告reload_required，重载释放页面资源；已知会话的清理失败可重试disconnect。这一传输失败边界必须测试和公开说明，不假装所有失败都能原地恢复。
+- 验收包括协议/生成类型、订阅握手、慢客户端/合并、未来/重复ACK、替换/旧取消、发送失败、终态重连和退出；前端覆盖单连接、乱序/迟到响应、失败保留快照、断开重连及首次失败资源上限。真实Tauri路由/ACL仍覆盖开发与打包来源，统一检查和Windows release构建；原生WebView运行与macOS/Linux新增订阅代码CI另行验收。
+
+### 本轮基线CI复验与实际实现
+
+- 85d942a的run35830576186已完成：macOS job107081973984、Ubuntu job107081974143、Windows job107081974199全部success，三平台统一检查和桌面构建均通过。前序Ubuntu来源ACL与macOS重复plist问题由这次新SHA正式复验；不包含本轮未提交订阅代码，不将其外推为新功能CI证据。
+- 新增subscriptions模块及唯一应用SubscriptionRuntime/SubscriptionControl，应用初始化时创建一个通知线程；new失败保持原始io错误并释放已创建的TaskRuntime。subscribe返回首次在途票据，不提前发Channel；ACK解锁后wait_for_change读取最新revision，一条在途通知有界合并所有中间变化，Closed无新版本休眠。ID耗尽不回绕，不破坏原会话。
+- 替换/关闭/投递失败均在锁外释放Channel，旧发送失败只清除匹配会话。旧unsubscribe返回false，旧ACK报stale_subscription；重复最近已确认版本幂等但不释放后续通知，未发送的未来版本拒绝。发送异常/锁poison失败关闭并由join报告，不伪装成功，也不取消任务。常规退出先停止两个服务接纳，再由唯一后台收尾路径分别join；任一失败也不会跳过另一个join。
+- 增加三个最小权限命令subscribe_task_changes/acknowledge_task_changes/unsubscribe_task_changes；注册入口与build.rs清单同步，三个权限toml由Tauri生成。ACK/取消请求严格拒绝额外字段及非规范u64；通知/错误DTO由Rust生成到tasks.generated.ts，旧查询协议保持版本1，属于新增命令/类型的兼容扩展。未增加依赖、锁文件变更或任何文件路径权限。
+- 前端TaskSnapshotSubscription先固定集合/页长，再注册Channel、读取第一页、精确ACK。每个页面单连接，每个连接单查询及单待处理通知；初始ACK回复前的变化可缓冲，消费结束微任务竞争不会搁置pending通知。connect幂等且已连接时返回当前视图；disconnect屏蔽迟到结果/旧回调，成功释放后可重新connect查询终态。错误保留最后好快照，界面回调异常不会抛入SDK破坏消息索引或end帧清理。
+- 对首次响应未知的保守边界按计划实现：reload_required阻止本页继续分配Channel；已知会话unsubscribe失败保留槽并允许重试，不谎称已经释放。没有自动轮询探活/无限重连；connected仅代表订阅已建立，不是持续可达保证。正常释放依赖Rust Channel::drop/end帧；未调用SDK私有API。
+- 9项新增Rust回归覆盖握手/慢客户端合并、精确ACK、替换、旧发送失败与新会话竞争、关闭、发送panic/锁poison、ID耗尽及真实PNG完成后重连查询（源文件字节不变、任务快照/尝试不重建）。前端新增17项回归覆盖浏览器、单连接、握手/ACK竞态、早到/重复/旧会话通知、迟到查询、已知/未知连接失败、非法信封/ACK/清理响应、回调异常与资源上限；未使用固定休眠或真实网络。
+- 首轮前端测试文件缺少一个函数闭合括号，格式检查立即阻断；补齐后类型/测试通过，没有跳过检查。复查期间补齐ACK响应运行时校验、活跃订阅退出与真实PNG终态恢复回归后，再次运行完整pnpm check通过：117项Rust运行测试（核心76+桌面41）、2项no_run编译型doctest、31项前端测试、32份PNG/SHA256、双生成器一致性、Prettier/rustfmt、Oxlint、TS及workspace全部target/feature Clippy -D warnings。pnpm types:generate成功，原核心generated.ts无变化。
+- Windows pnpm tauri build --no-bundle --ci通过，产出target/release/pixofold.exe；cargo test -p pixofold-desktop --release --features tauri/custom-protocol --locked --test desktop通过全部41项桌面测试，覆盖release ACL、真实打包协议配置及订阅/退出回归。正式UI仍为启动页且compressionAvailable=false；本轮未执行原生WebView订阅/重载/处理中关闭、亮暗/语言/窗口视觉复验、1412告警对照、真实业务素材/RSS或安装包，不以mock模拟代替这些验收。
+
+### 有界订阅交接与下一入口
+
+- 完整diff、7份新增文本空白和6份文档55个本地链接检查通过；源代码未使用私有SDK清理接口/any/固定休眠，也未改动核心引擎、图片样本、前端原型或参考仓库。权限只新增只读订阅管理，不授予路径、通用文件、shell或任务变更访问。
+- 开始时的6份跨平台修复已作为85d942a提交并同步origin/dev，CI结果见上。随后本轮订阅实现与提交/CI补记全部保留工作区：16份已跟踪修改、7份新增文件，暂存区为空；未再次提交或推送。包含subscriptions模块/回归、命令/权限/DTO/生成类型、生命周期、前端适配器/回归和README/AGENTS/架构/交互/devlog；png-palettes工作区干净。
+- 下一开发入口是P3b受控原生导入：先定义由Rust原生文件/目录选择或拖放事件产生的授权标识和生命周期，前端只持有不可当作路径的token；复用TaskControl::import/start/cancel/retry/clear，参数校验与接纳/完成反馈分离，禁止任意路径字符串通用读写。导入/自动启动前必须订阅握手并读取初始快照，复用当前单个应用服务，不另造队列或演示UI。
+- 验收至少覆盖选择取消/空输入、重复原生事件、旧授权/旧selection/revision、导入忙状态、参数修正后只启动一次、取消/重试及原图备份安全；原生选择/拖放、订阅重载/首次未知失败提示和处理中GUI关闭要在Windows WebView单独验证。P4再沿现有HTML原型接真实控件；真实素材/RSS、1412对照、新代码跨平台CI/发行验收继续保留，不扩大完成范围。
+
+## 2026-09-23 订阅提交与受控入口开发
+
+- 用户明确授权先提交推送现有订阅实现，再执行下一开发步骤。核对dev/85d942a和23份待提交文件与交接一致，暂存区为空；沿用上节未变化代码的统一检查、release构建及41项release桌面回归，本次复核暂存范围和空白，不重复无变化测试。
+- 正常提交并推送origin/dev，不改写历史；实际SHA及新CI随后记录。后续开发改动保留本地，不自动再次提交，png-palettes保持只读参考。

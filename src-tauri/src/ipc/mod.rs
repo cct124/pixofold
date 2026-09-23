@@ -7,6 +7,10 @@ mod dto;
 mod tests;
 
 use crate::tasks::TaskControl;
+pub(crate) use dto::{
+    DecimalU64, SubscriptionError, TASK_PROTOCOL_VERSION, TaskChangeAck, TaskChangeNotice,
+    TaskSubscriptionRequest,
+};
 pub(crate) use dto::{QueryError, TaskPageRequest, TaskSnapshotDto};
 
 pub(crate) fn query(

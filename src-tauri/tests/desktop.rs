@@ -4,4 +4,4 @@
 #[path = "../src/lib.rs"]
 pub mod desktop;
 pub use desktop::tasks;
-pub(crate) use desktop::{ipc, lifecycle};
+pub(crate) use desktop::{ipc, lifecycle, subscriptions};

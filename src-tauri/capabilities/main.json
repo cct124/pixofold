@@ -1,7 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "主窗口只允许读取应用信息与有界任务快照；不授权路径读写或任务变更。",
+  "description": "主窗口只允许读取应用信息、有界任务快照及订阅变化；不授权路径读写或任务变更。",
   "windows": ["main"],
-  "permissions": ["allow-get-app-info", "allow-get-task-snapshot"]
+  "permissions": [
+    "allow-get-app-info",
+    "allow-get-task-snapshot",
+    "allow-subscribe-task-changes",
+    "allow-acknowledge-task-changes",
+    "allow-unsubscribe-task-changes"
+  ]
 }

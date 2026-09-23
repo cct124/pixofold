@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 pub(super) const MAX_PAGE_SIZE: u16 = 100;
 pub(super) const MAX_DISPLAY_CHARS: usize = 240;
-pub(super) const TASK_PROTOCOL_VERSION: u32 = 1;
+pub(crate) const TASK_PROTOCOL_VERSION: u32 = 1;
 
 /// 无符号64位十进制字符串；拒绝数字JSON、符号、空白、前导零及溢出。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -74,6 +74,54 @@ pub(crate) enum QueryError {
     InvalidPage,
     StaleSnapshot { current_revision: DecimalU64 },
     InvalidSnapshot,
+}
+
+/// 首次订阅票据和后续通知共用信封；不包含任务行、文件名或路径。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) struct TaskChangeNotice {
+    pub protocol_version: u32,
+    pub subscription_id: DecimalU64,
+    pub revision: DecimalU64,
+}
+
+/// 只确认实际收到且已查询的票据；不能用未来revision释放背压。
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) struct TaskChangeAck {
+    pub subscription_id: DecimalU64,
+    pub revision: DecimalU64,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) struct TaskSubscriptionRequest {
+    pub subscription_id: DecimalU64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(tag = "code", rename_all = "snake_case")]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) enum SubscriptionError {
+    Closed,
+    StaleSubscription,
+    InvalidAcknowledgement,
+    IdExhausted,
+    ServiceFault,
+}
+impl std::fmt::Display for SubscriptionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Closed => "任务订阅已关闭",
+            Self::StaleSubscription => "任务订阅已被替换或移除",
+            Self::InvalidAcknowledgement => "确认版本不是已发送版本",
+            Self::IdExhausted => "任务订阅标识已耗尽",
+            Self::ServiceFault => "任务订阅服务异常",
+        })
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -448,6 +496,10 @@ pub(super) fn declarations() -> String {
         TaskCollection,
         TaskPageRequest,
         QueryError,
+        TaskChangeNotice,
+        TaskChangeAck,
+        TaskSubscriptionRequest,
+        SubscriptionError,
         DisplayName,
         TaskPhaseDto,
         BatchPhaseDto,

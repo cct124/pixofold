@@ -3,6 +3,7 @@
 mod commands;
 pub(crate) mod ipc;
 pub(crate) mod lifecycle;
+pub(crate) mod subscriptions;
 pub mod tasks;
 
 use tauri::Manager;
@@ -24,7 +25,7 @@ pub fn task_type_declarations() -> String {
 /// 任务线程、窗口、WebView或Tauri运行时初始化失败时返回原始错误链。
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let runtime = tasks::TaskRuntime::new(tasks::TaskConfig::default())?;
-    let builder = tauri::Builder::default().manage(lifecycle::DesktopTasks::new(runtime));
+    let builder = tauri::Builder::default().manage(lifecycle::DesktopTasks::new(runtime)?);
     let app = commands::register(builder)
         .on_window_event(|window, event| {
             if window.label() == "main"
