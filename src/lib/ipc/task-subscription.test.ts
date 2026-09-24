@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import type { TaskChangeNotice, TaskSnapshotDto } from './tasks.generated';
+import {
+  TASK_PROTOCOL_VERSION,
+  type TaskChangeNotice,
+  type TaskSnapshotDto,
+} from './tasks.generated';
 
 const bridge = vi.hoisted(() => ({
   channels: [] as { onmessage: (value: unknown) => void }[],
@@ -32,11 +36,11 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 function ticket(id = '1', revision = bridge.revision): TaskChangeNotice {
-  return { protocolVersion: 1, subscriptionId: id, revision };
+  return { protocolVersion: TASK_PROTOCOL_VERSION, subscriptionId: id, revision };
 }
 function snapshot(revision = bridge.revision): TaskSnapshotDto {
   return {
-    protocolVersion: 1,
+    protocolVersion: TASK_PROTOCOL_VERSION,
     revision,
     selectionId: null,
     phase: 'idle',
@@ -297,8 +301,9 @@ describe('bounded task snapshot subscription', () => {
   });
 
   it.each([
-    { protocolVersion: 2, subscriptionId: '1', revision: '0' },
-    { protocolVersion: 1, subscriptionId: '1', revision: '01' },
+    { protocolVersion: 1, subscriptionId: '1', revision: '0' },
+    { protocolVersion: TASK_PROTOCOL_VERSION + 1, subscriptionId: '1', revision: '0' },
+    { protocolVersion: TASK_PROTOCOL_VERSION, subscriptionId: '1', revision: '01' },
   ])('rejects malformed bootstrap envelopes but releases a known session: %o', async (bad) => {
     vi.mocked(invoke).mockImplementation(async (command) =>
       command === 'subscribe_task_changes' ? bad : defaultReply(command),

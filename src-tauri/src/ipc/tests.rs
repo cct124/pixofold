@@ -133,7 +133,7 @@ fn idle_query_has_stable_contract_and_never_starts_or_cancels_work() {
         assert_eq!(
             wire(query(&control, request(TaskCollection::Jobs)).unwrap()),
             json!({
-                "protocolVersion": 1, "revision": before.revision.to_string(), "selectionId": null,
+                "protocolVersion": TASK_PROTOCOL_VERSION, "revision": before.revision.to_string(), "selectionId": null,
                 "phase": "idle", "scan": null, "error": null, "batch": null,
                 "page": {"kind": "jobs", "offset": 0, "total": 0, "items": []},
             })

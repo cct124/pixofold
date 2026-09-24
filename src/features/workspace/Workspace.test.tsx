@@ -2,7 +2,11 @@ import { StrictMode } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import type { TaskPageRequest, TaskSnapshotDto } from '../../lib/ipc/tasks.generated';
+import {
+  TASK_PROTOCOL_VERSION,
+  type TaskPageRequest,
+  type TaskSnapshotDto,
+} from '../../lib/ipc/tasks.generated';
 import { Workspace } from './Workspace';
 import { useCompressionPreferences } from './settings';
 
@@ -31,7 +35,7 @@ function deferred<T>() {
 }
 function snapshot(): TaskSnapshotDto {
   return {
-    protocolVersion: 1,
+    protocolVersion: TASK_PROTOCOL_VERSION,
     revision: '0',
     selectionId: null,
     phase: 'idle',
@@ -49,7 +53,7 @@ function reply(command: string, args: unknown): unknown {
   switch (command) {
     case 'subscribe_task_changes':
       return {
-        protocolVersion: 1,
+        protocolVersion: TASK_PROTOCOL_VERSION,
         subscriptionId: String(++bridge.id),
         revision: current.revision,
       };
@@ -82,7 +86,7 @@ async function update(value: TaskSnapshotDto) {
   current = value;
   await act(async () => {
     bridge.channels.at(-1)?.onmessage({
-      protocolVersion: 1,
+      protocolVersion: TASK_PROTOCOL_VERSION,
       subscriptionId: String(bridge.id),
       revision: current.revision,
     });
@@ -119,6 +123,124 @@ beforeEach(async () => {
 });
 
 describe('real-state workspace over a deterministic mock IPC transport', () => {
+  it.each([
+    ['zh-CN', '取消处理', '选择文件', '清除记录', '处理中', '已取消'],
+    ['en', 'Cancel processing', 'Choose files', 'Clear records', 'Processing', 'Cancelled'],
+  ] as const)(
+    'offers no manual cancellation during scanning, preparation or compression in %s',
+    async (language, cancel, files, clear, running, cancelled) => {
+      current = { ...snapshot(), revision: '1', selectionId: '1', phase: 'scanning' };
+      const ui = await mount();
+      ui.rerender(
+        <StrictMode>
+          <Workspace language={language} controller={controller} />
+        </StrictMode>,
+      );
+      expect(screen.queryByRole('button', { name: cancel })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: files })).toBeDisabled();
+      await update({ ...current, revision: '2', phase: 'preparing' });
+      expect(screen.queryByRole('button', { name: cancel })).not.toBeInTheDocument();
+      await update({
+        ...current,
+        revision: '3',
+        phase: 'running',
+        batch: {
+          id: '1',
+          revision: '1',
+          phase: 'running',
+          mode: { kind: 'lossy', quality: 80 },
+          summary: {
+            total: 1,
+            queued: 0,
+            running: 1,
+            succeeded: 0,
+            noGain: 0,
+            failed: 0,
+            cancelled: 0,
+            processed: 0,
+            terminal: 0,
+            inputBytes: '2048',
+            currentBytes: '2048',
+            savedBytes: '0',
+          },
+        },
+        page: {
+          kind: 'jobs',
+          offset: 0,
+          total: 1,
+          items: [
+            {
+              id: 1,
+              attempt: 1,
+              sourceName: name('running.png'),
+              mode: { kind: 'lossy', quality: 80 },
+              inputBytes: '2048',
+              state: { kind: 'running', stage: 'optimizing', cancelRequested: false },
+            },
+          ],
+        },
+      });
+      expect(screen.getByText(running, { exact: true })).toBeVisible();
+      expect(screen.queryByRole('button', { name: cancel })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: clear })).not.toBeInTheDocument();
+      expect(screen.queryByText(new RegExp(`${cancelled} 0`))).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: files })).toBeDisabled();
+      expect(screen.getByRole('progressbar')).toHaveAttribute('value', '0');
+      fireEvent.keyDown(window, { key: 'Escape' });
+      fireEvent.keyDown(window, { key: 'o', ctrlKey: true });
+      fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '42' } });
+      expect(controller.getSnapshot().snapshot?.batch?.mode).toEqual({
+        kind: 'lossy',
+        quality: 80,
+      });
+      expect(writes()).toHaveLength(0);
+      expect(vi.mocked(invoke).mock.calls.some(([cmd]) => cmd === 'select_native_import')).toBe(
+        false,
+      );
+    },
+  );
+  it('keeps the prototype quality controls visible but disabled in lossless mode', async () => {
+    await mount();
+    const input = screen.getByRole('spinbutton', { name: '精细调整' });
+    const slider = screen.getByRole('slider', { name: '压缩质量' });
+    fireEvent.change(input, { target: { value: '76' } });
+    expect(slider).toHaveValue('76');
+    expect(screen.getByText('高')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: '无损优化' }));
+    expect(input).toBeDisabled();
+    expect(slider).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: '有损压缩' }));
+    expect(input).toBeEnabled();
+    expect(input).toHaveValue(76);
+    expect(writes()).toHaveLength(0);
+  });
+  it('segments output without granting unsupported directory or advanced controls', async () => {
+    await mount();
+    fireEvent.click(screen.getByRole('button', { name: '另存副本' }));
+    expect(screen.getByRole('button', { name: '另存副本' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByText('原文件夹')).toBeVisible();
+    expect(
+      screen
+        .getAllByRole('button', { name: '选择目录' })
+        .filter((button) => button.hasAttribute('disabled')),
+    ).toHaveLength(1);
+    fireEvent.click(screen.getByText('高级选项'));
+    expect(screen.getByText(/覆盖前建立备份/)).toBeVisible();
+    expect(writes()).toHaveLength(0);
+  });
+  it('uses the native import shortcut once and does not navigate on unsupported drops', async () => {
+    await mount();
+    fireEvent.keyDown(window, { key: 'o', ctrlKey: true });
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    fireEvent.keyDown(window, { key: 'o', ctrlKey: true, repeat: true });
+    expect(writes()).toHaveLength(1);
+    fireEvent.drop(screen.getByText('选择图片或文件夹'));
+    expect(screen.getByRole('status')).toHaveTextContent('拖放尚未接入');
+    expect(writes()).toHaveLength(1);
+  });
   it.each([
     [
       'unsupported_content_credentials',
@@ -176,6 +298,7 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
         },
       };
       const ui = await mount();
+      fireEvent.click(screen.getByText('详情'));
       expect(screen.getByText(chinese, { exact: false })).toBeVisible();
       expect(screen.getByText('0 B')).toBeVisible();
       if (code !== 'validation') expect(screen.queryByText('结果验证失败')).not.toBeInTheDocument();
@@ -195,9 +318,9 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
       cmd === 'apply_task_mutation' ? accepted.promise : reply(cmd, args),
     );
     await mount();
-    fireEvent.click(screen.getByRole('button', { name: '无损' }));
+    fireEvent.click(screen.getByRole('button', { name: '无损优化' }));
     await update({ ...current, revision: '2', error: { code: 'invalid_parameters' } });
-    fireEvent.click(screen.getByRole('button', { name: '有损' }));
+    fireEvent.click(screen.getByRole('button', { name: '有损压缩' }));
     expect(writes()).toHaveLength(1);
     await act(async () => accepted.resolve({ selectionId: '1' }));
     await waitFor(() => expect(writes()).toHaveLength(2));
@@ -211,7 +334,7 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
     await act(async () => bridge.channels[0]?.onmessage({ malformed: true }));
     await waitFor(() => expect(controller.getSnapshot().connection).toBe('failed'));
     expect(controller.getSnapshot().snapshot?.revision).toBe('0');
-    expect(screen.getByRole('button', { name: '选择图片' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '选择文件' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '重新连接任务' })).toBeEnabled();
     expect(writes()).toHaveLength(0);
   });
@@ -219,13 +342,14 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
     const ui = await mount();
     expect(bridge.channels).toHaveLength(1);
     expect(writes()).toHaveLength(0);
-    expect(screen.getAllByText('—')).toHaveLength(4);
+    expect(screen.getByText('批量导入')).toBeVisible();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     ui.rerender(
       <StrictMode>
         <Workspace language="en" controller={controller} />
       </StrictMode>,
     );
-    expect(screen.getByRole('button', { name: 'Choose images' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Choose files' })).toBeEnabled();
     expect(bridge.channels).toHaveLength(1);
     ui.unmount();
     await waitFor(() =>
@@ -241,11 +365,11 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
       cmd === 'select_native_import' ? dialog.promise : reply(cmd, args),
     );
     await mount();
-    fireEvent.click(screen.getByRole('button', { name: '选择图片' }));
-    fireEvent.change(screen.getByRole('textbox', { name: '图片质量' }), {
+    fireEvent.click(screen.getByRole('button', { name: '选择文件' }));
+    fireEvent.change(screen.getByRole('spinbutton', { name: '精细调整' }), {
       target: { value: '90' },
     });
-    expect(screen.getByRole('button', { name: '选择文件夹' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '选择目录' })).toBeDisabled();
     await act(async () => dialog.resolve({ grantId: '8', rootCount: 1 }));
     expect(writes()).toEqual([
       {
@@ -262,16 +386,16 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
     vi.mocked(invoke).mockImplementation(async (cmd, args) =>
       cmd === 'select_native_import' ? null : reply(cmd, args),
     );
-    fireEvent.click(screen.getByRole('button', { name: '选择文件夹' }));
+    fireEvent.click(screen.getByRole('button', { name: '选择目录' }));
     await waitFor(() => expect(controller.getSnapshot().pending).toBe(false));
     expect(writes()).toHaveLength(1);
   });
   it('scans invalid drafts, starts once when corrected, and never loops on a planning failure', async () => {
     await mount();
-    const input = screen.getByRole('textbox', { name: '图片质量' });
+    const input = screen.getByRole('spinbutton', { name: '精细调整' });
     fireEvent.change(input, { target: { value: '' } });
     expect(input).toHaveAttribute('aria-invalid', 'true');
-    fireEvent.click(screen.getByRole('button', { name: '选择图片' }));
+    fireEvent.click(screen.getByRole('button', { name: '选择文件' }));
     await waitFor(() => expect(writes()).toHaveLength(1));
     expect(writes()[0]).toMatchObject({
       request: { operation: { kind: 'import', settings: null } },
@@ -295,14 +419,14 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
       error: { code: 'path_conflict', first: 0, second: 1, kind: 'output_is_input' },
     });
     expect(writes()).toHaveLength(2);
-    fireEvent.click(screen.getByRole('radio', { name: '同目录副本' }));
+    fireEvent.click(screen.getByRole('button', { name: '另存副本' }));
     await waitFor(() => expect(writes()).toHaveLength(3));
   });
   it('does not auto-run Ready recovered on page load until the user changes settings', async () => {
     current = { ...snapshot(), selectionId: '9', revision: '6', phase: 'ready' };
     await mount();
     expect(writes()).toHaveLength(0);
-    fireEvent.click(screen.getByRole('button', { name: '无损' }));
+    fireEvent.click(screen.getByRole('button', { name: '无损优化' }));
     await waitFor(() => expect(writes()).toHaveLength(1));
   });
   it('retains the last good snapshot, blocks uncertain writes, and reconnects without resending', async () => {
@@ -311,9 +435,9 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
       if (cmd === 'apply_task_mutation') throw new Error('response lost');
       return reply(cmd, args);
     });
-    fireEvent.click(screen.getByRole('button', { name: '选择图片' }));
+    fireEvent.click(screen.getByRole('button', { name: '选择文件' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('操作结果不确定');
-    expect(screen.getByRole('button', { name: '选择图片' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '选择文件' })).toBeDisabled();
     expect(controller.getSnapshot().snapshot?.revision).toBe('0');
     fireEvent.click(screen.getByRole('button', { name: '重新连接任务' }));
     await waitFor(() => expect(bridge.channels).toHaveLength(2));
@@ -394,8 +518,10 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
     await mount();
     expect(screen.getByRole('progressbar')).toHaveAttribute('value', '1');
     expect(screen.getByRole('progressbar')).toHaveAttribute('max', '2');
+    fireEvent.click(screen.getAllByText('详情')[0]!);
     expect(screen.getByText('.pixofold-backup-safe')).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: '重试本页失败 / 取消项' }));
+    expect(screen.getByText(/已取消 1/)).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: '重试本页未完成项' }));
     await waitFor(() => expect(writes()).toHaveLength(1));
     expect(writes()[0]).toMatchObject({
       request: {

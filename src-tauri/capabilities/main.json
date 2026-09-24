@@ -10,6 +10,10 @@
     "allow-acknowledge-task-changes",
     "allow-unsubscribe-task-changes",
     "allow-select-native-import",
-    "allow-apply-task-mutation"
+    "allow-apply-task-mutation",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging"
   ]
 }

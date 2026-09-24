@@ -1,6 +1,6 @@
 // 由 Rust 任务DTO生成；请运行 pnpm types:generate，勿手工编辑。
 import type { PngMode } from './generated';
-export const TASK_PROTOCOL_VERSION = 1;
+export const TASK_PROTOCOL_VERSION = 2;
 export const MAX_TASK_PAGE_SIZE = 100;
 export type DecimalU64 = string;
 export type TaskCollection = "jobs" | "candidates" | "issues";
@@ -47,7 +47,7 @@ export type ImportTask = { grantId: DecimalU64, settings: TaskSettingsDto | null
 export type StartTask = { selectionId: DecimalU64, settings: TaskSettingsDto, };
 export type SelectTask = { selectionId: DecimalU64, };
 export type RetryTask = { selectionId: DecimalU64, expectedBatchRevision: DecimalU64, jobIds: Array<number>, mode: PngMode, };
-export type TaskMutation = { "kind": "import" } & ImportTask | { "kind": "start" } & StartTask | { "kind": "cancel" } & SelectTask | { "kind": "clear" } & SelectTask | { "kind": "retry" } & RetryTask;
+export type TaskMutation = { "kind": "import" } & ImportTask | { "kind": "start" } & StartTask | { "kind": "clear" } & SelectTask | { "kind": "retry" } & RetryTask;
 export type TaskMutationRequest = { subscriptionId: DecimalU64, operation: TaskMutation, };
 export type TaskMutationAccepted = { selectionId: DecimalU64, };
 export type MutationError = { "code": "subscription", error: SubscriptionError, } | { "code": "task", error: TaskFailureDto, } | { "code": "selection_busy" } | { "code": "stale_grant" } | { "code": "invalid_selection" } | { "code": "invalid_retry" } | { "code": "closed" } | { "code": "id_exhausted" } | { "code": "native_dialog_failed" } | { "code": "service_fault" };

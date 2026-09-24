@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import type { TaskMutation, TaskSettingsDto } from './tasks.generated';
+import { TASK_PROTOCOL_VERSION, type TaskMutation, type TaskSettingsDto } from './tasks.generated';
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
@@ -14,7 +14,7 @@ let Subscription: typeof import('./task-subscription').TaskSnapshotSubscription;
 let Actions: typeof import('./task-actions').TaskActions;
 let session = 0;
 const snapshot = {
-  protocolVersion: 1,
+  protocolVersion: TASK_PROTOCOL_VERSION,
   revision: '0',
   selectionId: null,
   phase: 'idle',
@@ -26,7 +26,11 @@ const snapshot = {
 function reply(command: string): unknown {
   switch (command) {
     case 'subscribe_task_changes':
-      return { protocolVersion: 1, subscriptionId: String(++session), revision: '0' };
+      return {
+        protocolVersion: TASK_PROTOCOL_VERSION,
+        subscriptionId: String(++session),
+        revision: '0',
+      };
     case 'get_task_snapshot':
       return snapshot;
     case 'acknowledge_task_changes':
@@ -91,9 +95,7 @@ describe('controlled native task actions', () => {
     const connecting = stream.connect();
     await reached.promise;
     expect(stream.mutationSession).toBeNull();
-    await expect(actions.apply({ kind: 'cancel', selectionId: '1' })).rejects.toThrow(
-      'acknowledge',
-    );
+    await expect(actions.apply({ kind: 'clear', selectionId: '1' })).rejects.toThrow('acknowledge');
     ack.resolve(null);
     await connecting;
     expect(stream.mutationSession).toBe('1');
@@ -220,7 +222,7 @@ describe('controlled native task actions', () => {
       if (command === 'apply_task_mutation') throw error;
       return reply(command);
     });
-    await expect(actions.apply({ kind: 'cancel', selectionId: '1' })).rejects.toEqual(error);
+    await expect(actions.apply({ kind: 'clear', selectionId: '1' })).rejects.toEqual(error);
     expect(
       vi.mocked(invoke).mock.calls.filter(([command]) => command === 'apply_task_mutation'),
     ).toHaveLength(1);
@@ -229,7 +231,7 @@ describe('controlled native task actions', () => {
     await stream.disconnect();
   });
 
-  it('sends exact identities for start/cancel/clear/retry and rejects invalid row sets locally', async () => {
+  it('sends exact identities for start/clear/retry and rejects invalid row sets locally', async () => {
     const { stream, actions } = await connected();
     const selectionId = '9007199254740994';
     const operations: TaskMutation[] = [
@@ -238,7 +240,6 @@ describe('controlled native task actions', () => {
         selectionId,
         settings: { mode: { kind: 'lossless' }, output: 'copy_beside' },
       },
-      { kind: 'cancel', selectionId },
       { kind: 'clear', selectionId },
       {
         kind: 'retry',
@@ -282,7 +283,7 @@ describe('controlled native task actions', () => {
       vi.mocked(invoke).mockImplementation(async (command) =>
         command === 'apply_task_mutation' ? value : reply(command),
       );
-      await expect(actions.apply({ kind: 'cancel', selectionId: '2' })).rejects.toThrow();
+      await expect(actions.apply({ kind: 'clear', selectionId: '2' })).rejects.toThrow();
     }
     await stream.disconnect();
   });

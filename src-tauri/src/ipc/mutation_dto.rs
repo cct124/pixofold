@@ -85,7 +85,6 @@ pub(crate) struct RetryTask {
 pub(crate) enum TaskMutation {
     Import(ImportTask),
     Start(StartTask),
-    Cancel(SelectTask),
     Clear(SelectTask),
     Retry(RetryTask),
 }

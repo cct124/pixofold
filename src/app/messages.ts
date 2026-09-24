@@ -1,5 +1,14 @@
 export const messages = {
   'zh-CN': {
+    about: '关于',
+    closeDialog: '关闭对话框',
+    minimize: '最小化窗口',
+    maximize: '最大化 / 还原窗口',
+    close: '关闭窗口',
+    windowError: '窗口操作失败，请重试；关闭将等待后台任务安全退出。',
+    preview: '浏览器预览',
+    description:
+      '本地批量图片压缩工具。当前支持静态PNG，导入后自动处理；无收益时保留原图，覆盖前创建备份。图片不上传。',
     subtitle: '本地图片压缩',
     badge: 'PNG 工作台',
     theme: '主题',
@@ -11,6 +20,15 @@ export const messages = {
     license: 'GPL-3.0-or-later 开源',
   },
   en: {
+    about: 'About',
+    closeDialog: 'Close dialog',
+    minimize: 'Minimize window',
+    maximize: 'Maximize / restore window',
+    close: 'Close window',
+    windowError: 'Window action failed. Try again; closing waits for tasks to stop safely.',
+    preview: 'Browser preview',
+    description:
+      'Local batch image compression. Static PNGs are supported. Importing starts processing; originals are kept without savings and backed up before replacement. Images are never uploaded.',
     subtitle: 'Local image compression',
     badge: 'PNG workspace',
     theme: 'Theme',

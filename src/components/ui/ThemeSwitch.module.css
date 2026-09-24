@@ -3,9 +3,9 @@
   flex: none;
   margin: 0;
   min-inline-size: 0;
-  padding: 3px;
+  padding: 2px;
   border: 1px solid var(--border);
-  border-radius: 24px;
+  border-radius: 22px;
 }
 
 .switch button {

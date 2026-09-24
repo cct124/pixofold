@@ -163,13 +163,6 @@ export class WorkspaceController {
     return phase !== undefined && ['idle', 'finished', 'cancelled', 'rejected'].includes(phase);
   }
 
-  async cancel(): Promise<void> {
-    const selectionId = this.#view.snapshot?.selectionId;
-    if (selectionId && this.canChange) {
-      this.#autoSelection = null;
-      await this.#mutate({ kind: 'cancel', selectionId });
-    }
-  }
   async clear(): Promise<void> {
     const selectionId = this.#view.snapshot?.selectionId;
     if (selectionId && this.canChange) {

@@ -88,7 +88,7 @@ fn assert_local_queries_and_permissions(app: &tauri::App<MockRuntime>) {
         json!({"onChange":"__CHANNEL__:42"}),
     )
     .unwrap();
-    assert_eq!(ticket["protocolVersion"], 1);
+    assert_eq!(ticket["protocolVersion"], crate::ipc::TASK_PROTOCOL_VERSION);
     let ack = json!({"request": {"subscriptionId": ticket["subscriptionId"], "revision": ticket["revision"]}});
     assert_eq!(
         invoke(&main, "acknowledge_task_changes", ack.clone()).unwrap(),
@@ -133,7 +133,7 @@ fn assert_local_queries_and_permissions(app: &tauri::App<MockRuntime>) {
         ),
         (
             "apply_task_mutation",
-            json!({"request":{"subscriptionId":"0", "operation":{"kind":"cancel", "selectionId":"1"}}}),
+            json!({"request":{"subscriptionId":"0", "operation":{"kind":"clear", "selectionId":"1"}}}),
         ),
     ] {
         assert_permission_denied(invoke(&other, command, body.clone()), command);
@@ -251,7 +251,7 @@ fn native_and_mutation_commands_require_acknowledged_current_subscription() {
         mutate(
             &main,
             ticket.subscription_id,
-            json!({"kind":"cancel", "selectionId":"1"})
+            json!({"kind":"clear", "selectionId":"1"})
         )
         .unwrap_err(),
         json!({"code":"subscription", "error":{"code":"stale_subscription"}})
@@ -267,8 +267,8 @@ fn strict_mutation_contract_rejects_paths_quality_and_malformed_identifiers() {
     let before = app.state::<DesktopTasks>().control.snapshot().revision;
     for operation in [
         json!({"kind":"import", "grantId":"1", "settings":null, "paths":["private.png"]}),
-        json!({"kind":"cancel", "selectionId":"01"}),
-        json!({"kind":"cancel", "selectionId":1}),
+        json!({"kind":"clear", "selectionId":"01"}),
+        json!({"kind":"clear", "selectionId":1}),
         json!({"kind":"start", "selectionId":"1", "settings":{"mode":{"kind":"lossy", "quality":101}, "output":"overwrite"}}),
         json!({"kind":"start", "selectionId":"1", "settings":{"mode":{"kind":"lossless", "quality":80}, "output":"overwrite"}}),
         json!({"kind":"start", "selectionId":"1", "settings":{"mode":{"kind":"lossless"}, "output":"copy_to", "directory":"private"}}),
@@ -320,7 +320,7 @@ fn native_slot_is_bounded_even_after_reconnection_and_stale_result_cannot_be_gra
 }
 
 #[test]
-fn authorized_scan_start_cancel_clear_and_reimport_share_one_task_owner() {
+fn authorized_scan_start_clear_and_reimport_share_one_task_owner() {
     use crate::tasks::TaskPhase;
     let app = app(super::super::app_context());
     let main = window(&app, "main");
@@ -362,8 +362,15 @@ fn authorized_scan_start_cancel_clear_and_reimport_share_one_task_owner() {
         .unwrap_err(),
         json!({"code":"task", "error":{"code":"busy"}})
     );
-    mutate(&main, session, json!({"kind":"cancel", "selectionId":id})).unwrap();
-    assert_eq!(tasks.control.snapshot().phase, TaskPhase::Cancelled);
+    // 未启动清单可以清除；旧页面的取消载荷在反序列化边界被拒绝，不改变状态。
+    let before = tasks.control.snapshot().revision;
+    assert!(
+        mutate(&main, session, json!({"kind":"cancel", "selectionId":id}))
+            .unwrap_err()
+            .is_string()
+    );
+    assert_eq!(tasks.control.snapshot().revision, before);
+    assert_eq!(tasks.control.snapshot().phase, TaskPhase::Ready);
     mutate(&main, session, json!({"kind":"clear", "selectionId":id})).unwrap();
     phase(&tasks.control, TaskPhase::Idle);
     let accepted = mutate(
@@ -374,7 +381,7 @@ fn authorized_scan_start_cancel_clear_and_reimport_share_one_task_owner() {
     .unwrap();
     phase(&tasks.control, TaskPhase::Ready);
     assert_eq!(
-        mutate(&main, session, json!({"kind":"cancel", "selectionId":id})).unwrap_err(),
+        mutate(&main, session, json!({"kind":"clear", "selectionId":id})).unwrap_err(),
         json!({"code":"task", "error":{"code":"stale_selection"}})
     );
     let start = json!({"kind":"start", "selectionId":accepted["selectionId"], "settings":{"mode":{"kind":"lossless"}, "output":"copy_beside"}});

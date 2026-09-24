@@ -73,12 +73,6 @@ pub(crate) fn mutate(
                 .map_err(failure)?;
             selection_id.0
         }
-        TaskMutation::Cancel(SelectTask { selection_id }) => {
-            control
-                .cancel(selection(control, selection_id)?)
-                .map_err(failure)?;
-            selection_id.0
-        }
         TaskMutation::Clear(SelectTask { selection_id }) => {
             // 清除只删除任务记录，不删除原图、结果或备份；恢复信息须由UI在清除前展示。
             control

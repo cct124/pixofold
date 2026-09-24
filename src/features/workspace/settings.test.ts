@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { draftSettings, qualityValue, useCompressionPreferences } from './settings';
-import { formatBytes } from './format';
+import { formatBytes, formatReduction } from './format';
 
 describe('workspace settings and exact display', () => {
+  it('derives reduction only from known nonzero exact byte counts', () => {
+    expect(formatReduction(null, '1')).toBe('—');
+    expect(formatReduction('10', null)).toBe('—');
+    expect(formatReduction('0', '0')).toBe('—');
+    expect(formatReduction('10', '10')).toBe('0.0%');
+    expect(formatReduction('1000', '751')).toBe('24.9%');
+    expect(formatReduction('90071992547409930', '45035996273704965')).toBe('50.0%');
+  });
   it('accepts only complete integer text and drops quality in lossless mode', () => {
     for (const text of ['', ' ', '01', '-1', '101', '1.5', '1e2', '+80', '80 '])
       expect(qualityValue(text)).toBeNull();

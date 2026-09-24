@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import type { TaskPageRequest, TaskSnapshotDto } from './tasks.generated';
+import {
+  TASK_PROTOCOL_VERSION,
+  type TaskPageRequest,
+  type TaskSnapshotDto,
+} from './tasks.generated';
 import { getTaskSnapshot, parseDecimalU64, TaskSnapshotReader } from './tasks';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(), isTauri: vi.fn() }));
@@ -23,7 +27,7 @@ function deferred<T>() {
 }
 function snapshot(revision = '0'): TaskSnapshotDto {
   return {
-    protocolVersion: 1,
+    protocolVersion: TASK_PROTOCOL_VERSION,
     revision,
     selectionId: null,
     phase: 'idle',
@@ -106,7 +110,8 @@ describe('read-only task IPC', () => {
 
   it('validates protocol, revision and requested page envelope', async () => {
     const invalid: TaskSnapshotDto[] = [
-      { ...snapshot(), protocolVersion: 2 },
+      { ...snapshot(), protocolVersion: 1 },
+      { ...snapshot(), protocolVersion: TASK_PROTOCOL_VERSION + 1 },
       { ...snapshot(), revision: '01' },
       { ...snapshot(), page: { kind: 'issues', offset: 0, total: 0, items: [] } },
       { ...snapshot(), page: { kind: 'jobs', offset: 1, total: 1, items: [] } },

@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 
 pub(super) const MAX_PAGE_SIZE: u16 = 100;
 pub(super) const MAX_DISPLAY_CHARS: usize = 240;
-pub(crate) const TASK_PROTOCOL_VERSION: u32 = 1;
+// v2移除面向页面的主动取消命令；退出收尾仍使用内部协作取消。
+pub(crate) const TASK_PROTOCOL_VERSION: u32 = 2;
 
 /// 无符号64位十进制字符串；拒绝数字JSON、符号、空白、前导零及溢出。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

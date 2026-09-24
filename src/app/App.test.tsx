@@ -24,7 +24,7 @@ describe('workspace shell', () => {
     vi.mocked(getAppInfo).mockResolvedValue(null);
     render(<App />);
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('浏览器预览'));
-    expect(screen.getByRole('button', { name: '选择图片' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '选择文件' })).toBeDisabled();
     const darkButton = screen.getByRole('button', { name: '深色' });
     expect(darkButton.textContent).toBe('');
     fireEvent.click(darkButton);
@@ -47,6 +47,7 @@ describe('workspace shell', () => {
       .mockRejectedValueOnce(new Error('unavailable'))
       .mockResolvedValueOnce({ ...appInfo, plannedFormats: [...appInfo.plannedFormats] });
     render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: '关于' }));
     fireEvent.click(await screen.findByRole('button', { name: '重新读取版本' }));
     expect(await screen.findByText('v0.1.0')).toBeVisible();
     expect(screen.getByText('当前支持静态 PNG；拖放、JPEG、GIF 与 APNG 尚未接入。')).toBeVisible();
