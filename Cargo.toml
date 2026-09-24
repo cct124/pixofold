@@ -14,6 +14,7 @@ imagequant = { version = "=4.4.1", default-features = false }
 oxipng = { version = "=10.2.1", default-features = false }
 png = "=0.18.1"
 same-file = "=1.0.6"
+sha2 = "=0.10.9"
 tempfile = "=3.27.0"
 pixofold-core = { path = "crates/pixofold-core" }
 serde = { version = "=1.0.229", features = ["derive"] }

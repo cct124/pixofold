@@ -246,6 +246,7 @@ fn retry_rechecks_paths_retains_success_and_applies_current_quality_and_target()
         },
         jobs: vec![RetryJob {
             id: first.jobs[1].id,
+            metadata: Default::default(),
             output: OutputPolicy::Copy {
                 destination: first_output.clone(),
             },
@@ -317,6 +318,7 @@ fn missing_sources_and_decode_limits_are_per_job_failures_and_retryable() {
                     .iter()
                     .map(|j| RetryJob {
                         id: j.id,
+                        metadata: Default::default(),
                         output: j.request.output.clone(),
                     })
                     .collect(),
@@ -372,6 +374,7 @@ fn commit_failure_retains_recoverable_backup_in_job_error_and_retry_does_not_rem
                 parameters: BatchParameters::default(),
                 jobs: vec![RetryJob {
                     id: failed.jobs[0].id,
+                    metadata: Default::default(),
                     output: OutputPolicy::Overwrite,
                 }],
             },

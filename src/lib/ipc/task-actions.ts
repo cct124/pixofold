@@ -110,7 +110,7 @@ export class TaskActions {
   async #mutate(session: string, operation: TaskMutation): Promise<TaskMutationAccepted> {
     if (operation.kind === 'import') positiveId(operation.grantId);
     else positiveId(operation.selectionId);
-    if (operation.kind === 'retry') {
+    if (operation.kind === 'retry' || operation.kind === 'confirm_content_credentials') {
       parseDecimalU64(operation.expectedBatchRevision);
       if (
         operation.jobIds.length < 1 ||
@@ -120,6 +120,14 @@ export class TaskActions {
       )
         throw new Error('Invalid retry selection');
     }
+    if (
+      operation.kind === 'confirm_content_credentials' &&
+      (operation.consent !== 'remove_content_credentials' ||
+        !['copy_beside', 'overwrite_with_backup', 'overwrite_without_backup'].includes(
+          operation.output,
+        ))
+    )
+      throw new Error('Explicit content credentials consent is required');
     this.#sameSession(session);
     const result = await invoke<unknown>('apply_task_mutation', {
       request: { subscriptionId: session, operation },

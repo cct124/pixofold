@@ -20,7 +20,7 @@ export function parseDecimalU64(value: DecimalU64): bigint {
 
 function validateRequest(request: TaskPageRequest): void {
   if (
-    !['jobs', 'candidates', 'issues'].includes(request.collection) ||
+    !['jobs', 'candidates', 'issues', 'confirmations'].includes(request.collection) ||
     !Number.isInteger(request.limit) ||
     request.limit < 1 ||
     request.limit > MAX_TASK_PAGE_SIZE ||

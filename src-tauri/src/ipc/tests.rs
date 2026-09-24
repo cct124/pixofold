@@ -343,6 +343,18 @@ fn protected_metadata_failure_reaches_real_task_snapshot_without_modifying_files
     assert!(codes.contains(&"unsupported_content_credentials"));
     assert!(codes.contains(&"unsupported_metadata"));
     assert_eq!(result["batch"]["summary"]["failed"], 2);
+    assert_eq!(result["batch"]["confirmationCount"], 1);
+    let confirmations = wire(query(&control, request(TaskCollection::Confirmations)).unwrap());
+    assert_eq!(confirmations["page"]["total"], 1);
+    assert_eq!(
+        confirmations["page"]["items"][0]["sourceName"]["text"],
+        "content-credentials.png"
+    );
+    assert!(
+        !confirmations
+            .to_string()
+            .contains(&dir.path().to_string_lossy().to_string())
+    );
     assert_eq!(result["batch"]["summary"]["savedBytes"], "0");
     assert_eq!(
         result["batch"]["summary"]["currentBytes"],
@@ -386,6 +398,54 @@ fn metadata_recovery_causes_keep_distinct_wire_categories() {
             json!({"kind":"failed","code":code})
         );
     }
+}
+
+#[test]
+fn confirmation_pages_include_only_eligible_rows_and_distinguish_same_names_without_paths() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut inputs = Vec::new();
+    for folder in ["one", "two", "three"] {
+        let parent = dir.path().join(folder);
+        fs::create_dir(&parent).unwrap();
+        inputs.push(sample(&parent, "same.png", "content-credentials.png"));
+    }
+    inputs.push(sample(dir.path(), "unsafe.png", "unsafe-metadata.png"));
+    let mut runtime = TaskRuntime::new(TaskConfig::default()).unwrap();
+    let control = runtime.control();
+    control
+        .import(inputs, Some(TaskSettings::default()))
+        .unwrap();
+    let finished = phase(&control, TaskPhase::Finished);
+    let mut first_request = request(TaskCollection::Confirmations);
+    first_request.limit = 2;
+    first_request.expected_revision = Some(DecimalU64(finished.revision));
+    let first = wire(query(&control, first_request.clone()).unwrap());
+    assert_eq!(first["batch"]["confirmationCount"], 3);
+    assert_eq!(first["page"]["total"], 3);
+    let first_rows = first["page"]["items"].as_array().unwrap();
+    assert_eq!(first_rows.len(), 2);
+    assert_ne!(first_rows[0]["id"], first_rows[1]["id"]);
+    assert_eq!(first_rows[0]["sourceName"], first_rows[1]["sourceName"]);
+    assert_ne!(first_rows[0]["sourceLabel"], first_rows[1]["sourceLabel"]);
+    let mut second_request = first_request.clone();
+    second_request.offset = 2;
+    let second = wire(query(&control, second_request.clone()).unwrap());
+    assert_eq!(second["revision"], first["revision"]);
+    assert_eq!(second["page"]["items"].as_array().unwrap().len(), 1);
+    assert_ne!(second["page"]["items"][0]["id"], first_rows[0]["id"]);
+    assert_ne!(second["page"]["items"][0]["id"], first_rows[1]["id"]);
+    assert!(
+        !first
+            .to_string()
+            .contains(&dir.path().to_string_lossy().to_string())
+    );
+    control.clear(finished.selection.unwrap()).unwrap();
+    phase(&control, TaskPhase::Idle);
+    assert!(matches!(
+        query(&control, second_request),
+        Err(QueryError::StaleSnapshot { .. })
+    ));
+    runtime.shutdown().unwrap();
 }
 
 #[test]

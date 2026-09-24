@@ -8,6 +8,7 @@ import { formatBytes, formatReduction } from './format';
 import { detailText, workspaceText } from './messages';
 import { WorkspaceRows } from './WorkspaceRows';
 import { WorkspaceSettings } from './WorkspaceSettings';
+import { ContentCredentialsDialog } from './ContentCredentialsDialog';
 import styles from './Workspace.module.css';
 
 /** 只呈现Rust快照；组件重挂载不创建第二份任务或Channel。 */
@@ -48,7 +49,13 @@ export function Workspace({
   const canChange = controller.canChange;
   const clearable =
     snapshot && ['ready', 'finished', 'cancelled', 'rejected'].includes(snapshot.phase);
-  const page = view.page?.revision === snapshot?.revision ? view.page?.page : null;
+  const page = view.confirmationOpen
+    ? snapshot?.page.kind === 'jobs'
+      ? snapshot.page
+      : null
+    : view.page?.revision === snapshot?.revision
+      ? view.page?.page
+      : null;
   const showList = Boolean(
     snapshot?.selectionId &&
     (summary ||
@@ -161,7 +168,7 @@ export function Workspace({
                 aria-label={t('listLabel')}
                 aria-busy={view.pageLoading}
               >
-                {view.pageLoading ? (
+                {view.pageLoading && !view.confirmationOpen ? (
                   <p className={styles.listNotice}>{t('loading')}</p>
                 ) : page?.items.length ? (
                   <WorkspaceRows page={page} language={language} />
@@ -169,7 +176,7 @@ export function Workspace({
                   <p className={styles.listNotice}>{t('noRows')}</p>
                 )}
               </section>
-              {page && page.total > WORKSPACE_PAGE_SIZE && (
+              {page && !view.confirmationOpen && page.total > WORKSPACE_PAGE_SIZE && (
                 <div className={styles.pagination}>
                   <small title={t('pageHint')}>
                     {Math.min(page.total, page.offset + 1)}–
@@ -314,6 +321,15 @@ export function Workspace({
             </dl>
           )}
           <div className={styles.summaryNotes}>
+            {snapshot?.phase === 'finished' && (snapshot.batch?.confirmationCount ?? 0) > 0 && (
+              <button
+                className="button"
+                disabled={!canChange}
+                onClick={() => controller.openConfirmations()}
+              >
+                {t('confirmations')} ({snapshot.batch?.confirmationCount})
+              </button>
+            )}
             <div className={styles.summaryDetails}>
               {summary && (
                 <span>
@@ -384,6 +400,9 @@ export function Workspace({
             </button>
           </div>
         </Dialog>
+      )}
+      {view.confirmationOpen && (
+        <ContentCredentialsDialog controller={controller} view={view} language={language} />
       )}
     </main>
   );

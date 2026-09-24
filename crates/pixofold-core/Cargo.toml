@@ -13,6 +13,7 @@ imagequant.workspace = true
 oxipng.workspace = true
 png.workspace = true
 same-file.workspace = true
+sha2.workspace = true
 tempfile.workspace = true
 serde.workspace = true
 ts-rs = { workspace = true, optional = true }

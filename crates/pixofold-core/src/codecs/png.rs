@@ -7,9 +7,14 @@ use crate::{
     probe::{self, DecodedPng},
 };
 
-pub(crate) fn optimize(data: &[u8], limits: ResourceLimits) -> Result<Vec<u8>, ProcessingError> {
-    let original = probe::chunks(data)?;
-    for chunk in &original {
+/// 检查全部不支持块：不能因先遇caBX就把混合未知元数据归为可恢复。
+pub(crate) fn check_metadata(data: &[u8]) -> Result<bool, ProcessingError> {
+    let mut credentials = false;
+    for chunk in probe::chunks(data)? {
+        if chunk.name == *b"caBX" {
+            credentials = true;
+            continue;
+        }
         // 未知 unsafe-to-copy chunk 可能引用文件偏移/签名，不能在改写 IDAT 后原样搬运。
         if chunk.name[0] & 32 != 0
             && chunk.name[3] & 32 == 0
@@ -36,6 +41,27 @@ pub(crate) fn optimize(data: &[u8], limits: ResourceLimits) -> Result<Vec<u8>, P
             return Err(ProcessingError::UnsupportedMetadata(chunk.name));
         }
     }
+    Ok(credentials)
+}
+
+/// 只删caBX，保留其余块的顺序和编码字节；调用方先完整解码并执行check_metadata。
+pub(crate) fn remove_content_credentials(data: &[u8]) -> Result<Vec<u8>, ProcessingError> {
+    let chunks = probe::chunks(data)?;
+    let mut output = Vec::with_capacity(data.len());
+    output.extend_from_slice(&data[..8]);
+    for chunk in chunks {
+        if chunk.name != *b"caBX" {
+            output.extend_from_slice(chunk.encoded);
+        }
+    }
+    Ok(output)
+}
+
+pub(crate) fn optimize(data: &[u8], limits: ResourceLimits) -> Result<Vec<u8>, ProcessingError> {
+    if check_metadata(data)? {
+        return Err(ProcessingError::UnsupportedMetadata(*b"caBX"));
+    }
+    let original = probe::chunks(data)?;
     let options = oxipng::Options {
         fix_errors: false,
         force: false,

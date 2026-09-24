@@ -135,7 +135,7 @@ pub(crate) fn copy_destination(
     policy: &mut OutputPolicy,
 ) -> Result<Option<PathBuf>, ProcessingError> {
     match policy {
-        OutputPolicy::Overwrite => Ok(None),
+        OutputPolicy::Overwrite | OutputPolicy::OverwriteWithoutBackup => Ok(None),
         OutputPolicy::Copy { destination } => {
             *destination = super::absolute_leaf(destination)?;
             Ok(Some(destination.clone()))

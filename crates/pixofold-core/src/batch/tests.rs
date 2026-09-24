@@ -92,6 +92,7 @@ impl Runner for ControlledRunner {
             image: info.clone(),
             output_image: info,
             processing: PngProcessing::Lossless,
+            content_credentials_removed: false,
             input_bytes: ByteCount(bytes),
             output_bytes: ByteCount(if name == "committed" { 0 } else { bytes }),
             elapsed: Duration::ZERO,
@@ -324,6 +325,7 @@ fn retry_preserves_completed_rows_and_freezes_new_parameters_and_destinations() 
         .iter()
         .map(|j| RetryJob {
             id: j.id,
+            metadata: Default::default(),
             output: OutputPolicy::Copy {
                 destination: h.directory.path().join(format!("retry-{}.png", j.id.get())),
             },
@@ -651,6 +653,7 @@ fn external_token_before_admission_keeps_existing_batch_and_attempts() {
         parameters: BatchParameters::default(),
         jobs: vec![RetryJob {
             id: first.jobs[0].id,
+            metadata: Default::default(),
             output: OutputPolicy::Overwrite,
         }],
     };
@@ -716,6 +719,7 @@ fn retry_external_cancel_uses_new_token_and_preserves_completed_rows() {
                 parameters: BatchParameters::default(),
                 jobs: vec![RetryJob {
                     id: first.jobs[0].id,
+                    metadata: Default::default(),
                     output: OutputPolicy::Overwrite,
                 }],
             },

@@ -324,6 +324,7 @@ impl BatchService {
                 output: item.output,
                 mode: request.parameters.mode,
                 limits: request.parameters.limits,
+                metadata: Default::default(),
             })
             .collect();
         let jobs = planning::prepare(requests, self.shared.config.working_set_budget)?;
@@ -460,6 +461,7 @@ impl BatchService {
             requests[i].output = retry.output;
             requests[i].mode = request.parameters.mode;
             requests[i].limits = request.parameters.limits;
+            requests[i].metadata = retry.metadata;
         }
         let mut jobs = planning::prepare(requests, self.shared.config.working_set_budget)?;
         for (i, job) in jobs.iter_mut().enumerate() {

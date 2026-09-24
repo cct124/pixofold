@@ -53,7 +53,8 @@ fn recovery_cause(error: &ProcessingError) -> RecoveryCauseDto {
         | ProcessingError::InvalidPng(_) => JobErrorDto::InvalidInput,
         ProcessingError::UnsupportedFormat => JobErrorDto::UnsupportedFormat,
         ProcessingError::UnsupportedAnimation => JobErrorDto::UnsupportedAnimation,
-        ProcessingError::UnsupportedMetadata([b'c', b'a', b'B', b'X']) => {
+        ProcessingError::UnsupportedMetadata([b'c', b'a', b'B', b'X'])
+        | ProcessingError::ContentCredentialsRequireConsent(_) => {
             JobErrorDto::UnsupportedContentCredentials
         }
         ProcessingError::UnsupportedMetadata(_) => JobErrorDto::UnsupportedMetadata,
@@ -235,6 +236,7 @@ fn report(value: &ProcessingReport) -> Result<ReportDto> {
         processing: processing(value.processing),
         output_name,
         backup_name,
+        content_credentials_removed: value.content_credentials_removed,
     })
 }
 fn job(value: &JobSnapshot) -> Result<JobDto> {
@@ -283,6 +285,34 @@ pub(super) fn snapshot(value: &TaskSnapshot, request: &TaskPageRequest) -> Resul
     }
     let offset = request.offset;
     let page = match request.collection {
+        TaskCollection::Confirmations => {
+            let eligible = || {
+                value
+                    .batch
+                    .iter()
+                    .flat_map(|b| &b.jobs)
+                    .filter(|job| job.content_credentials_source().is_some())
+            };
+            let total = eligible().count();
+            let selected = range(total, request)?;
+            let items = eligible()
+                .skip(selected.start)
+                .take(selected.len())
+                .map(|job| {
+                    Ok(ConfirmationDto {
+                        id: count(job.id.get())?,
+                        source_name: name(&job.request.source),
+                        source_label: name(job.request.source.parent().unwrap_or(Path::new(""))),
+                        input_bytes: bytes(job.input_bytes),
+                    })
+                })
+                .collect::<Result<_>>()?;
+            TaskPageDto::Confirmations {
+                offset,
+                total: count(total)?,
+                items,
+            }
+        }
         TaskCollection::Jobs => {
             let jobs = value.batch.as_ref().map_or(&[][..], |b| b.jobs.as_slice());
             let items = jobs[range(jobs.len(), request)?]
@@ -362,6 +392,13 @@ pub(super) fn snapshot(value: &TaskSnapshot, request: &TaskPageRequest) -> Resul
                     phase: batch.phase.into(),
                     mode: batch.parameters.mode,
                     summary: summary(&batch.summary)?,
+                    confirmation_count: count(
+                        batch
+                            .jobs
+                            .iter()
+                            .filter(|job| job.content_credentials_source().is_some())
+                            .count(),
+                    )?,
                 })
             })
             .transpose()?,

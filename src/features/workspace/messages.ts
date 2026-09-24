@@ -1,6 +1,32 @@
 import type { Language } from '../../stores/preferences';
 
 const copy = {
+  confirmations: ['需要确认的图片', 'Images needing confirmation'],
+  credentialsIntro: [
+    '这些图片含内容凭据，压缩需将其移除。原图尚未修改。',
+    'Compression requires removing Content Credentials from these images. Originals are unchanged.',
+  ],
+  credentialsImpact: ['移除内容凭据', 'Removes credentials'],
+  credentialsReason: ['含内容凭据 caBX', 'Contains Content Credentials (caBX)'],
+  credentialsOverwrite: ['覆盖原图', 'Overwrite originals'],
+  credentialsBackup: ['备份原图', 'Back up originals'],
+  credentialsBackupHint: [
+    '在同目录备份原图后覆盖。',
+    'Back up originals in the same folder, then overwrite.',
+  ],
+  credentialsOverwriteHint: ['直接覆盖，不保留备份。', 'Overwrite directly, without backups.'],
+  credentialsDefer: ['暂不处理', 'Not now'],
+  credentialsSubmit: ['移除内容凭据后压缩', 'Remove credentials and compress'],
+  selectAll: ['全选', 'Select all'],
+  selected: ['已选择', 'Selected'],
+  reason: ['原因', 'Reason'],
+  impact: ['影响', 'Impact'],
+  credentialsPixelsOnly: ['仅像素无损', 'Lossless pixels only'],
+  credentialsRemoved: ['已移除内容凭据', 'Content Credentials removed'],
+  credentialsInvalid: [
+    '质量参数无效，请关闭弹窗并修正设置后重开。',
+    'Invalid quality. Close this dialog, correct the settings, then reopen it.',
+  ],
   title: ['图片压缩', 'Image compression'],
   subtitle: ['静态 PNG · 本地批量压缩', 'Static PNG · Local batch compression'],
   files: ['选择文件', 'Choose files'],
@@ -154,8 +180,8 @@ const copy = {
   encode: ['编码失败', 'Encoding failed'],
   validation: ['结果验证失败', 'Result validation failed'],
   unsupported_content_credentials: [
-    '含 C2PA 内容凭据（caBX），当前不能安全更新凭据并压缩。原图已保留；调整质量或切换无损不能解决。',
-    'C2PA Content Credentials (caBX) cannot currently be updated safely during compression. Original kept; changing quality or using lossless mode will not help.',
+    '含 C2PA 内容凭据（caBX），原图已保留。可从“需要确认的图片”入口明确选择移除凭据后压缩；调整质量不能替代确认。',
+    'Contains C2PA Content Credentials (caBX). Original kept. Use “Images needing confirmation” to explicitly remove credentials before compression; changing quality is not consent.',
   ],
   unsupported_metadata: [
     '含当前不支持安全改写的元数据，原图已保留；不会自动删除元数据。',

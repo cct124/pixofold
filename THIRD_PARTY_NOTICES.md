@@ -1,6 +1,6 @@
 # 第三方组件说明
 
-PixoFold 自有代码采用 GPL-3.0-or-later；第三方组件适用其自身许可。工程依赖于 2026-09-21 核实，静态 PNG 核心依赖于 2026-09-22、原生选择依赖于 2026-09-23 补充核实；完整间接依赖版本以 `pnpm-lock.yaml` 与 `Cargo.lock` 为准。
+PixoFold 自有代码采用 GPL-3.0-or-later；第三方组件适用其自身许可。工程依赖于 2026-09-21 核实，静态 PNG 核心依赖于 2026-09-22、原生选择依赖于 2026-09-23、内容凭据确认指纹依赖于 2026-09-24 补充核实；完整间接依赖版本以 `pnpm-lock.yaml` 与 `Cargo.lock` 为准。
 
 | 组件 | 用途 | 许可 |
 | --- | --- | --- |
@@ -17,6 +17,7 @@ PixoFold 自有代码采用 GPL-3.0-or-later；第三方组件适用其自身许
 | png 0.18.1、crc32fast 1.5.2 | 完整 PNG 解码验证、chunk CRC 校验 | MIT OR Apache-2.0 |
 | tempfile 3.27.0 | 独占临时文件与最终持久化 | MIT OR Apache-2.0 |
 | same-file 1.0.6 | 基于文件句柄复查源/临时路径身份 | Unlicense OR MIT |
+| sha2 0.10.9 | 内容凭据处理授权绑定源文件 SHA256；复用既有锁定版本，不验证或重签凭据 | MIT OR Apache-2.0 |
 | libdeflater / libdeflate-sys 1.26.1（间接） | oxipng 的 DEFLATE 封装及静态 C 库构建 | 封装 Apache-2.0；内含 libdeflate 源码适用 MIT |
 | TypeScript | 类型检查 | Apache-2.0 |
 | Vite、React 插件、Vitest | 前端构建与测试 | MIT |

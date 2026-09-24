@@ -1,5 +1,5 @@
 //! 唯一最终文件提交层：独占临时文件、同步、复查、备份、同目录替换。
-//! 不采用先删除源文件的回退；覆盖备份在成功和提交失败后均保留。
+//! 不采用先删除源文件的回退；默认覆盖保留备份，仅显式无备份策略不建立备份。
 //! 检查点不是文件系统 compare-and-swap；不承诺抵御恶意路径竞争或断电事务性。
 
 pub(crate) mod paths;
@@ -11,11 +11,12 @@ use std::{
     time::SystemTime,
 };
 
+use sha2::{Digest, Sha256};
 use tempfile::{Builder, NamedTempFile};
 
 use crate::model::{
-    CancellationToken, OutputPolicy, ProcessingError, ProcessingOutcome, ProcessingStage,
-    ResourceLimits,
+    CancellationToken, ContentCredentialsSource, OutputPolicy, ProcessingError, ProcessingOutcome,
+    ProcessingStage, ResourceLimits,
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -49,6 +50,27 @@ pub(crate) struct Source {
 }
 
 impl Source {
+    pub(crate) fn credentials_version(&self) -> ContentCredentialsSource {
+        ContentCredentialsSource {
+            path: self.path.clone(),
+            length: self.fingerprint.len,
+            modified: self.fingerprint.modified,
+            created: self.fingerprint.created,
+            readonly: self.fingerprint.readonly,
+            sha256: Sha256::digest(&self.bytes).into(),
+        }
+    }
+
+    pub(crate) fn verify_credentials_version(
+        &self,
+        expected: &ContentCredentialsSource,
+    ) -> Result<(), ProcessingError> {
+        if &self.credentials_version() != expected {
+            return Err(ProcessingError::SourceChanged);
+        }
+        Ok(())
+    }
+
     pub fn read(path: &Path, limits: ResourceLimits) -> Result<Self, ProcessingError> {
         let path = absolute_leaf(path)?;
         regular_metadata(&path)?;
@@ -108,13 +130,14 @@ impl Source {
 pub(crate) struct Destination {
     pub path: PathBuf,
     overwrite: bool,
+    backup: bool,
     tree: Option<(PathBuf, PathBuf)>,
 }
 
 impl Destination {
     pub fn plan(source: &Source, policy: &OutputPolicy) -> Result<Self, ProcessingError> {
         match policy {
-            OutputPolicy::Overwrite => {
+            OutputPolicy::Overwrite | OutputPolicy::OverwriteWithoutBackup => {
                 if source.metadata.permissions().readonly() {
                     return Err(ProcessingError::io(
                         "源文件为只读",
@@ -124,6 +147,7 @@ impl Destination {
                 Ok(Self {
                     path: source.path.clone(),
                     overwrite: true,
+                    backup: matches!(policy, OutputPolicy::Overwrite),
                     tree: None,
                 })
             }
@@ -140,6 +164,7 @@ impl Destination {
                 Ok(Self {
                     path,
                     overwrite: false,
+                    backup: false,
                     tree,
                 })
             }
@@ -224,7 +249,7 @@ pub(crate) fn commit(
         cancel.check()?;
         destination.verify_tree()?;
         source.verify_unchanged(limits)?;
-        if destination.overwrite {
+        if destination.backup {
             let mut file = new_temp(parent(&source.path)?, paths::BACKUP_PREFIX, ".png")?;
             if let Err(error) = write_candidate(&mut file, &source.bytes, &source) {
                 return Err(discard(file, error));
@@ -260,7 +285,7 @@ pub(crate) fn commit(
     // Windows 的替换可能被本进程的源句柄阻止，身份检查完成后必须关闭。
     // 关闭与替换之间不具备 compare-and-swap，不能据此宣称消除了外部路径竞争。
     drop(source);
-    // 临界区起点：之后的取消不再改变结果。先保留完整备份，再执行单次替换。
+    // 临界区起点：之后的取消不再改变结果。有备份先保留备份；两种覆盖都只单次替换。
     if let Some(file) = backup {
         let backup_path = match file.keep() {
             Ok((handle, path)) => {
@@ -289,7 +314,12 @@ pub(crate) fn commit(
             }
         }
     } else {
-        match temp.persist_noclobber(&destination.path) {
+        let persisted = if destination.overwrite {
+            temp.persist(&destination.path)
+        } else {
+            temp.persist_noclobber(&destination.path)
+        };
+        match persisted {
             Ok(handle) => {
                 drop(handle);
                 Ok(ProcessingOutcome::Optimized {
@@ -298,10 +328,19 @@ pub(crate) fn commit(
                 })
             }
             Err(error) => {
-                let cause = if error.error.kind() == io::ErrorKind::AlreadyExists {
+                let cause = if !destination.overwrite
+                    && error.error.kind() == io::ErrorKind::AlreadyExists
+                {
                     ProcessingError::TargetConflict
                 } else {
-                    ProcessingError::io("提交副本", error.error)
+                    ProcessingError::io(
+                        if destination.overwrite {
+                            "无备份覆盖提交"
+                        } else {
+                            "提交副本"
+                        },
+                        error.error,
+                    )
                 };
                 Err(discard(error.file, cause))
             }

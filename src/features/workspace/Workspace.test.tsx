@@ -6,6 +6,7 @@ import {
   TASK_PROTOCOL_VERSION,
   type TaskPageRequest,
   type TaskSnapshotDto,
+  type ConfirmationDto,
 } from '../../lib/ipc/tasks.generated';
 import { Workspace } from './Workspace';
 import { useCompressionPreferences } from './settings';
@@ -47,6 +48,7 @@ function snapshot(): TaskSnapshotDto {
 }
 const name = (text: string) => ({ text, truncated: false, sanitized: false, lossy: false });
 let current: TaskSnapshotDto;
+let confirmationRows: ConfirmationDto[] = [];
 let Controller: typeof import('./controller').WorkspaceController;
 let controller: InstanceType<typeof Controller>;
 function reply(command: string, args: unknown): unknown {
@@ -69,6 +71,15 @@ function reply(command: string, args: unknown): unknown {
       // 本测试桥只接收本机适配器创建的请求，按请求返回对应集合而非混合页面。
       const { request } = args as { request: TaskPageRequest };
       const base = structuredClone(current);
+      if (request.collection === 'confirmations') {
+        base.page = {
+          kind: 'confirmations',
+          offset: request.offset,
+          total: confirmationRows.length,
+          items: confirmationRows.slice(request.offset, request.offset + request.limit),
+        };
+        return base;
+      }
       if (request.collection !== base.page.kind)
         base.page = {
           kind: request.collection,
@@ -113,6 +124,7 @@ beforeEach(async () => {
   ({ WorkspaceController: Controller } = await import('./controller'));
   controller = new Controller();
   current = snapshot();
+  confirmationRows = [];
   bridge.channels.length = 0;
   bridge.id = 0;
   vi.mocked(isTauri).mockReturnValue(true);
@@ -120,6 +132,315 @@ beforeEach(async () => {
     .mockReset()
     .mockImplementation(async (command, args) => reply(command, args));
   useCompressionPreferences.setState({ mode: 'lossy', quality: 80, output: 'overwrite' });
+});
+
+function credentialsSnapshot(count = 2): TaskSnapshotDto {
+  confirmationRows = Array.from({ length: count }, (_, i) => ({
+    id: i + 7,
+    sourceName: name('同名.png'),
+    sourceLabel: name('目录' + (i + 1)),
+    inputBytes: '2048',
+  }));
+  return {
+    ...snapshot(),
+    revision: '20',
+    selectionId: '3',
+    phase: 'finished',
+    batch: {
+      id: '1',
+      revision: '9007199254740993',
+      phase: 'finished',
+      mode: { kind: 'lossless' },
+      confirmationCount: count,
+      summary: {
+        total: count,
+        queued: 0,
+        running: 0,
+        succeeded: 0,
+        noGain: 0,
+        failed: count,
+        cancelled: 0,
+        processed: count,
+        terminal: count,
+        inputBytes: '4096',
+        currentBytes: '4096',
+        savedBytes: '0',
+      },
+    },
+    page: { kind: 'jobs', offset: 0, total: 0, items: [] },
+  };
+}
+
+describe('content credentials confirmation workflow', () => {
+  it('submits the default backup option on confirmation without any extra agreement step', async () => {
+    current = credentialsSnapshot();
+    await mount();
+    fireEvent.click(screen.getByRole('button', { name: '需要确认的图片 (2)' }));
+    const submit = await screen.findByRole('button', { name: '移除内容凭据后压缩 (2)' });
+    expect(screen.getByRole('radio', { name: '备份原图' })).toBeChecked();
+    expect(screen.queryByRole('checkbox', { name: /我理解|我同意/ })).not.toBeInTheDocument();
+    fireEvent.click(submit);
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(writes()[0]).toMatchObject({
+      request: {
+        operation: {
+          jobIds: [7, 8],
+          output: 'overwrite_with_backup',
+          consent: 'remove_content_credentials',
+        },
+      },
+    });
+  });
+
+  it('does not expose a partial list or accept it while later chunks are pending or failed', async () => {
+    current = credentialsSnapshot(151);
+    const later = deferred<unknown>();
+    vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+      if (cmd === 'get_task_snapshot') {
+        const { request } = args as { request: TaskPageRequest };
+        if (request.collection === 'confirmations' && request.offset === 100) return later.promise;
+      }
+      return reply(cmd, args);
+    });
+    await mount();
+    fireEvent.click(screen.getByRole('button', { name: '需要确认的图片 (151)' }));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith('get_task_snapshot', {
+        request: {
+          collection: 'confirmations',
+          offset: 100,
+          limit: 100,
+          expectedRevision: '20',
+        },
+      }),
+    );
+    expect(screen.queryByRole('checkbox', { name: '全选' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /移除内容凭据后压缩/ })).not.toBeInTheDocument();
+    await act(async () => {
+      await controller.confirmContentCredentials('20', [7], 'overwrite_without_backup');
+      later.reject(new Error('second chunk failed'));
+    });
+    await waitFor(() => expect(controller.getSnapshot().error).toBe('page'));
+    expect(writes()).toHaveLength(0);
+    expect(controller.getSnapshot().confirmationRows).toBeNull();
+    vi.mocked(invoke).mockImplementation(async (cmd, args) => reply(cmd, args));
+    await act(async () => {
+      controller.setPage('confirmations');
+    });
+    expect(
+      await screen.findByRole('checkbox', { name: '同名.png · 目录151 · #157' }),
+    ).toBeChecked();
+    expect(screen.getAllByRole('checkbox')).toHaveLength(152);
+  });
+
+  it('discards in-flight old rows on revision change instead of mixing confirmation versions', async () => {
+    current = credentialsSnapshot(151);
+    const oldChunk = deferred<unknown>();
+    let oldResponse: TaskSnapshotDto | null = null;
+    vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+      if (cmd === 'get_task_snapshot') {
+        const { request } = args as { request: TaskPageRequest };
+        if (
+          request.collection === 'confirmations' &&
+          request.offset === 100 &&
+          request.expectedRevision === '20'
+        ) {
+          oldResponse = reply(cmd, args) as TaskSnapshotDto;
+          return oldChunk.promise;
+        }
+      }
+      return reply(cmd, args);
+    });
+    await mount();
+    fireEvent.click(screen.getByRole('button', { name: '需要确认的图片 (151)' }));
+    await waitFor(() => expect(oldResponse).not.toBeNull());
+    const replacement = credentialsSnapshot(2);
+    confirmationRows = confirmationRows.map((row) => ({ ...row, id: row.id + 200 }));
+    await update({ ...replacement, revision: '21' });
+    await act(async () => {
+      oldChunk.resolve(oldResponse);
+    });
+    expect(await screen.findByRole('checkbox', { name: '同名.png · 目录1 · #207' })).toBeChecked();
+    expect(screen.getAllByRole('checkbox')).toHaveLength(3);
+    expect(screen.queryByRole('checkbox', { name: /#7$/ })).not.toBeInTheDocument();
+    expect(writes()).toHaveLength(0);
+  });
+
+  it('closing during all-row loading discards late results without submitting', async () => {
+    current = credentialsSnapshot();
+    const rows = deferred<unknown>();
+    const saved = {
+      ...current,
+      page: { kind: 'confirmations', offset: 0, total: 2, items: confirmationRows },
+    };
+    vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+      if (
+        cmd === 'get_task_snapshot' &&
+        (args as { request: TaskPageRequest }).request.collection === 'confirmations'
+      )
+        return rows.promise;
+      return reply(cmd, args);
+    });
+    await mount();
+    fireEvent.click(screen.getByRole('button', { name: '需要确认的图片 (2)' }));
+    fireEvent.click(screen.getByRole('button', { name: '暂不处理' }));
+    await act(async () => {
+      rows.resolve(saved);
+    });
+    expect(controller.getSnapshot().confirmationRows).toBeNull();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(writes()).toHaveLength(0);
+  });
+  it('shows credential removal on successful rows without opening details', async () => {
+    current = credentialsSnapshot(0);
+    current.page = {
+      kind: 'jobs',
+      offset: 0,
+      total: 1,
+      items: [
+        {
+          id: 7,
+          attempt: 2,
+          sourceName: name('credentials.png'),
+          mode: { kind: 'lossless' },
+          inputBytes: '2048',
+          state: {
+            kind: 'succeeded',
+            report: {
+              inputBytes: '2048',
+              outputBytes: '1024',
+              elapsedMs: '5',
+              processing: { kind: 'lossless' },
+              outputName: name('credentials_compressed.png'),
+              backupName: null,
+              contentCredentialsRemoved: true,
+            },
+          },
+        },
+      ],
+    };
+    await mount();
+    expect(screen.getByText('已移除内容凭据')).toBeVisible();
+  });
+  it('restores without prompting, selects all by default and freezes copy settings without an output module or consent checkbox', async () => {
+    current = credentialsSnapshot();
+    useCompressionPreferences.setState({ output: 'copy_beside' });
+    await mount();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '需要确认的图片 (2)' }));
+    const first = await screen.findByRole('checkbox', { name: '同名.png · 目录1 · #7' });
+    expect(first).toBeChecked();
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: /我理解|我同意/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('checkbox', { name: '全选' }));
+    expect(screen.getByRole('button', { name: '移除内容凭据后压缩 (0)' })).toBeDisabled();
+    fireEvent.click(first);
+    expect(screen.getByRole('button', { name: '移除内容凭据后压缩 (1)' })).toBeEnabled();
+    await act(async () => {
+      controller.setSettings({ mode: { kind: 'lossless' }, output: 'overwrite' });
+      await controller.confirmContentCredentials('19', [7], 'copy_beside');
+      await controller.confirmContentCredentials('20', [8, 99], 'copy_beside');
+      await controller.confirmContentCredentials('20', [7], 'overwrite_without_backup');
+    });
+    expect(writes()).toHaveLength(0);
+    const submit = screen.getByRole('button', { name: '移除内容凭据后压缩 (1)' });
+    fireEvent.click(submit);
+    fireEvent.click(submit);
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(writes()[0]).toEqual({
+      request: {
+        subscriptionId: '1',
+        operation: {
+          kind: 'confirm_content_credentials',
+          selectionId: '3',
+          expectedBatchRevision: '9007199254740993',
+          jobIds: [7],
+          mode: { kind: 'lossy', quality: 80 },
+          output: 'copy_beside',
+          consent: 'remove_content_credentials',
+        },
+      },
+    });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /取消处理/ })).not.toBeInTheDocument();
+  });
+
+  it('automatically offers once after observed work ends; close is read-only and manual reopen supports English', async () => {
+    const finished = credentialsSnapshot();
+    current = { ...finished, revision: '19', phase: 'running' };
+    const ui = await mount();
+    await update(finished);
+    await screen.findByRole('checkbox', { name: '同名.png · 目录1 · #7' });
+    fireEvent.click(screen.getByRole('button', { name: '暂不处理' }));
+    await update({ ...finished, revision: '21' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(writes()).toHaveLength(0);
+    ui.rerender(<Workspace language="en" controller={controller} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Images needing confirmation (2)' }));
+    expect(
+      await screen.findByText(/Compression requires removing Content Credentials/),
+    ).toBeVisible();
+    fireEvent(screen.getByRole('dialog'), new Event('cancel', { bubbles: true, cancelable: true }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(writes()).toHaveLength(0);
+  });
+
+  it('loads every row into a single selected list, defaults to backups and never resends an uncertain overwrite', async () => {
+    current = credentialsSnapshot(151);
+    await mount();
+    fireEvent.click(screen.getByRole('button', { name: '需要确认的图片 (151)' }));
+    const last = await screen.findByRole('checkbox', { name: '同名.png · 目录151 · #157' });
+    expect(last).toBeChecked();
+    expect(screen.getAllByRole('checkbox')).toHaveLength(152);
+    expect(screen.queryByRole('button', { name: '下一页' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '上一页' })).not.toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: '备份原图' })).toBeChecked();
+    expect(screen.getByRole('button', { name: '移除内容凭据后压缩 (151)' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('checkbox', { name: '全选' }));
+    fireEvent.click(last);
+    fireEvent.click(screen.getByRole('radio', { name: '覆盖原图' }));
+    expect(screen.getByText('直接覆盖，不保留备份。')).toBeVisible();
+    const submit = screen.getByRole('button', { name: '移除内容凭据后压缩 (1)' });
+    expect(submit).toBeEnabled();
+    vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+      if (cmd === 'apply_task_mutation') throw new Error('uncertain transport');
+      return reply(cmd, args);
+    });
+    fireEvent.click(submit);
+    await waitFor(() => expect(controller.getSnapshot().needsRecovery).toBe(true));
+    expect(writes()).toHaveLength(1);
+    expect(writes()[0]).toMatchObject({
+      request: {
+        operation: {
+          jobIds: [157],
+          output: 'overwrite_without_backup',
+          consent: 'remove_content_credentials',
+        },
+      },
+    });
+    await act(async () => {
+      await controller.reconnect();
+    });
+    expect(writes()).toHaveLength(1);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('replaces the list on a new revision, resets to safe defaults and does not prompt for normal RGB', async () => {
+    current = credentialsSnapshot();
+    await mount();
+    fireEvent.click(screen.getByRole('button', { name: '需要确认的图片 (2)' }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: '全选' }));
+    fireEvent.click(screen.getByRole('radio', { name: '覆盖原图' }));
+    await update({ ...current, revision: '21' });
+    expect(await screen.findByRole('checkbox', { name: '全选' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: '备份原图' })).toBeChecked();
+    fireEvent.click(screen.getByRole('button', { name: '暂不处理' }));
+    const normal = credentialsSnapshot(0);
+    await update({ ...normal, revision: '22', selectionId: '4', phase: 'running' });
+    await update({ ...normal, revision: '23', selectionId: '4' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(writes()).toHaveLength(0);
+  });
 });
 
 describe('real-state workspace over a deterministic mock IPC transport', () => {
@@ -145,6 +466,7 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
         revision: '3',
         phase: 'running',
         batch: {
+          confirmationCount: 0,
           id: '1',
           revision: '1',
           phase: 'running',
@@ -262,6 +584,7 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
         selectionId: '1',
         phase: 'finished',
         batch: {
+          confirmationCount: 0,
           id: '1',
           revision: '4',
           phase: 'finished',
@@ -462,6 +785,7 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
       selectionId: '3',
       phase: 'finished',
       batch: {
+        confirmationCount: 0,
         id: '1',
         revision: '9007199254740993',
         phase: 'finished',

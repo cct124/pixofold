@@ -1,8 +1,9 @@
 //! 接纳参数转换；selection/批次版本仍由TaskControl在自身锁内复验，不使用路径DTO。
 
 use crate::ipc::{
-    self, DecimalU64, ImportTask, MAX_RETRY_JOBS, MutationError, RetryTask, SelectTask, StartTask,
-    TaskMutation, TaskMutationAccepted, TaskMutationRequest, TaskOutput, TaskSettingsDto,
+    self, ConfirmContentCredentials, CredentialsConsent, CredentialsOutput, DecimalU64, ImportTask,
+    MAX_RETRY_JOBS, MutationError, RetryTask, SelectTask, StartTask, TaskMutation,
+    TaskMutationAccepted, TaskMutationRequest, TaskOutput, TaskSettingsDto,
 };
 use crate::{
     ingress::NativeImports,
@@ -10,7 +11,8 @@ use crate::{
 };
 use pixofold_core::{
     batch::{BatchParameters, RetryJob, RetryRequest},
-    import::ImportOutput,
+    import::{ImportOutput, copy_beside},
+    model::{OutputPolicy, PngMetadataPolicy},
 };
 use std::collections::BTreeSet;
 
@@ -117,7 +119,82 @@ pub(crate) fn mutate(
                 }
                 jobs.push(RetryJob {
                     id: job.id,
-                    output: job.request.output.clone(),
+                    // 普通重试不继承上一次显式放弃备份的选择。
+                    output: match &job.request.output {
+                        OutputPolicy::OverwriteWithoutBackup => OutputPolicy::Overwrite,
+                        output => output.clone(),
+                    },
+                    metadata: Default::default(),
+                });
+            }
+            if jobs.len() != selected.len() {
+                return Err(MutationError::InvalidRetry);
+            }
+            control
+                .retry(
+                    id,
+                    expected_batch_revision.0,
+                    RetryRequest {
+                        jobs,
+                        parameters: BatchParameters {
+                            mode,
+                            limits: batch.parameters.limits,
+                        },
+                    },
+                )
+                .map_err(failure)?;
+            selection_id.0
+        }
+        TaskMutation::ConfirmContentCredentials(ConfirmContentCredentials {
+            selection_id,
+            expected_batch_revision,
+            job_ids,
+            mode,
+            output,
+            consent: CredentialsConsent::RemoveContentCredentials,
+        }) => {
+            if job_ids.is_empty() || job_ids.len() > MAX_RETRY_JOBS {
+                return Err(MutationError::InvalidRetry);
+            }
+            let snapshot = control.snapshot();
+            let id = snapshot
+                .selection
+                .filter(|id| id.get() == selection_id.0)
+                .ok_or_else(|| failure(TaskError::StaleSelection))?;
+            if snapshot.phase != TaskPhase::Finished {
+                return Err(failure(TaskError::NotReady));
+            }
+            let batch = snapshot
+                .batch
+                .as_ref()
+                .ok_or_else(|| failure(TaskError::NotReady))?;
+            if batch.revision != expected_batch_revision.0 {
+                return Err(failure(TaskError::StaleBatch));
+            }
+            let selected: BTreeSet<_> = job_ids.iter().map(|id| *id as usize).collect();
+            if selected.len() != job_ids.len() {
+                return Err(MutationError::InvalidRetry);
+            }
+            let mut jobs = Vec::with_capacity(selected.len());
+            for job in batch
+                .jobs
+                .iter()
+                .filter(|job| selected.contains(&job.id.get()))
+            {
+                let source = job
+                    .content_credentials_source()
+                    .ok_or(MutationError::InvalidRetry)?;
+                jobs.push(RetryJob {
+                    id: job.id,
+                    output: match output {
+                        CredentialsOutput::OverwriteWithBackup => OutputPolicy::Overwrite,
+                        CredentialsOutput::OverwriteWithoutBackup => {
+                            OutputPolicy::OverwriteWithoutBackup
+                        }
+                        CredentialsOutput::CopyBeside => copy_beside(&job.request.source)
+                            .map_err(|_| MutationError::InvalidRetry)?,
+                    },
+                    metadata: PngMetadataPolicy::RemoveContentCredentials(source.clone()),
                 });
             }
             if jobs.len() != selected.len() {

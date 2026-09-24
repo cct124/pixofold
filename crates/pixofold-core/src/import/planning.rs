@@ -25,6 +25,15 @@ fn copy_name(source: &Path) -> Result<PathBuf, ProcessingError> {
     Ok(PathBuf::from(stem))
 }
 
+/// 生成同目录副本策略，不读写文件；目标存在/别名冲突仍由批次和输出层检查。
+/// # Errors
+/// 源没有有效文件名时返回InvalidPath。
+pub fn copy_beside(source: &Path) -> Result<OutputPolicy, ProcessingError> {
+    Ok(OutputPolicy::Copy {
+        destination: source.with_file_name(copy_name(source)?),
+    })
+}
+
 impl ImportScan {
     /// 冻结当前设置并只读预检全部目标。失败时self不变，可修正设置后重试规划。
     /// 此处不启动批次/创建目录；返回请求仍须交给BatchService::start进行准入复查。
@@ -67,9 +76,7 @@ impl ImportScan {
             let policy = (|| -> Result<OutputPolicy, ProcessingError> {
                 Ok(match output {
                     ImportOutput::Overwrite => OutputPolicy::Overwrite,
-                    ImportOutput::CopyBeside => OutputPolicy::Copy {
-                        destination: file.source.with_file_name(copy_name(&file.source)?),
-                    },
+                    ImportOutput::CopyBeside => copy_beside(&file.source)?,
                     ImportOutput::CopyTo { directory, layout } => {
                         let name = copy_name(&file.source)?;
                         let relative =
@@ -98,6 +105,7 @@ impl ImportScan {
                 output: policy,
                 mode: parameters.mode,
                 limits: parameters.limits,
+                metadata: Default::default(),
             });
         }
         let jobs = batch::preview(requests).map_err(ImportError::Batch)?;

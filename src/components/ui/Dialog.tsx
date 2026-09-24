@@ -7,12 +7,14 @@ export function Dialog({
   onClose,
   children,
   alert = false,
+  className,
 }: {
   title: string;
   closeLabel: string;
   onClose: () => void;
   children: ReactNode;
   alert?: boolean;
+  className?: string | undefined;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -28,6 +30,7 @@ export function Dialog({
   return (
     <dialog
       ref={ref}
+      className={className}
       aria-labelledby={titleId}
       role={alert ? 'alertdialog' : 'dialog'}
       onCancel={(event) => {

@@ -422,10 +422,15 @@ fn unknown_unsafe_to_copy_metadata_is_not_silently_invalidated() {
         bytes.extend_from_slice(&chunk);
         bytes.extend_from_slice(&original[33..]);
         fs::write(&request.source, &bytes).unwrap();
-        assert!(matches!(
-            run(&request),
-            Err(ProcessingError::UnsupportedMetadata(chunk)) if chunk == *name
-        ));
+        let error = run(&request).unwrap_err();
+        if name == b"caBX" {
+            assert!(matches!(
+                error,
+                ProcessingError::ContentCredentialsRequireConsent(_)
+            ));
+        } else {
+            assert!(matches!(error, ProcessingError::UnsupportedMetadata(chunk) if chunk == *name));
+        }
         assert_source_only(&directory, &request, &bytes);
     }
 }

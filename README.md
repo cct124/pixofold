@@ -90,11 +90,11 @@ cargo run -p pixofold-core --release --locked --example optimize_png -- path/to/
 ```
 
 - 只接收真实静态 PNG，扩展名不是判断依据；APNG 明确拒绝。默认无损保留原始像素、位深、隐藏 RGB、调色板及全部非 IDAT chunk；未知不可安全搬运的元数据拒绝处理。
-- 含 C2PA 内容凭据容器（`caBX`）的 PNG 当前不能安全更新凭据并压缩，会保留原图并明确提示不支持；切换无损或调整质量不能解决，不会自动剥除凭据。其他未知 unsafe-to-copy 元数据同样拒绝。识别块类型不表示已验证凭据签名/真实性，这属于输入能力边界，不是产物验证失败。
+- 含 C2PA 内容凭据容器（`caBX`）的 PNG 默认保留原图并拒绝压缩。桌面批次结束后汇总“需要确认的图片”，列表全量显示、限高滚动、默认全选；点击“移除内容凭据后压缩”即授权本次选择。沿用当前输出设置：副本不显示额外输出模块；覆盖显示“覆盖原图 / 备份原图”，默认备份原图，直接覆盖选项不保留备份。此操作不是更新/验证/重签凭据，其他未知保护块、损坏输入、真正验证失败不开放该选择，普通RGB正常处理。
 - 有损模式采用 imagequant 的 min=0、target=q（映射版本 1），独立固定 speed=4、dither=1.0。实际 remapping 评分低于 q、透明端点/半透明保护不通过，或体积不优于源文件及无损候选时，明确回退到严格无损。100 不等同于通用无损；评分也不等同于 SSIM。
 - 16-bit、ICC/cHRM/HDR、依赖原始表示的 sBIT/bKGD 等元数据保守回退；不隐式降位深或删除颜色信息。支持有效 gAMA 和 sRGB，保留适用元数据及其 IDAT 前后位置。纯透明 alpha=0、不透明 alpha=255 必须保持；半透明仍在 1–254 且 alpha 误差不超过 8。有损不承诺透明像素的隐藏 RGB 不变。
 - `PngRequest::new` 继续默认无损，显式设置 `PngMode::Lossy` 才进行量化；`QualityValue` 默认 80，工作台默认有损80。报告区分实际量化、保护性回退与无收益，并返回输入/实际输出属性。
-- 默认请求采用原图覆盖，但每次成功覆盖都保留同目录 `.pixofold-backup-*.png` 原始备份，路径在结果中返回，核心不会自动删除。提交失败也返回备份路径。确认新图可用后再由用户处理备份。
+- 默认`OutputPolicy::Overwrite`每次成功覆盖保留同目录`.pixofold-backup-*.png`完整原图，路径随结果/提交失败返回，不自动删除；仅确认弹窗显式选择“覆盖原图”时使用`OverwriteWithoutBackup`，不生成恢复备份。两者都先验证临时产物、复查源文件后单次替换，不能先删除再写；无备份提交失败返回I/O错误，不伪造备份路径。普通导入仍默认保留备份。
 - `OutputPolicy::Copy` 副本必须给出完整新路径、父目录必须存在，同名、目录或链接冲突均拒绝；新增的 `CopyTree` 显式允许输出层在既有目标根内创建结构目录，契约见下方导入入口。无收益不创建最终副本或备份；只读输入允许另存，副本不继承只读属性。
 - 输入默认 64 MiB，单个解码缓冲区 128 MiB，16M 像素、单边 16384；有损 RGBA 展开另按缓冲区上限检查。单文件同步、编码器单线程；oxipng 有 30 秒软期限，imagequant 在进度回调协作取消，但无硬超时。这不是进程硬内存限额或即时取消保证；批量调用由下述任务服务额外限制文件并发和估算工作集。
 - 无损/有损单文件核心均已通过 Windows 本机及三平台 CI 核心文件测试/桌面构建。文件同步不等于目录元数据的断电事务；源文件关闭到替换仍有外部竞争窗口，不承诺网络文件系统、特殊 ACL/ADS、xattr 或断电恢复。正式桌面接入前继续平台和真实业务样本验收。
@@ -152,10 +152,10 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 
 [桌面IPC模块](src-tauri/src/ipc/mod.rs) 与 [前端适配器](src/lib/ipc/tasks.ts) 复用唯一 TaskControl。主窗口可调用 get_task_snapshot 查询状态；该查询本身不启动导入、重试或压缩，也不创建第二个任务服务。P4工作台通过订阅复用此有界查询。
 
-- Rust DTO 与协议常量为权威来源，生成 [tasks.generated.ts](src/lib/ipc/tasks.generated.ts)；原有核心 generated.ts 和 get_app_info 契约保持不变。协议版本当前为 1。
-- `JobErrorDto` 新增 `unsupported_content_credentials` / `unsupported_metadata`，分别表示 caBX 与其他不支持安全改写的元数据；嵌套恢复原因使用同样类别，真正的产物验证错误仍为 `validation`。消息结构/协议版本未变；桌面前后端必须随同一构建更新，外部穷举消费者需增加分支，不能用旧前端混接新后端。
+- Rust DTO 与协议常量为权威来源，生成 [tasks.generated.ts](src/lib/ipc/tasks.generated.ts)；原有核心 generated.ts 和 get_app_info 契约保持不变。协议版本当前为 4，前后端须使用同一构建。
+- `JobErrorDto` 的 `unsupported_content_credentials` / `unsupported_metadata` 分别表示 caBX 与其他不支持安全改写的元数据；嵌套恢复原因使用同样类别，真正的产物验证错误仍为 `validation`。不能仅凭错误代码授予移除权限：v3的confirmations集合仅包含完整解码/元数据检查通过且唯一不支持类别是caBX的直接失败行，清理失败或其他未知块不入选。
 - 应用/批次 revision、selection/batch ID、字节数、elapsedMs 均为规范 u64 十进制字符串，前端用 BigInt 比较；不经过 Number。毫秒向下取整，异常溢出返回 invalid_snapshot；未知大小保留 null。行 ID、候选/问题索引、attempt 与数量使用检查过的整数；行身份由 selection/batch/id/attempt 共同界定，不是文件名。
-- 查询指定 jobs、candidates 或 issues，limit 为 1–100。offset=0、expectedRevision=null 读取最新版本；后续页必须带该 revision。一次响应的摘要与行来自同一份 Arc 快照；版本不匹配返回 stale_snapshot/currentRevision，应丢弃旧分页并从第一页重新读取，不拼接不同版本，也不保存无限历史快照。高频变化时翻页可能反复失效；本阶段不保证活跃批次全量遍历，后续订阅需按视口更新并在终态恢复完整清单。
+- 查询指定 jobs、candidates、issues或confirmations，limit 为 1–100。offset=0、expectedRevision=null 读取最新版本；后续页必须带该 revision。一次响应的摘要与行来自同一份 Arc 快照；版本不匹配返回 stale_snapshot/currentRevision，应丢弃旧分页并从第一页重新读取，不拼接不同版本，也不保存无限历史快照。确认集合带安全父目录标签和稳定行ID区分同名图片，批次摘要带全量confirmationCount，不以当前页数量冒充总数。
 - 只转换被请求的最多100行，所有展示名最多240个Unicode字符，分别标明截断、非Unicode替换及控制字符清理；只返回文件名，不返回完整路径、图像数据或底层错误字符串。错误保持稳定代码，清理失败可同时保留原始取消/错误及备份/临时产物名称。原生恢复路径仍留在Rust，展示名不构成定位、读取或覆盖权限。
 - TaskSnapshotReader 管理单个可见页面：仅应用最后一次查询，拒绝版本回退，卸载后丢弃迟到成功/失败；错误保留最后一份好快照。没有定时轮询或隐式重跑；浏览器返回 null，不模拟后端。
 - 仅主窗口授权 allow-get-task-snapshot；未开放通用文件读写、dialog、opener 或 shell。Rust 请求反序列化拒绝额外字段/非法表示；合法结构但非法分页返回稳定错误码，传输/反序列化失败仍由 Tauri 错误通道报告。
@@ -181,7 +181,9 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 - 路径只留Rust，前端仅得到grantId/rootCount（不是扫描数量、展示名或路径凭据）。授权绑定订阅会话，最多1000根、原生路径编码长度总和不超过1 MiB，5分钟惰性过期；新选择替换旧授权，成功导入消费一次，忙状态拒绝不消费。根数和重试行数上限随Rust DTO生成；路径身份、内容及输出安全继续由核心复查。
 - apply_task_mutation接收可辨识操作联合。import使用授权及固定settings；settings=null只扫描，非null完整扫描后自动启动。start仅用于Ready清单修正。模式复用严格PngMode，输出仅overwrite/copy_beside，不允许任意路径、输出目录或资源预算字符串/覆盖。
 - clear/start携带当前selectionId；retry额外要求expectedBatchRevision和最多1000个唯一失败/取消行ID（不是数组/页码索引），沿用Rust原行输出目标，仅修改模式，成功/无收益项不重跑。clear只清非活动记录，不删除原图、结果或备份；UI须先展示需保留的恢复信息。
-- 任务协议v2移除面向页面的cancel变更，旧取消载荷在反序列化边界拒绝；UI不提供扫描/准备/压缩期间的主动取消入口。快照与订阅票据使用新协议版本，v1/v2前后端混用时握手失败，须使用同一构建的前后端并重载页面。内部取消状态/计数和核心取消API保留，用于安全退出与异常收尾，不等于重新开放用户取消功能。
+- 协议v4的confirm_content_credentials携带selectionId、expectedBatchRevision、显式行ID、模式/质量、remove_content_credentials同意和确认专用输出枚举copy_beside/overwrite_with_backup/overwrite_without_backup。确认按钮即同意，不另设勾选框；拒绝旧v3的overwriteConfirmed字段和含糊的overwrite值。来源路径/属性/SHA256仍由Rust保管并在执行前复查。普通retry不继承移除许可或不备份选择。成功报告contentCredentialsRemoved明确标记实际移除；无收益保留源文件且标记false。旧版前后端混用须更新并重载。
+- 确认UI不分页：通过唯一分页查询器顺序获取每段最多100项的同revision数据，完整加载后一次呈现全部列表（受桌面当前批次1000项上限约束），默认全选且可取消个别选择；不拼接不同revision。关闭、重载或版本变动废弃在途旧数据，分段失败不允许提交部分清单，重试只读加载。
+- UI不提供扫描/准备/压缩期间的主动取消入口。内部取消状态/计数和核心取消API保留，用于安全退出与异常收尾，不等于重新开放用户取消功能。
 - 首次查询/ACK握手完成后才能操作。后端在订阅锁内原子校验会话并短时接纳，锁序为订阅→授权槽→任务，无文件I/O/await；旧会话、旧授权、旧selection/revision不影响新任务。命令返回selectionId仅表示接纳，后台成功/失败仍经任务快照查询。
 - TaskActions固定点击时的参数并限制一个在途操作；默认有损80/覆盖，浏览器明确不可用。选择期间断开/重连的迟到结果不能自动启动；操作传输失败可能已经接纳，不自动重试，应先恢复权威快照。P4工作台复用此适配器，不构造模拟进度。
 

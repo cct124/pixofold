@@ -242,6 +242,15 @@ describe('controlled native task actions', () => {
       },
       { kind: 'clear', selectionId },
       {
+        kind: 'confirm_content_credentials',
+        selectionId,
+        expectedBatchRevision: '9007199254740993',
+        jobIds: [7],
+        mode: { kind: 'lossless' },
+        output: 'copy_beside',
+        consent: 'remove_content_credentials',
+      },
+      {
         kind: 'retry',
         selectionId,
         expectedBatchRevision: '9007199254740993',

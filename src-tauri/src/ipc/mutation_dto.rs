@@ -79,6 +79,36 @@ pub(crate) struct RetryTask {
     pub job_ids: Vec<u32>,
     pub mode: PngMode,
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) enum CredentialsConsent {
+    RemoveContentCredentials,
+}
+
+/// 确认弹窗专用输出策略，不允许普通导入通过此枚举关闭备份。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) enum CredentialsOutput {
+    CopyBeside,
+    OverwriteWithBackup,
+    OverwriteWithoutBackup,
+}
+
+/// 点击确认即明确同意，只对这些失败行/本批次版本有效；不接受任意路径。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) struct ConfirmContentCredentials {
+    pub selection_id: DecimalU64,
+    pub expected_batch_revision: DecimalU64,
+    pub job_ids: Vec<u32>,
+    pub mode: PngMode,
+    pub output: CredentialsOutput,
+    pub consent: CredentialsConsent,
+}
 #[derive(Debug, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
@@ -87,6 +117,7 @@ pub(crate) enum TaskMutation {
     Start(StartTask),
     Clear(SelectTask),
     Retry(RetryTask),
+    ConfirmContentCredentials(ConfirmContentCredentials),
 }
 
 #[derive(Debug, Deserialize)]
@@ -141,6 +172,9 @@ pub(super) fn declarations() -> String {
         StartTask,
         SelectTask,
         RetryTask,
+        CredentialsConsent,
+        CredentialsOutput,
+        ConfirmContentCredentials,
         TaskMutation,
         TaskMutationRequest,
         TaskMutationAccepted,

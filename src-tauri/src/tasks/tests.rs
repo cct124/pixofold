@@ -383,6 +383,7 @@ fn real_retry_preserves_success_backups_and_rejects_stale_batch_revision() {
         parameters: BatchParameters::default(),
         jobs: vec![RetryJob {
             id: batch.jobs[1].id,
+            metadata: Default::default(),
             output: OutputPolicy::Overwrite,
         }],
     };
@@ -424,6 +425,7 @@ fn invalid_retry_does_not_change_attempt_or_discard_results() {
                 parameters: BatchParameters::default(),
                 jobs: vec![RetryJob {
                     id: first.jobs[0].id,
+                    metadata: Default::default(),
                     output: first.jobs[0].request.output.clone(),
                 }],
             },

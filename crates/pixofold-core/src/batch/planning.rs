@@ -10,7 +10,7 @@ use crate::{
 };
 
 /// 按请求上限保守计费，防止排队后图片变大绕过按旧文件头估计的预算。
-/// 8份输入覆盖候选/实际回读/源与备份复查；8份解码覆盖两轮验证及编码临时缓冲。
+/// 9份输入覆盖候选/实际回读/源与备份复查及受控元数据工作副本；8份解码覆盖验证与编码缓冲。
 /// 有损另留每像素128 bytes给RGBA、索引和编码器工作区；16 MiB为固定余量。
 /// 这是准入估算，不是对第三方编码器内存上限的证明；默认仍保持单worker。
 pub fn estimate_working_set(parameters: BatchParameters) -> Result<ByteCount, BatchError> {
@@ -27,7 +27,7 @@ pub fn estimate_working_set(parameters: BatchParameters) -> Result<ByteCount, Ba
     limits
         .max_input_bytes
         .0
-        .checked_mul(8)
+        .checked_mul(9)
         .zip(limits.max_decoded_bytes.0.checked_mul(8))
         .and_then(|(a, b)| a.checked_add(b))
         .zip(quantization)
@@ -74,7 +74,10 @@ pub(super) fn prepare(
             }
         };
         let mut copy_identity = None;
-        let copy = !matches!(request.output, OutputPolicy::Overwrite);
+        let copy = !matches!(
+            request.output,
+            OutputPolicy::Overwrite | OutputPolicy::OverwriteWithoutBackup
+        );
         let target = match output::paths::copy_destination(&mut request.output) {
             Ok(Some(destination)) => {
                 match fs::symlink_metadata(&destination) {

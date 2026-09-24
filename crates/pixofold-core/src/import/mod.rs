@@ -26,4 +26,5 @@ mod planning;
 mod scan;
 
 pub use model::*;
+pub use planning::copy_beside;
 pub use scan::scan;

@@ -5,7 +5,7 @@ import { formatBytes, formatReduction } from './format';
 import { workspaceText, type WorkspaceText } from './messages';
 import styles from './Workspace.module.css';
 
-function Name({ value, t }: { value: DisplayName; t: WorkspaceText }) {
+export function Name({ value, t }: { value: DisplayName; t: WorkspaceText }) {
   return (
     <span title={value.text}>
       {value.text}
@@ -138,6 +138,7 @@ export function WorkspaceRows({ page, language }: { page: TaskPageDto; language:
                     {t(state.kind)}
                     {state.kind === 'running' && ' · ' + t(state.stage)}
                   </span>
+                  {report?.contentCredentialsRemoved && <small>{t('credentialsRemoved')}</small>}
                   <details className={styles.rowDetails}>
                     <summary>{t('details')}</summary>
                     <JobResult job={job} language={language} />

@@ -143,9 +143,10 @@ fn workspace_design_png_content_credentials_are_reported_without_touching_source
                 stages.push(stage)
             });
             let error = result.unwrap_err();
-            assert!(
-                matches!(error, ProcessingError::UnsupportedMetadata(chunk) if chunk == *b"caBX")
-            );
+            assert!(matches!(
+                error,
+                ProcessingError::ContentCredentialsRequireConsent(_)
+            ));
             assert!(error.to_string().contains("C2PA"));
             assert!(!error.to_string().contains("验证失败"));
             assert!(!stages.contains(&ProcessingStage::Validating));

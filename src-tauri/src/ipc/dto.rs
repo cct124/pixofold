@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 
 pub(super) const MAX_PAGE_SIZE: u16 = 100;
 pub(super) const MAX_DISPLAY_CHARS: usize = 240;
-// v2移除面向页面的主动取消命令；退出收尾仍使用内部协作取消。
-pub(crate) const TASK_PROTOCOL_VERSION: u32 = 2;
+// v4确认按钮即授权，确认专用输出枚举显式区分备份/无备份覆盖。
+pub(crate) const TASK_PROTOCOL_VERSION: u32 = 4;
 
 /// 无符号64位十进制字符串；拒绝数字JSON、符号、空白、前导零及溢出。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,6 +41,7 @@ pub(crate) enum TaskCollection {
     Jobs,
     Candidates,
     Issues,
+    Confirmations,
 }
 
 /// limit必须为1–100；翻页必须携带首个响应revision。null只用于从第一页恢复最新状态。
@@ -329,6 +330,7 @@ pub(crate) struct BatchOverviewDto {
     pub phase: BatchPhaseDto,
     pub mode: PngMode,
     pub summary: BatchSummaryDto,
+    pub confirmation_count: u32,
 }
 
 #[derive(Debug, Serialize)]
@@ -372,6 +374,18 @@ pub(crate) struct ReportDto {
     pub processing: ProcessingDto,
     pub output_name: Option<DisplayName>,
     pub backup_name: Option<DisplayName>,
+    pub content_credentials_removed: bool,
+}
+
+/// 来源标签仅包含父目录显示名；配合稳定任务ID区分同名图片，不授予路径访问权。
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) struct ConfirmationDto {
+    pub id: u32,
+    pub source_name: DisplayName,
+    pub source_label: DisplayName,
+    pub input_bytes: Option<DecimalU64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -449,6 +463,11 @@ pub(crate) struct IssueDto {
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
 pub(crate) enum TaskPageDto {
+    Confirmations {
+        offset: u32,
+        total: u32,
+        items: Vec<ConfirmationDto>,
+    },
     Jobs {
         offset: u32,
         total: u32,
@@ -522,6 +541,7 @@ pub(super) fn declarations() -> String {
         FallbackDto,
         ProcessingDto,
         ReportDto,
+        ConfirmationDto,
         JobStateDto,
         JobDto,
         CandidateDto,

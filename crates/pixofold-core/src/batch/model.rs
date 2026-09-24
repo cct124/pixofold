@@ -3,8 +3,9 @@
 use std::{fmt, io, path::PathBuf, sync::Arc};
 
 use crate::model::{
-    ByteCount, OutputPolicy, PngMode, PngQualityMapping, PngRequest, ProcessingError,
-    ProcessingReport, ProcessingStage, ResourceLimits,
+    ByteCount, ContentCredentialsSource, OutputPolicy, PngMetadataPolicy, PngMode,
+    PngQualityMapping, PngRequest, ProcessingError, ProcessingReport, ProcessingStage,
+    ResourceLimits,
 };
 
 /// 服务生命周期内单调递增的批次标识，不能由调用方伪造。
@@ -50,6 +51,8 @@ pub struct BatchRequest {
 pub struct RetryJob {
     pub id: JobId,
     pub output: OutputPolicy,
+    /// 普通重试须用Preserve；每次移除都显式提供原失败中的来源版本。
+    pub metadata: PngMetadataPolicy,
 }
 
 #[derive(Debug, Clone)]
@@ -140,7 +143,8 @@ impl JobFailure {
             | ProcessingError::InvalidPng(_) => JobErrorCode::InvalidInput,
             ProcessingError::UnsupportedFormat => JobErrorCode::UnsupportedFormat,
             ProcessingError::UnsupportedAnimation => JobErrorCode::UnsupportedAnimation,
-            ProcessingError::UnsupportedMetadata([b'c', b'a', b'B', b'X']) => {
+            ProcessingError::UnsupportedMetadata([b'c', b'a', b'B', b'X'])
+            | ProcessingError::ContentCredentialsRequireConsent(_) => {
                 JobErrorCode::UnsupportedContentCredentials
             }
             ProcessingError::UnsupportedMetadata(_) => JobErrorCode::UnsupportedMetadata,
@@ -176,6 +180,19 @@ pub struct JobSnapshot {
     /// 准入时的真实文件大小；成功返回后更新为流水线实际读取值，无法读取则为 None。
     pub input_bytes: Option<ByteCount>,
     pub state: JobState,
+}
+
+impl JobSnapshot {
+    /// 仅完整检查后、尚未写入的caBX失败可进入确认流程；嵌套清理失败不可绕过。
+    pub fn content_credentials_source(&self) -> Option<&ContentCredentialsSource> {
+        if let JobState::Failed(failure) = &self.state
+            && let Some(cause) = &failure.cause
+            && let ProcessingError::ContentCredentialsRequireConsent(source) = cause.as_ref()
+        {
+            return Some(source);
+        }
+        None
+    }
 }
 
 /// 统计不等于耗时百分比。processed 不包括取消；terminal 包括取消，供生命周期判断。

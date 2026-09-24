@@ -1,6 +1,6 @@
 //! 单文件处理契约；无损/有损参数分离，不引入队列状态。
 
-use super::{PngMode, PngProcessing};
+use super::{ContentCredentialsSource, PngMetadataPolicy, PngMode, PngProcessing};
 
 use std::{
     fmt, io,
@@ -74,11 +74,13 @@ impl ResourceLimits {
     }
 }
 
-/// 覆盖必建可恢复备份；副本仅接受尚不存在的目标（包括拒绝符号链接）。
+/// 默认覆盖建立可恢复备份；仅显式选择可不备份。副本仅接受尚不存在的目标。
 #[derive(Debug, Clone, Default)]
 pub enum OutputPolicy {
     #[default]
     Overwrite,
+    /// 显式放弃恢复备份，但仍完整验证并安全替换；失败/无收益不先删除源文件。
+    OverwriteWithoutBackup,
     Copy {
         destination: PathBuf,
     },
@@ -97,6 +99,7 @@ pub struct PngRequest {
     pub output: OutputPolicy,
     pub limits: ResourceLimits,
     pub mode: PngMode,
+    pub metadata: PngMetadataPolicy,
 }
 
 impl PngRequest {
@@ -107,6 +110,7 @@ impl PngRequest {
             output: OutputPolicy::default(),
             limits: ResourceLimits::default(),
             mode: PngMode::Lossless,
+            metadata: PngMetadataPolicy::Preserve,
         }
     }
 }
@@ -162,6 +166,8 @@ pub struct ProcessingReport {
     pub image: ImageInfo,
     pub output_image: ImageInfo,
     pub processing: PngProcessing,
+    /// 仅已提交的输出为true；无收益或失败不声称原图的凭据已删除。
+    pub content_credentials_removed: bool,
     pub input_bytes: ByteCount,
     pub output_bytes: ByteCount,
     pub elapsed: Duration,
@@ -178,6 +184,8 @@ pub enum ProcessingError {
     /// 输入含当前无法安全改写的ancillary chunk（仅类型，不携带元数据内容）。
     /// caBX为C2PA内容凭据容器；识别其存在不表示已验证签名或真实性。
     UnsupportedMetadata([u8; 4]),
+    /// 仅caBX阻止改写；绑定完整原文件版本，调用方可明确同意后使用受限策略。
+    ContentCredentialsRequireConsent(ContentCredentialsSource),
     InvalidPng(&'static str),
     ResourceLimit(&'static str),
     Decode(Box<dyn std::error::Error + Send + Sync>),
@@ -217,7 +225,8 @@ impl fmt::Display for ProcessingError {
             Self::InvalidPath => f.write_str("路径必须指向普通文件且不能是符号链接"),
             Self::UnsupportedFormat => f.write_str("本阶段仅支持真实静态 PNG 文件"),
             Self::UnsupportedAnimation => f.write_str("本阶段尚不支持 APNG，未修改原图"),
-            Self::UnsupportedMetadata([b'c', b'a', b'B', b'X']) => {
+            Self::UnsupportedMetadata([b'c', b'a', b'B', b'X'])
+            | Self::ContentCredentialsRequireConsent(_) => {
                 f.write_str("含 C2PA 内容凭据（caBX），当前无法安全更新凭据并压缩；未修改原图")
             }
             Self::UnsupportedMetadata(chunk) => write!(
