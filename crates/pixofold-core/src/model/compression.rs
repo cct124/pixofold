@@ -175,6 +175,9 @@ pub enum ProcessingError {
     InvalidPath,
     UnsupportedFormat,
     UnsupportedAnimation,
+    /// 输入含当前无法安全改写的ancillary chunk（仅类型，不携带元数据内容）。
+    /// caBX为C2PA内容凭据容器；识别其存在不表示已验证签名或真实性。
+    UnsupportedMetadata([u8; 4]),
     InvalidPng(&'static str),
     ResourceLimit(&'static str),
     Decode(Box<dyn std::error::Error + Send + Sync>),
@@ -214,6 +217,14 @@ impl fmt::Display for ProcessingError {
             Self::InvalidPath => f.write_str("路径必须指向普通文件且不能是符号链接"),
             Self::UnsupportedFormat => f.write_str("本阶段仅支持真实静态 PNG 文件"),
             Self::UnsupportedAnimation => f.write_str("本阶段尚不支持 APNG，未修改原图"),
+            Self::UnsupportedMetadata([b'c', b'a', b'B', b'X']) => {
+                f.write_str("含 C2PA 内容凭据（caBX），当前无法安全更新凭据并压缩；未修改原图")
+            }
+            Self::UnsupportedMetadata(chunk) => write!(
+                f,
+                "含当前不支持安全改写的 PNG 元数据（{}），未修改原图",
+                String::from_utf8_lossy(chunk),
+            ),
             Self::InvalidPng(reason) => write!(f, "PNG 结构无效：{reason}"),
             Self::ResourceLimit(resource) => write!(f, "资源超限：{resource}"),
             Self::Decode(_) => f.write_str("PNG 解码失败"),

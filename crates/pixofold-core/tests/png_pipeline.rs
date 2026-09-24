@@ -424,7 +424,7 @@ fn unknown_unsafe_to_copy_metadata_is_not_silently_invalidated() {
         fs::write(&request.source, &bytes).unwrap();
         assert!(matches!(
             run(&request),
-            Err(ProcessingError::ValidationFailed(_))
+            Err(ProcessingError::UnsupportedMetadata(chunk)) if chunk == *name
         ));
         assert_source_only(&directory, &request, &bytes);
     }

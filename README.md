@@ -90,6 +90,7 @@ cargo run -p pixofold-core --release --locked --example optimize_png -- path/to/
 ```
 
 - 只接收真实静态 PNG，扩展名不是判断依据；APNG 明确拒绝。默认无损保留原始像素、位深、隐藏 RGB、调色板及全部非 IDAT chunk；未知不可安全搬运的元数据拒绝处理。
+- 含 C2PA 内容凭据容器（`caBX`）的 PNG 当前不能安全更新凭据并压缩，会保留原图并明确提示不支持；切换无损或调整质量不能解决，不会自动剥除凭据。其他未知 unsafe-to-copy 元数据同样拒绝。识别块类型不表示已验证凭据签名/真实性，这属于输入能力边界，不是产物验证失败。
 - 有损模式采用 imagequant 的 min=0、target=q（映射版本 1），独立固定 speed=4、dither=1.0。实际 remapping 评分低于 q、透明端点/半透明保护不通过，或体积不优于源文件及无损候选时，明确回退到严格无损。100 不等同于通用无损；评分也不等同于 SSIM。
 - 16-bit、ICC/cHRM/HDR、依赖原始表示的 sBIT/bKGD 等元数据保守回退；不隐式降位深或删除颜色信息。支持有效 gAMA 和 sRGB，保留适用元数据及其 IDAT 前后位置。纯透明 alpha=0、不透明 alpha=255 必须保持；半透明仍在 1–254 且 alpha 误差不超过 8。有损不承诺透明像素的隐藏 RGB 不变。
 - `PngRequest::new` 继续默认无损，显式设置 `PngMode::Lossy` 才进行量化；`QualityValue` 默认 80，工作台默认有损80。报告区分实际量化、保护性回退与无收益，并返回输入/实际输出属性。
@@ -152,6 +153,7 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 [桌面IPC模块](src-tauri/src/ipc/mod.rs) 与 [前端适配器](src/lib/ipc/tasks.ts) 复用唯一 TaskControl。主窗口可调用 get_task_snapshot 查询状态；该查询本身不启动导入、重试或压缩，也不创建第二个任务服务。P4工作台通过订阅复用此有界查询。
 
 - Rust DTO 与协议常量为权威来源，生成 [tasks.generated.ts](src/lib/ipc/tasks.generated.ts)；原有核心 generated.ts 和 get_app_info 契约保持不变。协议版本当前为 1。
+- `JobErrorDto` 新增 `unsupported_content_credentials` / `unsupported_metadata`，分别表示 caBX 与其他不支持安全改写的元数据；嵌套恢复原因使用同样类别，真正的产物验证错误仍为 `validation`。消息结构/协议版本未变；桌面前后端必须随同一构建更新，外部穷举消费者需增加分支，不能用旧前端混接新后端。
 - 应用/批次 revision、selection/batch ID、字节数、elapsedMs 均为规范 u64 十进制字符串，前端用 BigInt 比较；不经过 Number。毫秒向下取整，异常溢出返回 invalid_snapshot；未知大小保留 null。行 ID、候选/问题索引、attempt 与数量使用检查过的整数；行身份由 selection/batch/id/attempt 共同界定，不是文件名。
 - 查询指定 jobs、candidates 或 issues，limit 为 1–100。offset=0、expectedRevision=null 读取最新版本；后续页必须带该 revision。一次响应的摘要与行来自同一份 Arc 快照；版本不匹配返回 stale_snapshot/currentRevision，应丢弃旧分页并从第一页重新读取，不拼接不同版本，也不保存无限历史快照。高频变化时翻页可能反复失效；本阶段不保证活跃批次全量遍历，后续订阅需按视口更新并在终态恢复完整清单。
 - 只转换被请求的最多100行，所有展示名最多240个Unicode字符，分别标明截断、非Unicode替换及控制字符清理；只返回文件名，不返回完整路径、图像数据或底层错误字符串。错误保持稳定代码，清理失败可同时保留原始取消/错误及备份/临时产物名称。原生恢复路径仍留在Rust，展示名不构成定位、读取或覆盖权限。

@@ -178,6 +178,8 @@ wire_enum!(
         InvalidInput,
         UnsupportedFormat,
         UnsupportedAnimation,
+        UnsupportedContentCredentials,
+        UnsupportedMetadata,
         ResourceLimit,
         Decode,
         Encode,

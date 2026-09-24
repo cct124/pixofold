@@ -239,6 +239,26 @@
       ]
     },
     {
+      "file": "content-credentials.png",
+      "bytes": 9378,
+      "sha256": "0bd281900b0b43d6f8e9a4a9515aff891e28d95fd35bd7b2045d11a1dbf98ce2",
+      "expected": "unsupported-metadata",
+      "metadata": [
+        "caBX"
+      ],
+      "note": "PNG结构有效；块类型保护测试，不验证载荷语义或签名"
+    },
+    {
+      "file": "unsafe-metadata.png",
+      "bytes": 9378,
+      "sha256": "78b2e3737ee1439f388d6b3e85296874437aabc05a1dc7e813269a214489e164",
+      "expected": "unsupported-metadata",
+      "metadata": [
+        "vpAG"
+      ],
+      "note": "PNG结构有效；块类型保护测试，不验证载荷语义或签名"
+    },
+    {
       "file": "already-optimized.png",
       "bytes": 67,
       "sha256": "a4d4c009619311d9b83904acfd62fe3b7f918c312522bbcc6ad51cdec4fd1edf",

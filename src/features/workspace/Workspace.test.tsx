@@ -119,6 +119,75 @@ beforeEach(async () => {
 });
 
 describe('real-state workspace over a deterministic mock IPC transport', () => {
+  it.each([
+    [
+      'unsupported_content_credentials',
+      '含 C2PA 内容凭据（caBX）',
+      'C2PA Content Credentials (caBX)',
+    ],
+    [
+      'unsupported_metadata',
+      '含当前不支持安全改写的元数据',
+      'Contains metadata that cannot currently be rewritten safely',
+    ],
+    ['validation', '结果验证失败', 'Result validation failed'],
+  ] as const)(
+    'renders %s distinctly without claiming success or changing the validation category',
+    async (code, chinese, english) => {
+      current = {
+        ...snapshot(),
+        revision: '8',
+        selectionId: '1',
+        phase: 'finished',
+        batch: {
+          id: '1',
+          revision: '4',
+          phase: 'finished',
+          mode: { kind: 'lossy', quality: 68 },
+          summary: {
+            total: 1,
+            queued: 0,
+            running: 0,
+            succeeded: 0,
+            noGain: 0,
+            failed: 1,
+            cancelled: 0,
+            processed: 1,
+            terminal: 1,
+            inputBytes: '1030066',
+            currentBytes: '1030066',
+            savedBytes: '0',
+          },
+        },
+        page: {
+          kind: 'jobs',
+          offset: 0,
+          total: 1,
+          items: [
+            {
+              id: 1,
+              attempt: 1,
+              sourceName: name('PixoFold-亮色.png'),
+              mode: { kind: 'lossy', quality: 68 },
+              inputBytes: '1030066',
+              state: { kind: 'failed', failure: { code, recovery: null } },
+            },
+          ],
+        },
+      };
+      const ui = await mount();
+      expect(screen.getByText(chinese, { exact: false })).toBeVisible();
+      expect(screen.getByText('0 B')).toBeVisible();
+      if (code !== 'validation') expect(screen.queryByText('结果验证失败')).not.toBeInTheDocument();
+      ui.rerender(
+        <StrictMode>
+          <Workspace language="en" controller={controller} />
+        </StrictMode>,
+      );
+      expect(screen.getByText(english, { exact: false })).toBeVisible();
+      expect(writes()).toHaveLength(0);
+    },
+  );
   it('applies a corrected draft when Ready arrives before the preceding start response', async () => {
     current = { ...snapshot(), selectionId: '1', phase: 'ready', revision: '1' };
     const accepted = deferred<unknown>();

@@ -31,9 +31,9 @@ pub(crate) fn optimize(data: &[u8], limits: ResourceLimits) -> Result<Vec<u8>, P
                     | b"tIME"
             )
         {
-            return Err(ProcessingError::ValidationFailed(
-                "含不支持改写的元数据 chunk",
-            ));
+            // 输入能力边界不是产物验证失败。caBX承载C2PA凭据，不可因编码成功
+            // 就复制失效凭据或静默剥离；识别块类型不验证凭据真实性。
+            return Err(ProcessingError::UnsupportedMetadata(chunk.name));
         }
     }
     let options = oxipng::Options {

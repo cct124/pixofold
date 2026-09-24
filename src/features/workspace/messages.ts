@@ -121,6 +121,14 @@ const copy = {
   decode: ['解码失败', 'Decoding failed'],
   encode: ['编码失败', 'Encoding failed'],
   validation: ['结果验证失败', 'Result validation failed'],
+  unsupported_content_credentials: [
+    '含 C2PA 内容凭据（caBX），当前不能安全更新凭据并压缩。原图已保留；调整质量或切换无损不能解决。',
+    'C2PA Content Credentials (caBX) cannot currently be updated safely during compression. Original kept; changing quality or using lossless mode will not help.',
+  ],
+  unsupported_metadata: [
+    '含当前不支持安全改写的元数据，原图已保留；不会自动删除元数据。',
+    'Contains metadata that cannot currently be rewritten safely. Original kept; metadata will not be removed automatically.',
+  ],
   target_conflict: ['输出目标已存在或冲突', 'Output target exists or conflicts'],
   source_changed: ['原图已被修改', 'Source changed'],
   io: ['文件访问失败', 'File access failed'],

@@ -111,6 +111,8 @@ pub enum JobErrorCode {
     InvalidInput,
     UnsupportedFormat,
     UnsupportedAnimation,
+    UnsupportedContentCredentials,
+    UnsupportedMetadata,
     ResourceLimit,
     Decode,
     Encode,
@@ -138,6 +140,10 @@ impl JobFailure {
             | ProcessingError::InvalidPng(_) => JobErrorCode::InvalidInput,
             ProcessingError::UnsupportedFormat => JobErrorCode::UnsupportedFormat,
             ProcessingError::UnsupportedAnimation => JobErrorCode::UnsupportedAnimation,
+            ProcessingError::UnsupportedMetadata([b'c', b'a', b'B', b'X']) => {
+                JobErrorCode::UnsupportedContentCredentials
+            }
+            ProcessingError::UnsupportedMetadata(_) => JobErrorCode::UnsupportedMetadata,
             ProcessingError::ResourceLimit(_) => JobErrorCode::ResourceLimit,
             ProcessingError::Decode(_) => JobErrorCode::Decode,
             ProcessingError::Encode(_) => JobErrorCode::Encode,

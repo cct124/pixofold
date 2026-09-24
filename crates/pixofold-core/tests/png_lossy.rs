@@ -115,6 +115,47 @@ fn chunk(name: &[u8; 4], payload: &[u8]) -> Vec<u8> {
 }
 
 #[test]
+fn workspace_design_png_content_credentials_are_reported_without_touching_source() {
+    let directory = tempfile::tempdir().unwrap();
+    let original = fs::read(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/UI界面设计/PixoFold-亮色.png"),
+    )
+    .unwrap();
+    let source = directory.path().join("PixoFold-亮色.png");
+    fs::write(&source, &original).unwrap();
+    for mode in [
+        PngMode::Lossless,
+        PngMode::Lossy {
+            quality: QualityValue::new(68).unwrap(),
+        },
+    ] {
+        for output in [
+            OutputPolicy::Overwrite,
+            OutputPolicy::Copy {
+                destination: directory.path().join("result.png"),
+            },
+        ] {
+            let mut request = PngRequest::new(source.clone());
+            request.mode = mode;
+            request.output = output;
+            let mut stages = Vec::new();
+            let result = optimize_png(&request, &CancellationToken::default(), |stage| {
+                stages.push(stage)
+            });
+            let error = result.unwrap_err();
+            assert!(
+                matches!(error, ProcessingError::UnsupportedMetadata(chunk) if chunk == *b"caBX")
+            );
+            assert!(error.to_string().contains("C2PA"));
+            assert!(!error.to_string().contains("验证失败"));
+            assert!(!stages.contains(&ProcessingStage::Validating));
+            assert!(!stages.contains(&ProcessingStage::BeforeCommit));
+            source_only(&directory, &request, &original);
+        }
+    }
+}
+
+#[test]
 fn real_quantization_is_smaller_than_lossless_and_reports_measured_quality() {
     for (name, q) in [
         ("gradient-rgb8.png", 40),

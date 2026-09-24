@@ -317,6 +317,78 @@ fn cancelled_unknown_sizes_and_processing_stages_are_not_fabricated_percentages(
 }
 
 #[test]
+fn protected_metadata_failure_reaches_real_task_snapshot_without_modifying_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut inputs = Vec::new();
+    for name in ["content-credentials.png", "unsafe-metadata.png"] {
+        let source = sample(dir.path(), name, name);
+        let bytes = fs::read(&source).unwrap();
+        inputs.push((source, bytes));
+    }
+    let mut runtime = TaskRuntime::new(TaskConfig::default()).unwrap();
+    let control = runtime.control();
+    control
+        .import(
+            inputs.iter().map(|(path, _)| path.clone()).collect(),
+            Some(TaskSettings::default()),
+        )
+        .unwrap();
+    phase(&control, TaskPhase::Finished);
+    let result = wire(query(&control, request(TaskCollection::Jobs)).unwrap());
+    let rows = result["page"]["items"].as_array().unwrap();
+    let codes: Vec<_> = rows
+        .iter()
+        .map(|row| row["state"]["failure"]["code"].as_str().unwrap())
+        .collect();
+    assert!(codes.contains(&"unsupported_content_credentials"));
+    assert!(codes.contains(&"unsupported_metadata"));
+    assert_eq!(result["batch"]["summary"]["failed"], 2);
+    assert_eq!(result["batch"]["summary"]["savedBytes"], "0");
+    assert_eq!(
+        result["batch"]["summary"]["currentBytes"],
+        result["batch"]["summary"]["inputBytes"]
+    );
+    assert!(
+        rows.iter()
+            .all(|row| row["state"]["failure"]["recovery"].is_null())
+    );
+    for (source, bytes) in &inputs {
+        assert_eq!(fs::read(source).unwrap(), *bytes);
+    }
+    assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 2);
+    assert!(
+        !result
+            .to_string()
+            .contains(&dir.path().to_string_lossy().to_string())
+    );
+    runtime.shutdown().unwrap();
+}
+
+#[test]
+fn metadata_recovery_causes_keep_distinct_wire_categories() {
+    let (_dir, _runtime, mut snapshot) = completed();
+    for (chunk, code) in [
+        (b"caBX", "unsupported_content_credentials"),
+        (b"vpAG", "unsupported_metadata"),
+    ] {
+        Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0].state =
+            JobState::Failed(JobFailure {
+                code: JobErrorCode::CleanupFailed,
+                cause: Some(Arc::new(ProcessingError::CleanupFailed {
+                    original: Some(Box::new(ProcessingError::UnsupportedMetadata(*chunk))),
+                    source: io::Error::other("private reason"),
+                    temporary: Path::new("private-parent").join("temp.png"),
+                })),
+            });
+        let result = wire(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).unwrap());
+        assert_eq!(
+            result["page"]["items"][0]["state"]["failure"]["recovery"]["originalError"],
+            json!({"kind":"failed","code":code})
+        );
+    }
+}
+
+#[test]
 fn error_conversion_preserves_recovery_categories_but_never_raw_io_or_absolute_paths() {
     let (_dir, _runtime, mut snapshot) = completed();
     let error = JobFailure {

@@ -53,6 +53,10 @@ fn recovery_cause(error: &ProcessingError) -> RecoveryCauseDto {
         | ProcessingError::InvalidPng(_) => JobErrorDto::InvalidInput,
         ProcessingError::UnsupportedFormat => JobErrorDto::UnsupportedFormat,
         ProcessingError::UnsupportedAnimation => JobErrorDto::UnsupportedAnimation,
+        ProcessingError::UnsupportedMetadata([b'c', b'a', b'B', b'X']) => {
+            JobErrorDto::UnsupportedContentCredentials
+        }
+        ProcessingError::UnsupportedMetadata(_) => JobErrorDto::UnsupportedMetadata,
         ProcessingError::ResourceLimit(_) => JobErrorDto::ResourceLimit,
         ProcessingError::Decode(_) => JobErrorDto::Decode,
         ProcessingError::Encode(_) => JobErrorDto::Encode,

@@ -249,6 +249,21 @@ store(
   makePng({ color: 0, depth: 16, before: [chunk('tRNS', Buffer.from([0, 0]))] }),
   { expected: 'static', metadata: ['tRNS'] },
 );
+// 只合成类型检测容器，不包含真实C2PA签名，不用于真实性/凭据验证。
+for (const [file, name] of [
+  ['content-credentials.png', 'caBX'],
+  ['unsafe-metadata.png', 'vpAG'],
+]) {
+  store(
+    file,
+    makePng({ color: 2, before: [chunk(name, Buffer.from('PixoFold metadata boundary fixture'))] }),
+    {
+      expected: 'unsupported-metadata',
+      metadata: [name],
+      note: 'PNG结构有效；块类型保护测试，不验证载荷语义或签名',
+    },
+  );
+}
 store('already-optimized.png', makePng({ width: 1, height: 1, color: 0, level: 9 }), {
   expected: 'no-gain',
   width: 1,
