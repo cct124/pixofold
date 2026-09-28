@@ -39,7 +39,9 @@ export function WorkspaceSettings({
     setQuality(value);
     const parsed = qualityValue(value);
     if (parsed !== null) preferences.setQuality(parsed);
-    controller.setSettings(draftSettings(preferences.mode, value, preferences.output));
+    controller.setSettings(
+      draftSettings(preferences.mode, value, preferences.output, preferences.backupBeforeOverwrite),
+    );
   };
   return (
     <aside className={styles.settings} aria-labelledby="settingsTitle">
@@ -52,7 +54,14 @@ export function WorkspaceSettings({
               aria-pressed={preferences.mode === mode}
               onClick={() => {
                 preferences.setMode(mode);
-                controller.setSettings(draftSettings(mode, quality, preferences.output));
+                controller.setSettings(
+                  draftSettings(
+                    mode,
+                    quality,
+                    preferences.output,
+                    preferences.backupBeforeOverwrite,
+                  ),
+                );
               }}
             >
               {t(mode)}
@@ -117,7 +126,14 @@ export function WorkspaceSettings({
                 aria-pressed={preferences.output === output}
                 onClick={() => {
                   preferences.setOutput(output);
-                  controller.setSettings(draftSettings(preferences.mode, quality, output));
+                  controller.setSettings(
+                    draftSettings(
+                      preferences.mode,
+                      quality,
+                      output,
+                      preferences.backupBeforeOverwrite,
+                    ),
+                  );
                 }}
               >
                 {t(output)}
@@ -140,17 +156,38 @@ export function WorkspaceSettings({
             </div>
           )}
         </section>
-        <details className={styles.advanced}>
-          <summary>
-            <Icon name="chevron" />
-            {t('advanced')}
-          </summary>
+        <section className={styles.advanced} aria-labelledby="advancedTitle">
+          <h3 id="advancedTitle">{t('advanced')}</h3>
           <div className={styles.advancedBody}>
-            <p>{t('outputHint')}</p>
+            {preferences.output === 'overwrite' && (
+              <label className={styles.backupOption}>
+                <input
+                  type="checkbox"
+                  checked={preferences.backupBeforeOverwrite}
+                  aria-describedby="backupHint"
+                  onChange={(event) => {
+                    const backup = event.target.checked;
+                    preferences.setBackupBeforeOverwrite(backup);
+                    controller.setSettings(
+                      draftSettings(preferences.mode, quality, preferences.output, backup),
+                    );
+                  }}
+                />
+                {t('backupBeforeOverwrite')}
+              </label>
+            )}
+            <p id="backupHint">
+              {t(
+                preferences.output === 'copy_beside'
+                  ? 'copyHint'
+                  : preferences.backupBeforeOverwrite
+                    ? 'backupHint'
+                    : 'overwriteHint',
+              )}
+            </p>
             <p>{t('frozen')}</p>
-            <p>{t('settingsHint')}</p>
           </div>
-        </details>
+        </section>
       </div>
       {footer && <div className={styles.settingsBottom}>{footer}</div>}
     </aside>

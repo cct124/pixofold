@@ -595,25 +595,10 @@
 .advanced {
   margin-top: 16px;
 }
-.advanced summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
+.advanced h3 {
   padding: 12px 0;
-  list-style: none;
-  border-radius: 4px;
-}
-.advanced summary::-webkit-details-marker {
-  display: none;
-}
-.advanced summary svg {
-  width: 18px;
-  height: 18px;
-  transition: transform 0.15s;
-}
-.advanced[open] summary svg {
-  transform: rotate(90deg);
+  font-size: 20px;
+  font-weight: 600;
 }
 .advancedBody {
   border: 1px solid var(--border);
@@ -625,6 +610,21 @@
   font-size: 14px;
   margin: 2px 0 14px;
   color: var(--muted);
+}
+.backupOption {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--text);
+  font-size: 16px;
+  cursor: pointer;
+}
+.backupOption input {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin: 3px 0 0;
+  accent-color: var(--accent);
 }
 @media (min-width: 1700px) {
   .layout {

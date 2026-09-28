@@ -126,11 +126,13 @@ pub enum CopyLayout {
     PreserveRoots,
 }
 
-/// 默认覆盖。副本统一使用stem_compressed.png；同名拒绝而不是静默覆盖/自动编号。
+/// 核心默认备份后覆盖；桌面按设置显式选策略。副本同名拒绝而非静默覆盖。
 #[derive(Debug, Clone, Default)]
 pub enum ImportOutput {
     #[default]
     Overwrite,
+    /// 不保留原图备份，仍执行完整验证和安全替换。
+    OverwriteWithoutBackup,
     CopyBeside,
     /// directory须已存在；保留结构时目录根映射为root_name/相对路径，单独文件置于根。
     CopyTo {

@@ -76,6 +76,7 @@ impl ImportScan {
             let policy = (|| -> Result<OutputPolicy, ProcessingError> {
                 Ok(match output {
                     ImportOutput::Overwrite => OutputPolicy::Overwrite,
+                    ImportOutput::OverwriteWithoutBackup => OutputPolicy::OverwriteWithoutBackup,
                     ImportOutput::CopyBeside => copy_beside(&file.source)?,
                     ImportOutput::CopyTo { directory, layout } => {
                         let name = copy_name(&file.source)?;

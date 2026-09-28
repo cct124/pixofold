@@ -37,7 +37,6 @@ impl Fields {
                 | "budget_bytes"
                 | "count"
                 | "revision"
-                | "backup_name"
                 | "credentials_removed"
                 | "succeeded"
                 | "failed"

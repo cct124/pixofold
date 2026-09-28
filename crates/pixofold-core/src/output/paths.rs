@@ -9,8 +9,16 @@ use std::{
 };
 
 pub(super) const OUTPUT_PREFIX: &str = ".pixofold-output-";
-pub(super) const BACKUP_PREFIX: &str = ".pixofold-backup-";
+const BACKUP_MARKER: &str = "-backup-";
 pub(super) const RANDOM_LEN: usize = 6;
+
+/// 保留原始stem（含非Unicode名称），不截断、不替换字符；路径过长由创建阶段安全拒绝。
+pub(super) fn backup_prefix(source: &Path) -> Result<OsString, ProcessingError> {
+    let stem = source.file_stem().ok_or(ProcessingError::InvalidPath)?;
+    let mut prefix = stem.to_os_string();
+    prefix.push(BACKUP_MARKER);
+    Ok(prefix)
+}
 
 pub(crate) fn key(path: &Path) -> OsString {
     // Windows只为保守比较折叠；非Unicode及大小写敏感目录可能过度拒绝，绝不用于I/O。
@@ -75,18 +83,36 @@ pub(crate) fn directory(path: &Path) -> Result<PathBuf, ProcessingError> {
 
 /// 检查实际输出层保留的名称形状；不是任意文件的来源证明。不匹配_compressed或所有隐藏文件。
 pub(crate) fn is_artifact(path: &Path) -> bool {
-    let Some(name) = path.file_name().and_then(OsStr::to_str) else {
+    let Some(name) = path.file_name() else {
         return false;
     };
-    [(OUTPUT_PREFIX, ".tmp"), (BACKUP_PREFIX, ".png")]
-        .into_iter()
-        .any(|(prefix, suffix)| {
-            name.strip_prefix(prefix)
-                .and_then(|s| s.strip_suffix(suffix))
-                .is_some_and(|token| {
-                    token.len() == RANDOM_LEN && token.bytes().all(|b| b.is_ascii_alphanumeric())
-                })
-        })
+    // 只比较ASCII边界，不把原始OS名称转成有损Unicode，非Unicode备份也必须排除。
+    let name = name.as_encoded_bytes();
+    #[cfg(windows)]
+    let folded = name.to_ascii_lowercase();
+    #[cfg(windows)]
+    let name = folded.as_slice();
+    let is_token =
+        |token: &[u8]| token.len() == RANDOM_LEN && token.iter().all(u8::is_ascii_alphanumeric);
+    if name
+        .strip_prefix(OUTPUT_PREFIX.as_bytes())
+        .and_then(|s| s.strip_suffix(b".tmp"))
+        .is_some_and(is_token)
+    {
+        return true;
+    }
+    let Some(stem) = name.strip_suffix(b".png") else {
+        return false;
+    };
+    let Some(split) = stem.len().checked_sub(RANDOM_LEN) else {
+        return false;
+    };
+    let (prefix, token) = stem.split_at(split);
+    // 旧.pixofold-backup-XXXXXX.png恰好以.pixofold为stem，同一严格规则继续兼容。
+    is_token(token)
+        && prefix
+            .strip_suffix(BACKUP_MARKER.as_bytes())
+            .is_some_and(|source_stem| !source_stem.is_empty())
 }
 
 pub(super) fn tree_path(

@@ -28,7 +28,10 @@ export function Workspace({
   const t = workspaceText(language);
   useEffect(() => {
     const saved = useCompressionPreferences.getState();
-    controller.setSettings(draftSettings(saved.mode, String(saved.quality), saved.output), false);
+    controller.setSettings(
+      draftSettings(saved.mode, String(saved.quality), saved.output, saved.backupBeforeOverwrite),
+      false,
+    );
     controller.setDropTarget((position) => {
       if (document.visibilityState === 'hidden' || document.querySelector('dialog[open]'))
         return false;

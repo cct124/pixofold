@@ -1,14 +1,16 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { TaskOutput, TaskSettingsDto } from '../../lib/ipc/tasks.generated';
+import type { TaskSettingsDto } from '../../lib/ipc/tasks.generated';
 
 export interface CompressionPreferences {
   mode: 'lossy' | 'lossless';
   quality: number;
-  output: TaskOutput;
+  output: 'overwrite' | 'copy_beside';
+  backupBeforeOverwrite: boolean;
   setMode: (mode: 'lossy' | 'lossless') => void;
   setQuality: (quality: number) => void;
-  setOutput: (output: TaskOutput) => void;
+  setOutput: (output: CompressionPreferences['output']) => void;
+  setBackupBeforeOverwrite: (backup: boolean) => void;
 }
 
 /** 输入暂态不持久化；只接受完整的0–100整数文本，不截断、不四舍五入。 */
@@ -20,8 +22,15 @@ export function qualityValue(text: string): number | null {
 export function draftSettings(
   mode: CompressionPreferences['mode'],
   quality: string,
-  output: TaskOutput,
+  outputMode: CompressionPreferences['output'],
+  backupBeforeOverwrite = false,
 ): TaskSettingsDto | null {
+  const output =
+    outputMode === 'copy_beside'
+      ? 'copy_beside'
+      : backupBeforeOverwrite
+        ? 'overwrite'
+        : 'overwrite_without_backup';
   if (mode === 'lossless') return { mode: { kind: 'lossless' }, output };
   const value = qualityValue(quality);
   return value === null ? null : { mode: { kind: 'lossy', quality: value }, output };
@@ -34,17 +43,24 @@ export const useCompressionPreferences = create<CompressionPreferences>()(
       mode: 'lossy',
       quality: 80,
       output: 'overwrite',
+      backupBeforeOverwrite: false,
       setMode: (mode) => set({ mode }),
       setQuality: (quality) => {
         if (Number.isInteger(quality) && quality >= 0 && quality <= 100) set({ quality });
       },
       setOutput: (output) => set({ output }),
+      setBackupBeforeOverwrite: (backupBeforeOverwrite) => set({ backupBeforeOverwrite }),
     }),
     {
       name: 'pixofold.compression',
       version: 1,
       storage: createJSONStorage(() => localStorage),
-      partialize: ({ mode, quality, output }) => ({ mode, quality, output }),
+      partialize: ({ mode, quality, output, backupBeforeOverwrite }) => ({
+        mode,
+        quality,
+        output,
+        backupBeforeOverwrite,
+      }),
       merge: (persisted, current) => {
         if (!persisted || typeof persisted !== 'object') return current;
         const mode = 'mode' in persisted ? persisted.mode : null;
@@ -61,6 +77,8 @@ export const useCompressionPreferences = create<CompressionPreferences>()(
               ? quality
               : 80,
           output: output === 'copy_beside' ? 'copy_beside' : 'overwrite',
+          backupBeforeOverwrite:
+            'backupBeforeOverwrite' in persisted && persisted.backupBeforeOverwrite === true,
         };
       },
     },

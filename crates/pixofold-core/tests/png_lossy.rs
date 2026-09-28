@@ -115,12 +115,10 @@ fn chunk(name: &[u8; 4], payload: &[u8]) -> Vec<u8> {
 }
 
 #[test]
-fn workspace_design_png_content_credentials_are_reported_without_touching_source() {
+fn content_credentials_are_reported_without_touching_source_in_all_output_modes() {
     let directory = tempfile::tempdir().unwrap();
-    let original = fs::read(
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/UI界面设计/PixoFold-亮色.png"),
-    )
-    .unwrap();
+    // 设计图可被用户手测压缩，不能作为固定凭据语料；合成块仅验证保留/确认边界。
+    let original = fixture("content-credentials.png");
     let source = directory.path().join("PixoFold-亮色.png");
     fs::write(&source, &original).unwrap();
     for mode in [
@@ -131,6 +129,7 @@ fn workspace_design_png_content_credentials_are_reported_without_touching_source
     ] {
         for output in [
             OutputPolicy::Overwrite,
+            OutputPolicy::OverwriteWithoutBackup,
             OutputPolicy::Copy {
                 destination: directory.path().join("result.png"),
             },

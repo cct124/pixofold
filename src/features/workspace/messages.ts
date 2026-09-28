@@ -10,6 +10,7 @@ const copy = {
   credentialsReason: ['含内容凭据 caBX', 'Contains Content Credentials (caBX)'],
   credentialsOverwrite: ['覆盖原图', 'Overwrite originals'],
   credentialsBackup: ['备份原图', 'Back up originals'],
+  credentialsOutputScope: ['仅对本次选中的图片生效。', 'Applies only to the images selected here.'],
   credentialsBackupHint: [
     '在同目录备份原图后覆盖。',
     'Back up originals in the same folder, then overwrite.',
@@ -104,18 +105,24 @@ const copy = {
     '本次拖放未接纳，请在空闲时重试或使用文件选择。',
     'Drop not accepted. Retry when idle or use the file picker.',
   ],
-  outputHint: [
-    '覆盖前建立备份；无收益保留原图。副本使用 _compressed.png 名称，目标已存在则拒绝覆盖。',
-    'Back up before replacement; keep originals when there is no gain. Copies use _compressed.png names and never overwrite existing targets.',
+  backupBeforeOverwrite: ['覆盖前备份原图', 'Back up originals before overwriting'],
+  backupHint: [
+    '在同目录备份原图后覆盖；无收益则保留原图，不生成备份。',
+    'Back up originals in the same folder before replacing. No gain: keep originals without creating backups.',
+  ],
+  overwriteHint: [
+    '直接覆盖，不保留备份；无收益则保留原图。',
+    'Overwrite directly without backups. Keep originals when there is no gain.',
+  ],
+  copyHint: [
+    '副本使用 _compressed.png 名称，目标已存在则拒绝覆盖。',
+    'Copies use _compressed.png names and never overwrite existing targets.',
   ],
   frozen: [
-    '设置仅影响下一次导入或重试，不改变运行中的任务。重试沿用原输出位置。',
-    'Settings affect the next import or retry, not running tasks. Retries keep their original output locations.',
+    '设置不改变运行中的任务。输出与备份设置用于下次导入；普通重试沿用原输出与备份策略。',
+    'Settings do not change running tasks. Output and backup settings apply to the next import; ordinary retries keep their original output and backup policy.',
   ],
-  settingsHint: [
-    '自选输出目录与高级参数尚未接入。',
-    'Custom output folders and advanced options are not available yet.',
-  ],
+  settingsHint: ['自选输出目录尚未接入。', 'Custom output folders are not available yet.'],
   jobs: ['处理任务', 'Jobs'],
   candidates: ['已识别', 'Identified'],
   issues: ['扫描反馈', 'Scan feedback'],

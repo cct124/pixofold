@@ -38,9 +38,9 @@ fn structured_events_keep_task_context_but_exclude_paths_messages_and_third_part
     tracing::subscriber::with_default(
         tracing_subscriber::registry().with(layer::EventLayer(logger.clone())),
         || {
-            let span = tracing::info_span!(target: "pixofold", "task", batch_id = 4, job_id = 2, attempt = 3, path = "PRIVATE_SOURCE");
+            let span = tracing::info_span!(target: "pixofold", "task", batch_id = 4, job_id = 2, attempt = 3, path = "PRIVATE_SOURCE", backup_name = "PRIVATE_SPAN-backup-Ab12xY.png");
             let _entered = span.enter();
-            tracing::info!(target: "pixofold", event = "job_started", input_bytes = 123, path = "PRIVATE_SOURCE", error = ?"PRIVATE_ERROR", "PRIVATE_MESSAGE");
+            tracing::info!(target: "pixofold", event = "job_started", input_bytes = 123, path = "PRIVATE_SOURCE", backup_name = "PRIVATE_EVENT-backup-Ab12xY.png", error = ?"PRIVATE_ERROR", "PRIVATE_MESSAGE");
             tracing::info!(target: "third_party", event = "PRIVATE_THIRD_PARTY");
             tracing::info!(target: "pixofold", event = "bounded", stage = ?"长".repeat(20000));
         },
@@ -54,6 +54,7 @@ fn structured_events_keep_task_context_but_exclude_paths_messages_and_third_part
     assert_eq!(line["job_id"], 2);
     assert_eq!(line["attempt"], 3);
     assert_eq!(line["input_bytes"], 123);
+    assert!(line.get("backup_name").is_none());
     assert!(!serde_json::to_string(&values).unwrap().contains("PRIVATE_"));
     assert!(
         values
@@ -159,6 +160,14 @@ fn real_credentials_processing_logs_wait_then_only_the_chosen_backup_policy() {
                 };
                 assert_eq!(backup.is_some(), policy == 0);
                 if let Some(backup) = backup {
+                    assert!(
+                        backup
+                            .file_name()
+                            .unwrap()
+                            .to_str()
+                            .unwrap()
+                            .starts_with("PRIVATE_IMAGE-backup-")
+                    );
                     assert_eq!(fs::read(backup).unwrap(), original);
                 }
                 if policy == 2 {
@@ -183,6 +192,12 @@ fn real_credentials_processing_logs_wait_then_only_the_chosen_backup_policy() {
             .unwrap();
         assert!(waiting < removing && removing < committed);
         assert_eq!(events.contains(&"backup_creating"), policy == 0);
+        assert_eq!(events.contains(&"backup_retained"), policy == 0);
+        assert!(
+            values
+                .iter()
+                .all(|value| value.get("backup_name").is_none())
+        );
         if policy == 0 {
             let backup = events.iter().position(|e| *e == "backup_creating").unwrap();
             assert!(removing < backup && backup < committed);

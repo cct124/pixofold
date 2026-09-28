@@ -1,5 +1,5 @@
 import { StrictMode } from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import {
@@ -132,7 +132,12 @@ beforeEach(async () => {
   vi.mocked(invoke)
     .mockReset()
     .mockImplementation(async (command, args) => reply(command, args));
-  useCompressionPreferences.setState({ mode: 'lossy', quality: 80, output: 'overwrite' });
+  useCompressionPreferences.setState({
+    mode: 'lossy',
+    quality: 80,
+    output: 'overwrite',
+    backupBeforeOverwrite: false,
+  });
 });
 
 function credentialsSnapshot(count = 2): TaskSnapshotDto {
@@ -317,25 +322,29 @@ describe('native drop import workflow', () => {
 });
 
 describe('content credentials confirmation workflow', () => {
-  it('submits the default backup option on confirmation without any extra agreement step', async () => {
-    current = credentialsSnapshot();
-    await mount();
-    fireEvent.click(screen.getByRole('button', { name: '需要确认的图片 (2)' }));
-    const submit = await screen.findByRole('button', { name: '移除内容凭据后压缩 (2)' });
-    expect(screen.getByRole('radio', { name: '备份原图' })).toBeChecked();
-    expect(screen.queryByRole('checkbox', { name: /我理解|我同意/ })).not.toBeInTheDocument();
-    fireEvent.click(submit);
-    await waitFor(() => expect(writes()).toHaveLength(1));
-    expect(writes()[0]).toMatchObject({
-      request: {
-        operation: {
-          jobIds: [7, 8],
-          output: 'overwrite_with_backup',
-          consent: 'remove_content_credentials',
+  it.each([false, true])(
+    'inherits backup=%s on confirmation without any extra agreement step',
+    async (backup) => {
+      useCompressionPreferences.setState({ backupBeforeOverwrite: backup });
+      current = credentialsSnapshot();
+      await mount();
+      fireEvent.click(screen.getByRole('button', { name: '需要确认的图片 (2)' }));
+      const submit = await screen.findByRole('button', { name: '移除内容凭据后压缩 (2)' });
+      expect(screen.getByRole('radio', { name: backup ? '备份原图' : '覆盖原图' })).toBeChecked();
+      expect(screen.queryByRole('checkbox', { name: /我理解|我同意/ })).not.toBeInTheDocument();
+      fireEvent.click(submit);
+      await waitFor(() => expect(writes()).toHaveLength(1));
+      expect(writes()[0]).toMatchObject({
+        request: {
+          operation: {
+            jobIds: [7, 8],
+            output: backup ? 'overwrite_with_backup' : 'overwrite_without_backup',
+            consent: 'remove_content_credentials',
+          },
         },
-      },
-    });
-  });
+      });
+    },
+  );
 
   it('does not expose a partial list or accept it while later chunks are pending or failed', async () => {
     current = credentialsSnapshot(151);
@@ -375,7 +384,7 @@ describe('content credentials confirmation workflow', () => {
     expect(
       await screen.findByRole('checkbox', { name: '同名.png · 目录151 · #157' }),
     ).toBeChecked();
-    expect(screen.getAllByRole('checkbox')).toHaveLength(152);
+    expect(within(screen.getByRole('dialog')).getAllByRole('checkbox')).toHaveLength(152);
   });
 
   it('discards in-flight old rows on revision change instead of mixing confirmation versions', async () => {
@@ -406,7 +415,7 @@ describe('content credentials confirmation workflow', () => {
       oldChunk.resolve(oldResponse);
     });
     expect(await screen.findByRole('checkbox', { name: '同名.png · 目录1 · #207' })).toBeChecked();
-    expect(screen.getAllByRole('checkbox')).toHaveLength(3);
+    expect(within(screen.getByRole('dialog')).getAllByRole('checkbox')).toHaveLength(3);
     expect(screen.queryByRole('checkbox', { name: /#7$/ })).not.toBeInTheDocument();
     expect(writes()).toHaveLength(0);
   });
@@ -530,13 +539,14 @@ describe('content credentials confirmation workflow', () => {
     expect(writes()).toHaveLength(0);
   });
 
-  it('loads every row into a single selected list, defaults to backups and never resends an uncertain overwrite', async () => {
+  it('loads every row, allows a local backup override and never resends an uncertain overwrite', async () => {
+    useCompressionPreferences.setState({ backupBeforeOverwrite: true });
     current = credentialsSnapshot(151);
     await mount();
     fireEvent.click(screen.getByRole('button', { name: '需要确认的图片 (151)' }));
     const last = await screen.findByRole('checkbox', { name: '同名.png · 目录151 · #157' });
     expect(last).toBeChecked();
-    expect(screen.getAllByRole('checkbox')).toHaveLength(152);
+    expect(within(screen.getByRole('dialog')).getAllByRole('checkbox')).toHaveLength(152);
     expect(screen.queryByRole('button', { name: '下一页' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '上一页' })).not.toBeInTheDocument();
     expect(screen.getByRole('radio', { name: '备份原图' })).toBeChecked();
@@ -570,7 +580,8 @@ describe('content credentials confirmation workflow', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('replaces the list on a new revision, resets to safe defaults and does not prompt for normal RGB', async () => {
+  it('replaces the list on a new revision, resets to inherited settings and does not prompt for normal RGB', async () => {
+    useCompressionPreferences.setState({ backupBeforeOverwrite: true });
     current = credentialsSnapshot();
     await mount();
     fireEvent.click(screen.getByRole('button', { name: '需要确认的图片 (2)' }));
@@ -681,8 +692,15 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
     expect(input).toHaveValue(76);
     expect(writes()).toHaveLength(0);
   });
-  it('segments output without granting unsupported directory or advanced controls', async () => {
+  it('keeps advanced options visible and only shows backup for overwrite', async () => {
     await mount();
+    const backup = screen.getByRole('checkbox', { name: '覆盖前备份原图' });
+    expect(backup).toBeVisible();
+    expect(backup).not.toBeChecked();
+    expect(screen.getByRole('heading', { name: '高级选项' }).closest('details')).toBeNull();
+    expect(screen.getByText('直接覆盖，不保留备份；无收益则保留原图。')).toBeVisible();
+    fireEvent.click(backup);
+    expect(backup).toBeChecked();
     fireEvent.click(screen.getByRole('button', { name: '另存副本' }));
     expect(screen.getByRole('button', { name: '另存副本' })).toHaveAttribute(
       'aria-pressed',
@@ -694,9 +712,39 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
         .getAllByRole('button', { name: '选择目录' })
         .filter((button) => button.hasAttribute('disabled')),
     ).toHaveLength(1);
-    fireEvent.click(screen.getByText('高级选项'));
-    expect(screen.getByText(/覆盖前建立备份/)).toBeVisible();
+    expect(screen.queryByRole('checkbox', { name: '覆盖前备份原图' })).not.toBeInTheDocument();
+    expect(screen.getByText(/副本使用 _compressed.png/)).toBeVisible();
+    expect(controller.getSnapshot().pending).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: '原图覆盖' }));
+    expect(screen.getByRole('checkbox', { name: '覆盖前备份原图' })).toBeChecked();
     expect(writes()).toHaveLength(0);
+  });
+  it.each([
+    [false, 'overwrite', 'overwrite_without_backup'],
+    [true, 'overwrite', 'overwrite'],
+    [true, 'copy_beside', 'copy_beside'],
+  ] as const)(
+    'imports backup=%s/output=%s with explicit policy %s',
+    async (backup, output, policy) => {
+      await mount();
+      if (backup) fireEvent.click(screen.getByRole('checkbox', { name: '覆盖前备份原图' }));
+      if (output === 'copy_beside')
+        fireEvent.click(screen.getByRole('button', { name: '另存副本' }));
+      fireEvent.click(screen.getByRole('button', { name: '选择文件' }));
+      await waitFor(() => expect(writes()).toHaveLength(1));
+      expect(writes()[0]).toMatchObject({
+        request: { operation: { settings: { output: policy } } },
+      });
+    },
+  );
+  it('renders the expanded backup option and warning in English', async () => {
+    const ui = await mount();
+    ui.rerender(<Workspace language="en" controller={controller} />);
+    expect(screen.getByRole('heading', { name: 'Advanced options' })).toBeVisible();
+    expect(
+      screen.getByRole('checkbox', { name: 'Back up originals before overwriting' }),
+    ).not.toBeChecked();
+    expect(screen.getByText(/Overwrite directly without backups/)).toBeVisible();
   });
   it('uses the native import shortcut once and does not navigate on unsupported drops', async () => {
     await mount();
@@ -837,6 +885,7 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
     fireEvent.change(screen.getByRole('spinbutton', { name: '精细调整' }), {
       target: { value: '90' },
     });
+    fireEvent.click(screen.getByRole('checkbox', { name: '覆盖前备份原图' }));
     expect(screen.getByRole('button', { name: '选择目录' })).toBeDisabled();
     await act(async () => dialog.resolve({ grantId: '8', rootCount: 1 }));
     expect(writes()).toEqual([
@@ -846,7 +895,7 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
           operation: {
             kind: 'import',
             grantId: '8',
-            settings: { mode: { kind: 'lossy', quality: 80 }, output: 'overwrite' },
+            settings: { mode: { kind: 'lossy', quality: 80 }, output: 'overwrite_without_backup' },
           },
         },
       },

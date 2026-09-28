@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 pub(super) const MAX_PAGE_SIZE: u16 = 100;
 pub(super) const MAX_DISPLAY_CHARS: usize = 240;
 // v5在同一Channel加入不含路径的原生拖放票据；任务变化的ACK/背压契约不变。
-pub(crate) const TASK_PROTOCOL_VERSION: u32 = 5;
+pub(crate) const TASK_PROTOCOL_VERSION: u32 = 6;
 
 /// 无符号64位十进制字符串；拒绝数字JSON、符号、空白、前导零及溢出。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

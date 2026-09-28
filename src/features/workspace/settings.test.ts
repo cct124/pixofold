@@ -38,8 +38,46 @@ describe('workspace settings and exact display', () => {
       mode: 'lossless',
       quality: 80,
       output: 'overwrite',
+      backupBeforeOverwrite: false,
     });
   });
+  it('maps the backup preference explicitly and ignores it for copies', () => {
+    expect(draftSettings('lossy', '80', 'overwrite')?.output).toBe('overwrite_without_backup');
+    expect(draftSettings('lossy', '80', 'overwrite', true)?.output).toBe('overwrite');
+    expect(draftSettings('lossless', '', 'overwrite', false)?.output).toBe(
+      'overwrite_without_backup',
+    );
+    expect(draftSettings('lossless', '', 'copy_beside', true)?.output).toBe('copy_beside');
+  });
+  it.each([undefined, null, 1, 'true', false, true])(
+    'restores only a strict boolean backup preference: %s',
+    async (backup) => {
+      localStorage.setItem(
+        'pixofold.compression',
+        JSON.stringify({
+          version: 1,
+          state: {
+            mode: 'lossless',
+            quality: 90,
+            output: 'copy_beside',
+            backupBeforeOverwrite: backup,
+          },
+        }),
+      );
+      await useCompressionPreferences.persist.rehydrate();
+      expect(useCompressionPreferences.getState()).toMatchObject({
+        mode: 'lossless',
+        quality: 90,
+        output: 'copy_beside',
+        backupBeforeOverwrite: backup === true,
+      });
+      useCompressionPreferences.getState().setBackupBeforeOverwrite(true);
+      expect(
+        JSON.parse(localStorage.getItem('pixofold.compression') ?? '{}').state
+          .backupBeforeOverwrite,
+      ).toBe(true);
+    },
+  );
   it('keeps unknown distinct from zero and formats full u64 values without Number conversion', () => {
     expect(formatBytes(null)).toBe('—');
     expect(formatBytes('0')).toBe('0 B');

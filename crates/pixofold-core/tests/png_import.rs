@@ -330,14 +330,22 @@ fn reserved_artifacts_are_explicit_and_not_all_hidden_or_compressed_images() {
     for name in [
         ".pixofold-backup-Ab12xY.png",
         ".pixofold-output-Zy98aB.tmp",
+        "风景.v2-backup-Ab12xY.png",
+        ".hidden-backup-Zy98aB.png",
         ".pixofold-backup-family-photo.png",
         ".hidden.png",
         "photo_compressed.png",
+        "photo-backup-short.png",
+        "photo-backup-Ab12xYz.png",
+        "photo-backup-Ab12_Y.png",
+        "photo-backup-Ab12xY.png.more",
+        "-backup-Ab12xY.png",
+        "photo-backup-Ab12xY.tmp",
     ] {
         sample(dir.path(), name, "rgb8.png");
     }
     let found = collect(&[dir.path().to_owned()]);
-    assert_eq!((found.files().len(), found.progress().excluded), (3, 2));
+    assert_eq!((found.files().len(), found.progress().excluded), (9, 4));
     let included = scan(
         &[dir.path().to_owned()],
         ScanOptions {
@@ -348,7 +356,7 @@ fn reserved_artifacts_are_explicit_and_not_all_hidden_or_compressed_images() {
         |_| {},
     )
     .unwrap();
-    assert_eq!(included.files().len(), 5);
+    assert_eq!(included.files().len(), 13);
 }
 
 #[test]

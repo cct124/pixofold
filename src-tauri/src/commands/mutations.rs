@@ -30,6 +30,7 @@ fn settings(value: TaskSettingsDto) -> TaskSettings {
         },
         output: match value.output {
             TaskOutput::Overwrite => ImportOutput::Overwrite,
+            TaskOutput::OverwriteWithoutBackup => ImportOutput::OverwriteWithoutBackup,
             TaskOutput::CopyBeside => ImportOutput::CopyBeside,
         },
     }
@@ -119,11 +120,8 @@ pub(crate) fn mutate(
                 }
                 jobs.push(RetryJob {
                     id: job.id,
-                    // 普通重试不继承上一次显式放弃备份的选择。
-                    output: match &job.request.output {
-                        OutputPolicy::OverwriteWithoutBackup => OutputPolicy::Overwrite,
-                        output => output.clone(),
-                    },
+                    // 输出位置及备份策略属于原任务；仅凭据移除许可必须重新确认。
+                    output: job.request.output.clone(),
                     metadata: Default::default(),
                 });
             }

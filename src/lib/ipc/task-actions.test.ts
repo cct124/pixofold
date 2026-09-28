@@ -141,7 +141,7 @@ describe('controlled native task actions', () => {
     first.output = 'copy_beside';
     expect(defaultTaskSettings()).toEqual({
       mode: { kind: 'lossy', quality: 80 },
-      output: 'overwrite',
+      output: 'overwrite_without_backup',
     });
     const { stream, actions } = await connected();
     await actions.selectAndImport('files');

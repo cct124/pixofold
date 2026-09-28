@@ -16,7 +16,7 @@ impl SelectionId {
     }
 }
 
-/// 应用默认有损80、覆盖；核心PngRequest仍默认无损，二者不混淆。
+/// 应用默认有损80、无备份覆盖；核心PngRequest仍默认无损/备份覆盖。
 #[derive(Debug, Clone)]
 pub struct TaskSettings {
     pub parameters: BatchParameters,
@@ -31,7 +31,7 @@ impl Default for TaskSettings {
                 },
                 ..BatchParameters::default()
             },
-            output: ImportOutput::Overwrite,
+            output: ImportOutput::OverwriteWithoutBackup,
         }
     }
 }

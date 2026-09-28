@@ -85,7 +85,7 @@ function SelectionForm({
   disabled: boolean;
 }) {
   const [selected, setSelected] = useState(() => new Set(rows.map((row) => row.id)));
-  const [backup, setBackup] = useState(true);
+  const [backup, setBackup] = useState(settings?.output === 'overwrite');
   const mode = settings?.mode;
   const output: CredentialsOutput =
     settings?.output === 'copy_beside'
@@ -172,9 +172,10 @@ function SelectionForm({
           </tbody>
         </table>
       </div>
-      {settings?.output === 'overwrite' && (
+      {settings && settings.output !== 'copy_beside' && (
         <fieldset className={styles.output} disabled={disabled}>
           <legend>{t('output')}</legend>
+          <p>{t('credentialsOutputScope')}</p>
           <div className={styles.options}>
             <label className={styles.check}>
               <input

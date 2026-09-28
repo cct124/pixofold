@@ -433,6 +433,113 @@ fn authorized_scan_start_clear_and_reimport_share_one_task_owner() {
 }
 
 #[test]
+fn import_and_start_honor_backup_policy_and_retry_keeps_it() {
+    use crate::tasks::TaskPhase;
+    use pixofold_core::{batch::JobState, model::ProcessingOutcome};
+    for output in ["overwrite_without_backup", "overwrite", "copy_beside"] {
+        for scan_only in [false, true] {
+            let app = app(super::super::app_context());
+            let main = window(&app, "main");
+            let session = connected(&app);
+            let dir = tempfile::tempdir().unwrap();
+            let fixture =
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/png");
+            let names = [
+                "rgb8.png",
+                "bad-deflate.png",
+                "already-optimized.png",
+                "content-credentials.png",
+            ];
+            let sources: Vec<_> = names
+                .iter()
+                .map(|name| {
+                    let path = dir.path().join(name);
+                    std::fs::copy(fixture.join(name), &path).unwrap();
+                    path
+                })
+                .collect();
+            let originals: Vec<_> = sources
+                .iter()
+                .map(|path| std::fs::read(path).unwrap())
+                .collect();
+            let grant = native_grant(&app, session, sources.clone());
+            let settings = json!({"mode":{"kind":"lossless"}, "output":output});
+            let accepted = mutate(
+                &main,
+                session,
+                json!({"kind":"import", "grantId":grant["grantId"],
+                "settings":if scan_only { serde_json::Value::Null } else { settings.clone() }}),
+            )
+            .unwrap();
+            let tasks = app.state::<DesktopTasks>();
+            if scan_only {
+                phase(&tasks.control, TaskPhase::Ready);
+                assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 4);
+                mutate(&main, session, json!({"kind":"start", "selectionId":accepted["selectionId"], "settings":settings})).unwrap();
+            }
+            let first = phase(&tasks.control, TaskPhase::Finished).batch.unwrap();
+            assert_eq!(
+                (
+                    first.summary.succeeded,
+                    first.summary.failed,
+                    first.summary.no_gain
+                ),
+                (1, 2, 1)
+            );
+            let JobState::Succeeded(report) = &first.jobs[0].state else {
+                panic!("RGB应成功");
+            };
+            let ProcessingOutcome::Optimized { backup, .. } = &report.outcome else {
+                panic!("应有压缩收益");
+            };
+            if output == "overwrite" {
+                assert_eq!(
+                    std::fs::read(backup.as_ref().unwrap()).unwrap(),
+                    originals[0]
+                );
+            } else {
+                assert!(backup.is_none());
+            }
+            if output == "copy_beside" {
+                assert_eq!(std::fs::read(&sources[0]).unwrap(), originals[0]);
+            } else {
+                assert!(std::fs::metadata(&sources[0]).unwrap().len() < originals[0].len() as u64);
+            }
+            for index in 1..4 {
+                assert_eq!(std::fs::read(&sources[index]).unwrap(), originals[index]);
+            }
+            assert!(first.jobs[3].content_credentials_source().is_some());
+            let extra = usize::from(output != "overwrite_without_backup");
+            assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 4 + extra);
+            // 修复损坏的测试源后重试；不得改变原行输出位置或悄悄开启备份。
+            std::fs::copy(fixture.join("rgba8.png"), &sources[1]).unwrap();
+            let repaired = std::fs::read(&sources[1]).unwrap();
+            mutate(&main, session, json!({"kind":"retry", "selectionId":accepted["selectionId"],
+                "expectedBatchRevision":first.revision.to_string(), "jobIds":[first.jobs[1].id.get()],
+                "mode":{"kind":"lossless"}})).unwrap();
+            let retried = phase(&tasks.control, TaskPhase::Finished).batch.unwrap();
+            let JobState::Succeeded(report) = &retried.jobs[1].state else {
+                panic!("修复后应成功");
+            };
+            let ProcessingOutcome::Optimized { backup, .. } = &report.outcome else {
+                panic!("应有压缩收益");
+            };
+            if output == "overwrite" {
+                assert_eq!(std::fs::read(backup.as_ref().unwrap()).unwrap(), repaired);
+            } else {
+                assert!(backup.is_none());
+            }
+            assert_eq!(
+                std::fs::read_dir(dir.path()).unwrap().count(),
+                4 + 2 * extra
+            );
+            assert_eq!(std::fs::read(&sources[2]).unwrap(), originals[2]);
+            assert_eq!(std::fs::read(&sources[3]).unwrap(), originals[3]);
+        }
+    }
+}
+
+#[test]
 fn mutation_retry_preserves_success_backups_and_checks_batch_revision_and_row_set() {
     use crate::tasks::TaskPhase;
     use pixofold_core::{batch::JobState, model::ProcessingOutcome};
@@ -747,7 +854,7 @@ fn credentials_retry_rechecks_source_and_ordinary_retry_does_not_reuse_consent()
         if output == "overwrite_without_backup" {
             assert!(matches!(
                 retry.jobs[0].request.output,
-                pixofold_core::model::OutputPolicy::Overwrite
+                pixofold_core::model::OutputPolicy::OverwriteWithoutBackup
             ));
         }
         assert_eq!(std::fs::read(&source).unwrap(), original);

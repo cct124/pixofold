@@ -1,6 +1,6 @@
 // 由 Rust 任务DTO生成；请运行 pnpm types:generate，勿手工编辑。
 import type { PngMode } from './generated';
-export const TASK_PROTOCOL_VERSION = 5;
+export const TASK_PROTOCOL_VERSION = 6;
 export const MAX_TASK_PAGE_SIZE = 100;
 export type DecimalU64 = string;
 export type TaskCollection = "jobs" | "candidates" | "issues" | "confirmations";
@@ -47,7 +47,7 @@ export type NativeDropPosition = { x: number, y: number, };
 export type NativeDropNotice = { "kind": "native_drop", protocolVersion: number, subscriptionId: DecimalU64, offer: NativeDropOffer, position: NativeDropPosition, };
 export type TaskStreamMessage = TaskChangeNotice | NativeDropNotice;
 export type NativeDropRelease = { subscriptionId: DecimalU64, offerId: DecimalU64, };
-export type TaskOutput = "overwrite" | "copy_beside";
+export type TaskOutput = "overwrite" | "overwrite_without_backup" | "copy_beside";
 export type TaskSettingsDto = { mode: PngMode, output: TaskOutput, };
 export type ImportTask = { grantId: DecimalU64, settings: TaskSettingsDto | null, };
 export type StartTask = { selectionId: DecimalU64, settings: TaskSettingsDto, };

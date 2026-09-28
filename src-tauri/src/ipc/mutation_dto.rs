@@ -86,7 +86,9 @@ pub(crate) struct NativeDropRelease {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
 pub(crate) enum TaskOutput {
+    /// 保持既有协议含义：覆盖前备份；桌面未勾选时发送独立的无备份值。
     Overwrite,
+    OverwriteWithoutBackup,
     CopyBeside,
 }
 
@@ -137,7 +139,7 @@ pub(crate) enum CredentialsConsent {
     RemoveContentCredentials,
 }
 
-/// 确认弹窗专用输出策略，不允许普通导入通过此枚举关闭备份。
+/// 确认弹窗专用输出策略；主设置备份初值可由用户针对选中图片调整。
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "bindings", derive(ts_rs::TS))]

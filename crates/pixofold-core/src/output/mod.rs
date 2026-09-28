@@ -5,6 +5,7 @@
 pub(crate) mod paths;
 
 use std::{
+    ffi::OsStr,
     fs::{self, File, Metadata},
     io::{self, Read, Write},
     path::{Path, PathBuf},
@@ -251,7 +252,11 @@ pub(crate) fn commit(
         source.verify_unchanged(limits)?;
         if destination.backup {
             tracing::info!(target: "pixofold", event = "backup_creating");
-            let mut file = new_temp(parent(&source.path)?, paths::BACKUP_PREFIX, ".png")?;
+            let mut file = new_temp(
+                parent(&source.path)?,
+                paths::backup_prefix(&source.path)?,
+                ".png",
+            )?;
             if let Err(error) = write_candidate(&mut file, &source.bytes, &source) {
                 return Err(discard(file, error));
             }
@@ -303,8 +308,8 @@ pub(crate) fn commit(
                 return Err(discard(temp, discard(error.file, cause)));
             }
         };
-        tracing::info!(target: "pixofold", event = "backup_retained",
-            backup_name = backup_path.file_name().and_then(|name| name.to_str()).unwrap_or("generated_backup"));
+        // 备份名现含原文件名；仅结果DTO展示，诊断日志只按任务ID关联。
+        tracing::info!(target: "pixofold", event = "backup_retained");
         tracing::info!(target: "pixofold", event = "output_commit_started", output_policy = "overwrite_with_backup");
         match temp.persist(&destination.path) {
             Ok(handle) => {
@@ -387,11 +392,11 @@ pub(crate) fn discard_no_gain(temp: NamedTempFile) -> Result<(), ProcessingError
 
 fn new_temp(
     directory: &Path,
-    prefix: &str,
+    prefix: impl AsRef<OsStr>,
     suffix: &str,
 ) -> Result<NamedTempFile, ProcessingError> {
     Builder::new()
-        .prefix(prefix)
+        .prefix(&prefix)
         .suffix(suffix)
         .rand_bytes(paths::RANDOM_LEN)
         .tempfile_in(directory)

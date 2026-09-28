@@ -12,7 +12,7 @@ import type {
 
 /** 应用默认参数；返回独立草稿，不改变正在运行的任务。 */
 export function defaultTaskSettings(): TaskSettingsDto {
-  return { mode: { kind: 'lossy', quality: 80 }, output: 'overwrite' };
+  return { mode: { kind: 'lossy', quality: 80 }, output: 'overwrite_without_backup' };
 }
 
 function record(value: unknown): value is Record<string, unknown> {
