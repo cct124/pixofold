@@ -5,6 +5,8 @@
   "windows": ["main"],
   "permissions": [
     "allow-get-app-info",
+    "allow-get-log-status",
+    "allow-open-log-directory",
     "allow-get-task-snapshot",
     "allow-subscribe-task-changes",
     "allow-acknowledge-task-changes",

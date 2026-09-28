@@ -20,12 +20,8 @@ pub(crate) fn task_config() -> TaskConfig {
         system.total_memory(),
         system.available_memory(),
     );
-    eprintln!(
-        "PixoFold 图片线程池：可用并行度={}，worker={}，估算预算={} MiB",
-        cpu_threads,
-        batch.workers,
-        batch.working_set_budget.0 / MIB
-    );
+    tracing::info!(target: "pixofold", event = "worker_pool_configured",
+        cpu_threads, workers = batch.workers, budget_bytes = batch.working_set_budget.0);
     TaskConfig {
         batch,
         ..TaskConfig::default()

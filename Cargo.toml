@@ -16,6 +16,10 @@ png = "=0.18.1"
 same-file = "=1.0.6"
 sha2 = "=0.10.9"
 sysinfo = { version = "=0.35.1", default-features = false, features = ["system"] }
+tracing = { version = "=0.1.44", default-features = false, features = ["std"] }
+tracing-subscriber = { version = "=0.3.23", default-features = false, features = ["registry"] }
+time = { version = "=0.3.55", features = ["formatting"] }
+rustix = { version = "=1.1.5", features = ["fs", "process"] }
 tempfile = "=3.27.0"
 pixofold-core = { path = "crates/pixofold-core" }
 serde = { version = "=1.0.229", features = ["derive"] }

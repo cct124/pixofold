@@ -61,6 +61,47 @@ fn ancillary(data: &[u8]) -> Vec<Vec<u8>> {
 }
 
 #[test]
+fn waiting_for_credentials_consent_never_stages_output_or_backs_up_the_source() {
+    for mode in [
+        PngMode::Lossless,
+        PngMode::Lossy {
+            quality: QualityValue::new(68).unwrap(),
+        },
+    ] {
+        for policy in 0..3 {
+            let (dir, mut request, original) = workspace();
+            request.mode = mode;
+            request.output = match policy {
+                0 => OutputPolicy::Overwrite,
+                1 => OutputPolicy::OverwriteWithoutBackup,
+                _ => OutputPolicy::Copy {
+                    destination: dir.path().join("copy.png"),
+                },
+            };
+            let modified = fs::metadata(&request.source).unwrap().modified().unwrap();
+            // 关闭弹窗或普通重试不代表确认；重复尝试也不能提前产生备份。
+            for _ in 0..2 {
+                let mut stages = Vec::new();
+                let result = optimize_png(&request, &CancellationToken::default(), |stage| {
+                    stages.push(stage);
+                });
+                assert!(matches!(
+                    result,
+                    Err(ProcessingError::ContentCredentialsRequireConsent(_))
+                ));
+                assert_eq!(stages, [ProcessingStage::Reading]);
+                assert_eq!(fs::read(&request.source).unwrap(), original);
+                assert_eq!(
+                    fs::metadata(&request.source).unwrap().modified().unwrap(),
+                    modified
+                );
+                assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+            }
+        }
+    }
+}
+
+#[test]
 fn explicit_consent_removes_only_credentials_and_backs_up_complete_source() {
     for mode in [
         PngMode::Lossless,

@@ -1,6 +1,7 @@
 //! 桌面装配层：注册窗口权限与薄 IPC 命令，不执行图片处理。
 
 mod commands;
+pub(crate) mod diagnostics;
 pub(crate) mod ingress;
 pub(crate) mod ipc;
 pub(crate) mod lifecycle;
@@ -59,6 +60,22 @@ fn handle_window_event<R: tauri::Runtime>(window: &tauri::Window<R>, event: &tau
 /// # Errors
 /// 任务线程、窗口、WebView或Tauri运行时初始化失败时返回原始错误链。
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
+    diagnostics::initialize();
+    struct LogGuard;
+    impl Drop for LogGuard {
+        fn drop(&mut self) {
+            diagnostics::shutdown();
+        }
+    }
+    let _logs = LogGuard;
+    let result = run_application();
+    if result.is_err() {
+        tracing::error!(target: "pixofold", event = "application_start_failed");
+    }
+    result
+}
+
+fn run_application() -> Result<(), Box<dyn std::error::Error>> {
     let runtime = tasks::TaskRuntime::new(resources::task_config())?;
     let builder = tauri::Builder::default().manage(lifecycle::DesktopTasks::new(runtime)?);
     let app = configure_app(builder).build(app_context())?;

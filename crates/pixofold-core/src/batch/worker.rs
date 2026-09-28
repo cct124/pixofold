@@ -90,8 +90,14 @@ fn stage(shared: &Shared, work: &Work, next: ProcessingStage) {
 
 pub(super) fn run(shared: Arc<Shared>, runner: Arc<dyn Runner>) {
     while let Some(work) = take(&shared) {
+        let span = tracing::info_span!(target: "pixofold", "image_task",
+            batch_id = work.batch.get(), job_id = work.index + 1, attempt = work.attempt);
+        let _entered = span.enter();
+        let started = std::time::Instant::now();
+        tracing::info!(target: "pixofold", event = "job_started", reserved_bytes = work.reservation);
         let result = catch_unwind(AssertUnwindSafe(|| {
             runner.run(&work.request, &work.cancel, &mut |next| {
+                tracing::info!(target: "pixofold", event = "job_stage", stage = ?next);
                 stage(&shared, &work, next)
             })
         }));
@@ -104,6 +110,21 @@ pub(super) fn run(shared: Arc<Shared>, runner: Arc<dyn Runner>) {
             Ok(Err(error)) => JobState::Failed(JobFailure::processing(error)),
             Err(_) => JobState::Failed(JobFailure::fault(JobErrorCode::WorkerPanicked)),
         };
+        match &terminal {
+            JobState::Succeeded(report) | JobState::NoGain(report) => {
+                tracing::info!(target: "pixofold", event = "job_finished",
+                    result = if matches!(&terminal, JobState::Succeeded(_)) { "succeeded" } else { "no_gain" },
+                    input_bytes = report.input_bytes.0, output_bytes = report.output_bytes.0,
+                    credentials_removed = report.content_credentials_removed,
+                    elapsed_ms = started.elapsed().as_millis() as u64);
+            }
+            JobState::Failed(error) => tracing::warn!(target: "pixofold", event = "job_finished",
+                result = "failed", error_code = ?error.code, elapsed_ms = started.elapsed().as_millis() as u64),
+            JobState::Cancelled => {
+                tracing::info!(target: "pixofold", event = "job_finished", result = "cancelled")
+            }
+            _ => {}
+        }
         // 不再复查token来覆盖成功：编码器可能已经越过提交临界点。
         let mut state = shared.lock();
         if let Some(batch) = state.batch.as_mut().filter(|b| b.id == work.batch) {

@@ -41,6 +41,56 @@ fn request(items: Vec<BatchItem>) -> BatchRequest {
 }
 
 #[test]
+fn mixed_batch_backups_belong_only_to_successful_images_not_pending_credentials() {
+    let dir = tempfile::tempdir().unwrap();
+    let (ordinary, ordinary_bytes) = source(dir.path(), "ordinary.png", "gradient-rgb8.png");
+    let (pending, pending_bytes) = source(dir.path(), "pending.png", "content-credentials.png");
+    let service = BatchService::new(BatchConfig {
+        workers: 4,
+        ..BatchConfig::default()
+    })
+    .unwrap();
+    let id = service
+        .start(request(vec![
+            BatchItem {
+                source: ordinary.clone(),
+                output: OutputPolicy::Overwrite,
+            },
+            BatchItem {
+                source: pending.clone(),
+                output: OutputPolicy::Overwrite,
+            },
+        ]))
+        .unwrap();
+    let done = service.wait(id, WAIT).unwrap();
+    assert_eq!((done.summary.succeeded, done.summary.failed), (1, 1));
+    let succeeded = done
+        .jobs
+        .iter()
+        .find(|job| job.request.source.file_name() == ordinary.file_name())
+        .unwrap();
+    let JobState::Succeeded(report) = &succeeded.state else {
+        panic!("ordinary image should be optimized");
+    };
+    let ProcessingOutcome::Optimized {
+        backup: Some(backup),
+        ..
+    } = &report.outcome
+    else {
+        panic!("ordinary overwrite should retain its backup");
+    };
+    assert_eq!(fs::read(backup).unwrap(), ordinary_bytes);
+    assert!(
+        done.jobs
+            .iter()
+            .any(|job| job.content_credentials_source().is_some())
+    );
+    assert_eq!(fs::read(&pending).unwrap(), pending_bytes);
+    assert_ne!(fs::read(&ordinary).unwrap(), ordinary_bytes);
+    assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 3);
+}
+
+#[test]
 fn real_mixed_batch_reports_only_actual_savings_and_keeps_overwrite_backup() {
     let dir = tempfile::tempdir().unwrap();
     let (rgb, original_rgb) = source(dir.path(), "rgb.png", "rgb8.png");

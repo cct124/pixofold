@@ -6,6 +6,7 @@ import { ThemeSwitch } from '../components/ui/ThemeSwitch';
 import { Dialog } from '../components/ui/Dialog';
 import { Icon } from '../components/ui/Icon';
 import { Workspace } from '../features/workspace/Workspace';
+import { Diagnostics } from '../features/diagnostics/Diagnostics';
 import { getAppInfo } from '../lib/ipc/app';
 import { usePreferences } from '../stores/preferences';
 import { messages } from './messages';
@@ -127,6 +128,7 @@ export function App() {
             </div>
             <p>{text.description}</p>
             <p className="hint">{text.license}</p>
+            <Diagnostics language={language} />
           </div>
         </Dialog>
       )}

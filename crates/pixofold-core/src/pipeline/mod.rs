@@ -30,6 +30,19 @@ pub fn optimize_png(
     mut on_stage: impl FnMut(ProcessingStage),
 ) -> Result<ProcessingReport, ProcessingError> {
     let started = Instant::now();
+    let output_policy = match &request.output {
+        crate::model::OutputPolicy::Overwrite => "overwrite_with_backup",
+        crate::model::OutputPolicy::OverwriteWithoutBackup => "overwrite_without_backup",
+        crate::model::OutputPolicy::Copy { .. } => "copy_beside",
+        crate::model::OutputPolicy::CopyTree { .. } => "copy_tree",
+    };
+    let quality = match request.mode {
+        crate::model::PngMode::Lossless => None,
+        crate::model::PngMode::Lossy { quality } => Some(quality.get()),
+    };
+    tracing::info!(target: "pixofold", event = "image_policy", output_policy,
+        mode = if quality.is_some() {"lossy"} else {"lossless"}, quality = ?quality,
+        metadata_policy = if matches!(request.metadata, PngMetadataPolicy::Preserve) {"preserve"} else {"remove_content_credentials"});
     request.limits.validate()?;
     cancel.check()?;
     on_stage(ProcessingStage::Reading);
@@ -42,12 +55,14 @@ pub fn optimize_png(
     let has_credentials = png::check_metadata(&source.bytes)?;
     let working = match &request.metadata {
         PngMetadataPolicy::Preserve if has_credentials => {
+            tracing::info!(target: "pixofold", event = "credentials_waiting_for_consent", source_unchanged = true);
             return Err(ProcessingError::ContentCredentialsRequireConsent(
                 source.credentials_version(),
             ));
         }
         PngMetadataPolicy::Preserve => Cow::Borrowed(source.bytes.as_slice()),
         PngMetadataPolicy::RemoveContentCredentials(_) if has_credentials => {
+            tracing::info!(target: "pixofold", event = "credentials_removing_in_memory");
             Cow::Owned(png::remove_content_credentials(&source.bytes)?)
         }
         PngMetadataPolicy::RemoveContentCredentials(_) => {
@@ -89,11 +104,13 @@ pub fn optimize_png(
         Ok(bytes) => bytes,
         Err(error) => return Err(output::discard(temp, error)),
     };
+    tracing::info!(target: "pixofold", event = "candidate_validated");
     let output_size = validated_bytes.len() as u64;
     let input_bytes = ByteCount(source.bytes.len() as u64);
     drop(working);
     let (outcome, output_bytes) = if output_size >= input_bytes.0 {
         output::discard_no_gain(temp)?;
+        tracing::info!(target: "pixofold", event = "output_skipped_no_gain", source_unchanged = true);
         (ProcessingOutcome::NoGain, input_bytes)
     } else {
         let outcome = output::commit(

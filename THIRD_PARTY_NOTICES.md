@@ -19,6 +19,9 @@ PixoFold 自有代码采用 GPL-3.0-or-later；第三方组件适用其自身许
 | same-file 1.0.6 | 基于文件句柄复查源/临时路径身份 | Unlicense OR MIT |
 | sha2 0.10.9 | 内容凭据处理授权绑定源文件 SHA256；复用既有锁定版本，不验证或重签凭据 | MIT OR Apache-2.0 |
 | sysinfo 0.35.1 | 桌面启动时RAM检测及开发性能工具的本进程RSS采样；只启用system，不启用multithread/disk/network等功能（2026-09-28核对） | MIT |
+| tracing 0.1.44、tracing-subscriber 0.3.23 | 核心结构化事件与桌面白名单订阅；subscriber仅启用registry，不启用fmt/ANSI/env-filter/tracing-log（2026-09-28核对锁定源码） | MIT |
+| sharded-slab 0.1.7、lazy_static 1.5.0、thread_local 1.1.10（间接） | tracing-subscriber registry的span与线程存储；本次新增锁文件条目 | sharded-slab：MIT；其余：MIT OR Apache-2.0 |
+| time 0.3.55、rustix 1.1.5 | 复用既有版本：UTC结构化时间；Unix文件权限/UID及NOFOLLOW标志，安全封装不引入自有unsafe | time：MIT OR Apache-2.0；rustix：Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | ntapi 0.4.3、objc2-io-kit 0.3.2（间接） | sysinfo的Windows/macOS系统资源接口；版本锁定，不新增前端系统访问权限 | ntapi：MIT OR Apache-2.0；objc2-io-kit：MIT OR Apache-2.0 OR Zlib |
 | libdeflater / libdeflate-sys 1.26.1（间接） | oxipng 的 DEFLATE 封装及静态 C 库构建 | 封装 Apache-2.0；内含 libdeflate 源码适用 MIT |
 | TypeScript | 类型检查 | Apache-2.0 |

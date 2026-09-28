@@ -68,17 +68,19 @@ pub(crate) fn request_exit<R: tauri::Runtime>(app: &AppHandle<R>, code: i32) {
             let subscriptions = runtime.subscriptions.shutdown();
             let result = runtime.tasks.shutdown();
             let failed = subscriptions.is_err() || result.is_err() || owner_fault;
-            if let Err(error) = subscriptions {
-                eprintln!("PixoFold 订阅收尾失败：{error}");
+            if subscriptions.is_err() {
+                tracing::error!(target: "pixofold", event = "shutdown_failed", operation = "subscriptions");
             }
-            if let Err(error) = result {
+            if result.is_err() {
                 // 只记录无路径的类别；失败也已经等待核心线程，不隐瞒异常退出。
-                eprintln!("PixoFold 任务收尾失败：{error}");
+                tracing::error!(target: "pixofold", event = "shutdown_failed", operation = "tasks");
             }
             if owner_fault {
-                eprintln!("PixoFold 任务所有权锁异常，线程已收尾");
+                tracing::error!(target: "pixofold", event = "shutdown_failed", operation = "ownership");
             }
             let exit_code = if failed { 1 } else { code };
+            tracing::info!(target: "pixofold", event = "application_stopping", exit_code);
+            crate::diagnostics::shutdown();
             app.state::<DesktopTasks>()
                 .ready_to_exit
                 .store(true, Ordering::Release);

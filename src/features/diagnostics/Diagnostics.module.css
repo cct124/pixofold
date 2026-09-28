@@ -1,0 +1,25 @@
+.panel {
+  border-top: 1px solid var(--border);
+  margin-top: 20px;
+  padding-top: 16px;
+}
+.panel p {
+  overflow-wrap: anywhere;
+}
+.panel {
+  display: grid;
+  gap: 10px;
+}
+.panel h3 {
+  font-size: 18px;
+}
+.panel [role='alert'] {
+  color: var(--danger);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}

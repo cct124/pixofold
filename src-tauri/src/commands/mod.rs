@@ -28,6 +28,8 @@ pub(crate) fn register<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             get_app_info,
+            get_log_status,
+            open_log_directory,
             get_task_snapshot,
             subscribe_task_changes,
             acknowledge_task_changes,
@@ -114,6 +116,21 @@ pub(crate) fn release_native_drop(
 #[tauri::command]
 pub(crate) fn get_app_info() -> AppInfo {
     pixofold_core::app_info()
+}
+
+/// 无路径只读诊断状态；日志错误不会影响任务服务。
+#[tauri::command]
+pub(crate) fn get_log_status() -> crate::diagnostics::LogStatus {
+    crate::diagnostics::status()
+}
+
+/// 只打开Rust掌握的日志目录，无路径/命令参数；不授权通用shell或文件访问。
+#[tauri::command]
+pub(crate) async fn open_log_directory() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(crate::diagnostics::open_directory)
+        .await
+        .map_err(|_| "open_logs_failed".to_owned())?
+        .map_err(str::to_owned)
 }
 
 /// 只读、最多100行；不读文件或启动工作，序列化不持有任务锁。

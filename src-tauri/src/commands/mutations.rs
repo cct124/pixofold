@@ -200,6 +200,12 @@ pub(crate) fn mutate(
             if jobs.len() != selected.len() {
                 return Err(MutationError::InvalidRetry);
             }
+            // 逐行关联授权与后续worker；请求被校验不等于后台已成功提交。
+            for job in &jobs {
+                tracing::info!(target: "pixofold", event = "credentials_confirmation_validated",
+                    selection_id = id.get(), batch_id = batch.id.get(), job_id = job.id.get(),
+                    revision = expected_batch_revision.0, output_policy = ?output);
+            }
             control
                 .retry(
                     id,
@@ -213,6 +219,8 @@ pub(crate) fn mutate(
                     },
                 )
                 .map_err(failure)?;
+            tracing::info!(target: "pixofold", event = "credentials_confirmation_accepted",
+                selection_id = id.get(), batch_id = batch.id.get(), count = selected.len(), output_policy = ?output);
             selection_id.0
         }
     };

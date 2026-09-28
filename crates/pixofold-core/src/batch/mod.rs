@@ -274,10 +274,12 @@ impl BatchService {
         };
         for i in 0..config.workers {
             let (shared, runner) = (Arc::clone(&service.shared), Arc::clone(&runner));
+            let dispatcher = tracing::dispatcher::get_default(Clone::clone);
             match std::thread::Builder::new()
                 .name(format!("pixofold-png-{i}"))
-                .spawn(move || worker::run(shared, runner))
-            {
+                .spawn(move || {
+                    tracing::dispatcher::with_default(&dispatcher, || worker::run(shared, runner))
+                }) {
                 Ok(handle) => service.workers.push(handle),
                 Err(error) => return Err(BatchError::WorkerStart(error)), // Drop关闭并join已启动的空闲worker。
             }
@@ -345,8 +347,11 @@ impl BatchService {
             .next_id
             .checked_add(1)
             .ok_or(BatchError::IdExhausted)?;
+        let count = jobs.len();
         state.batch = Some(Batch::new(id, 1, request.parameters, jobs, cancel));
         self.shared.changed.notify_all();
+        drop(state);
+        tracing::info!(target: "pixofold", event = "batch_started", batch_id = id.get(), count);
         Ok(id)
     }
 
@@ -491,6 +496,8 @@ impl BatchService {
             cancel,
         ));
         self.shared.changed.notify_all();
+        drop(state);
+        tracing::info!(target: "pixofold", event = "batch_retry_started", batch_id = id.get(), count = selected.len());
         Ok(())
     }
 

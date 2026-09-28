@@ -27,5 +27,5 @@ pub(crate) fn query(
 
 #[cfg(feature = "bindings")]
 pub(crate) fn declarations() -> String {
-    dto::declarations() + &mutation_dto::declarations()
+    dto::declarations() + &mutation_dto::declarations() + &crate::diagnostics::declarations()
 }

@@ -16,6 +16,7 @@ same-file.workspace = true
 sha2.workspace = true
 tempfile.workspace = true
 serde.workspace = true
+tracing.workspace = true
 ts-rs = { workspace = true, optional = true }
 
 [dev-dependencies]

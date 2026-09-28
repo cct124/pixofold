@@ -77,6 +77,18 @@ fn assert_local_queries_and_permissions(app: &tauri::App<MockRuntime>) {
     let main = window(app, "main");
     let other = window(app, "other");
     let before = app.state::<DesktopTasks>().control.snapshot();
+    let logs = invoke(&main, "get_log_status", json!({})).unwrap();
+    assert_eq!(logs["state"], "unavailable");
+    assert_eq!(logs["canOpen"], false);
+    assert!(logs.get("path").is_none());
+    assert!(
+        invoke(
+            &main,
+            "open_log_directory",
+            json!({"path":"ignored-private-path"})
+        )
+        .is_err()
+    );
     assert_eq!(
         invoke(&main, "get_app_info", json!({})).unwrap(),
         serde_json::to_value(pixofold_core::app_info()).unwrap()
@@ -116,6 +128,8 @@ fn assert_local_queries_and_permissions(app: &tauri::App<MockRuntime>) {
         false
     );
     for (command, body) in [
+        ("get_log_status", json!({})),
+        ("open_log_directory", json!({})),
         ("get_app_info", json!({})),
         ("get_task_snapshot", snapshot_request()),
         (

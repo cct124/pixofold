@@ -313,9 +313,14 @@ impl TaskRuntime {
             changed: Condvar::new(),
         });
         let owner = shared.clone();
+        let dispatcher = tracing::dispatcher::get_default(Clone::clone);
         let thread = std::thread::Builder::new()
             .name("pixofold-application".into())
-            .spawn(move || worker::run(owner, service, config.scan, backend))
+            .spawn(move || {
+                tracing::dispatcher::with_default(&dispatcher, || {
+                    worker::run(owner, service, config.scan, backend)
+                })
+            })
             .map_err(|e| TaskError::WorkerStart(Arc::new(e)))?;
         Ok(Self {
             control: TaskControl { shared },

@@ -63,12 +63,20 @@ fn publish_batch(shared: &Shared, service: &BatchService) {
             .as_ref()
             .is_none_or(|old| old.id != batch.id || old.revision != batch.revision)
             || (!state.closing && state.view.phase != phase);
+        let finished =
+            (changed && phase == TaskPhase::Finished).then(|| (batch.id, batch.summary.clone()));
         state.view.batch = Some(batch);
         if !state.closing {
             state.view.phase = phase;
         }
         if changed {
             shared.publish(&mut state);
+        }
+        drop(state);
+        if let Some((id, summary)) = finished {
+            tracing::info!(target: "pixofold", event = "batch_finished", batch_id = id.get(),
+                count = summary.total, succeeded = summary.succeeded, failed = summary.failed,
+                no_gain = summary.no_gain, cancelled = summary.cancelled);
         }
     }
 }
@@ -95,10 +103,14 @@ fn prepare(
     };
     match result {
         Ok(id) => {
+            let selection_id = shared.lock().view.selection.map(|id| id.get()).unwrap_or(0);
+            tracing::info!(target: "pixofold", event = "selection_batch_bound",
+                selection_id, batch_id = id.get());
             shared.lock().bound_batch = Some(id);
             publish_batch(shared, service);
         }
         Err(error) => {
+            tracing::warn!(target: "pixofold", event = "batch_prepare_failed");
             if matches!(&error, TaskError::Batch(e) if matches!(e.as_ref(), BatchError::Closed | BatchError::ServiceFault))
             {
                 return Err(error);
@@ -126,8 +138,12 @@ fn execute(
     command: Command,
     cancel: CancellationToken,
 ) -> Result<(), TaskError> {
+    let selection_id = shared.lock().view.selection.map(|id| id.get()).unwrap_or(0);
+    let span = tracing::info_span!(target: "pixofold", "selection", selection_id);
+    let _entered = span.enter();
     match command {
         Command::Import { roots, settings } => {
+            tracing::info!(target: "pixofold", event = "import_scan_started", count = roots.len());
             if let Some(batch) = service.snapshot() {
                 service.clear(batch.id)?;
             }
@@ -138,6 +154,7 @@ fn execute(
             });
             match result {
                 Err(error) => {
+                    tracing::warn!(target: "pixofold", event = "import_scan_failed");
                     let mut state = shared.lock();
                     state.view.error = Some(error.into());
                     if !state.closing {
@@ -150,6 +167,7 @@ fn execute(
                     shared.publish(&mut state);
                 }
                 Ok(scan) => {
+                    tracing::info!(target: "pixofold", event = "import_scan_finished", count = scan.files().len(), result = ?scan.progress().status);
                     let scan = Arc::new(scan);
                     let ready =
                         scan.progress().status == ScanStatus::Complete && !scan.files().is_empty();
@@ -198,6 +216,7 @@ fn execute(
         Command::Retry(request) => {
             let batch = service.snapshot().ok_or(TaskError::NotReady)?;
             if let Err(error) = service.retry_with_cancel(batch.id, request, cancel) {
+                tracing::warn!(target: "pixofold", event = "batch_retry_rejected", batch_id = batch.id.get());
                 let mut state = shared.lock();
                 state.view.error = Some(error.into());
                 shared.publish(&mut state);

@@ -250,11 +250,13 @@ pub(crate) fn commit(
         destination.verify_tree()?;
         source.verify_unchanged(limits)?;
         if destination.backup {
+            tracing::info!(target: "pixofold", event = "backup_creating");
             let mut file = new_temp(parent(&source.path)?, paths::BACKUP_PREFIX, ".png")?;
             if let Err(error) = write_candidate(&mut file, &source.bytes, &source) {
                 return Err(discard(file, error));
             }
             backup = Some(file);
+            tracing::info!(target: "pixofold", event = "backup_staged");
         }
         on_stage(ProcessingStage::BeforeCommit);
         cancel.check()?;
@@ -268,6 +270,9 @@ pub(crate) fn commit(
         {
             return Err(ProcessingError::ValidationFailed("备份与输入不一致"));
         }
+        if backup.is_some() {
+            tracing::info!(target: "pixofold", event = "backup_validated");
+        }
         source.verify_unchanged(limits)?;
         if !destination.overwrite {
             destination.verify_tree()?;
@@ -277,6 +282,7 @@ pub(crate) fn commit(
         Ok(())
     })();
     if let Err(mut error) = prepared {
+        tracing::warn!(target: "pixofold", event = "output_aborted_before_commit");
         if let Some(file) = backup {
             error = discard(file, error);
         }
@@ -297,15 +303,20 @@ pub(crate) fn commit(
                 return Err(discard(temp, discard(error.file, cause)));
             }
         };
+        tracing::info!(target: "pixofold", event = "backup_retained",
+            backup_name = backup_path.file_name().and_then(|name| name.to_str()).unwrap_or("generated_backup"));
+        tracing::info!(target: "pixofold", event = "output_commit_started", output_policy = "overwrite_with_backup");
         match temp.persist(&destination.path) {
             Ok(handle) => {
                 drop(handle);
+                tracing::info!(target: "pixofold", event = "output_commit_succeeded");
                 Ok(ProcessingOutcome::Optimized {
                     output: destination.path.clone(),
                     backup: Some(backup_path),
                 })
             }
             Err(error) => {
+                tracing::error!(target: "pixofold", event = "output_commit_failed", io_kind = ?error.error.kind());
                 let cause = ProcessingError::CommitFailed {
                     source: error.error,
                     backup: backup_path,
@@ -314,6 +325,8 @@ pub(crate) fn commit(
             }
         }
     } else {
+        tracing::info!(target: "pixofold", event = "output_commit_started",
+            output_policy = if destination.overwrite {"overwrite_without_backup"} else {"copy"});
         let persisted = if destination.overwrite {
             temp.persist(&destination.path)
         } else {
@@ -322,12 +335,14 @@ pub(crate) fn commit(
         match persisted {
             Ok(handle) => {
                 drop(handle);
+                tracing::info!(target: "pixofold", event = "output_commit_succeeded");
                 Ok(ProcessingOutcome::Optimized {
                     output: destination.path.clone(),
                     backup: None,
                 })
             }
             Err(error) => {
+                tracing::error!(target: "pixofold", event = "output_commit_failed", io_kind = ?error.error.kind());
                 let cause = if !destination.overwrite
                     && error.error.kind() == io::ErrorKind::AlreadyExists
                 {

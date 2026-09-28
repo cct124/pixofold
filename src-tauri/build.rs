@@ -2,6 +2,8 @@ fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
             "get_app_info",
+            "get_log_status",
+            "open_log_directory",
             "get_task_snapshot",
             "subscribe_task_changes",
             "acknowledge_task_changes",

@@ -60,3 +60,5 @@ export type TaskMutation = { "kind": "import" } & ImportTask | { "kind": "start"
 export type TaskMutationRequest = { subscriptionId: DecimalU64, operation: TaskMutation, };
 export type TaskMutationAccepted = { selectionId: DecimalU64, };
 export type MutationError = { "code": "subscription", error: SubscriptionError, } | { "code": "task", error: TaskFailureDto, } | { "code": "selection_busy" } | { "code": "stale_grant" } | { "code": "invalid_selection" } | { "code": "invalid_retry" } | { "code": "closed" } | { "code": "id_exhausted" } | { "code": "native_dialog_failed" } | { "code": "service_fault" };
+export type LogState = "starting" | "ready" | "unavailable" | "busy" | "stopped";;
+export type LogStatus = { state: LogState, droppedEvents: string, writeFailures: string, canOpen: boolean, };;
