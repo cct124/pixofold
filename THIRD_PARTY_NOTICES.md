@@ -18,6 +18,8 @@ PixoFold 自有代码采用 GPL-3.0-or-later；第三方组件适用其自身许
 | tempfile 3.27.0 | 独占临时文件与最终持久化 | MIT OR Apache-2.0 |
 | same-file 1.0.6 | 基于文件句柄复查源/临时路径身份 | Unlicense OR MIT |
 | sha2 0.10.9 | 内容凭据处理授权绑定源文件 SHA256；复用既有锁定版本，不验证或重签凭据 | MIT OR Apache-2.0 |
+| sysinfo 0.35.1 | 桌面启动时RAM检测及开发性能工具的本进程RSS采样；只启用system，不启用multithread/disk/network等功能（2026-09-28核对） | MIT |
+| ntapi 0.4.3、objc2-io-kit 0.3.2（间接） | sysinfo的Windows/macOS系统资源接口；版本锁定，不新增前端系统访问权限 | ntapi：MIT OR Apache-2.0；objc2-io-kit：MIT OR Apache-2.0 OR Zlib |
 | libdeflater / libdeflate-sys 1.26.1（间接） | oxipng 的 DEFLATE 封装及静态 C 库构建 | 封装 Apache-2.0；内含 libdeflate 源码适用 MIT |
 | TypeScript | 类型检查 | Apache-2.0 |
 | Vite、React 插件、Vitest | 前端构建与测试 | MIT |

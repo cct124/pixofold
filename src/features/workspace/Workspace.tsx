@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import type { Language } from '../../stores/preferences';
 import { Icon } from '../../components/ui/Icon';
 import { Dialog } from '../../components/ui/Dialog';
@@ -24,11 +24,22 @@ export function Workspace({
   const view = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const [invalid, setInvalid] = useState(false);
   const [confirm, setConfirm] = useState(false);
-  const [dropNotice, setDropNotice] = useState(false);
+  const dropzone = useRef<HTMLDivElement>(null);
   const t = workspaceText(language);
   useEffect(() => {
     const saved = useCompressionPreferences.getState();
     controller.setSettings(draftSettings(saved.mode, String(saved.quality), saved.output), false);
+    controller.setDropTarget((position) => {
+      if (document.visibilityState === 'hidden' || document.querySelector('dialog[open]'))
+        return false;
+      const scale = window.devicePixelRatio;
+      if (!Number.isFinite(scale) || scale <= 0) return false;
+      const target = document.elementFromPoint(position.x / scale, position.y / scale);
+      return target !== null && (dropzone.current?.contains(target) ?? false);
+    });
+    const preventNavigation = (event: DragEvent) => event.preventDefault();
+    window.addEventListener('dragover', preventNavigation);
+    window.addEventListener('drop', preventNavigation);
     const shortcut = (event: KeyboardEvent) => {
       if (
         (event.ctrlKey || event.metaKey) &&
@@ -42,7 +53,12 @@ export function Workspace({
       }
     };
     window.addEventListener('keydown', shortcut);
-    return () => window.removeEventListener('keydown', shortcut);
+    return () => {
+      window.removeEventListener('keydown', shortcut);
+      window.removeEventListener('dragover', preventNavigation);
+      window.removeEventListener('drop', preventNavigation);
+      controller.setDropTarget(null);
+    };
   }, [controller]);
   const snapshot = view.snapshot;
   const summary = snapshot?.batch?.summary;
@@ -73,7 +89,6 @@ export function Workspace({
         className={compact ? 'text-button' : 'button primary'}
         disabled={!canChange || !controller.canImport}
         onClick={() => {
-          setDropNotice(false);
           void controller.import('files');
         }}
       >
@@ -83,7 +98,6 @@ export function Workspace({
         className={compact ? 'text-button' : 'button'}
         disabled={!canChange || !controller.canImport}
         onClick={() => {
-          setDropNotice(false);
           void controller.import('folder');
         }}
       >
@@ -153,12 +167,13 @@ export function Workspace({
           </div>
         )}
         <div
+          ref={dropzone}
           className={styles.dropzone}
           data-has-files={showList}
           onDragOver={(event) => event.preventDefault()}
           onDrop={(event) => {
             event.preventDefault();
-            setDropNotice(true);
+            controller.browserDrop();
           }}
         >
           {showList ? (
@@ -237,7 +252,7 @@ export function Workspace({
             </div>
           )}
         </div>
-        {dropNotice && <output className={styles.connection}>{t('dropUnavailable')}</output>}
+        {view.dropNotice && <output className={styles.connection}>{t(view.dropNotice)}</output>}
         <footer className={styles.summary} aria-label={summary ? t('total') : t('tips')}>
           <div className={styles.summaryHeading}>
             <p className={styles.workStatus} aria-live="polite">

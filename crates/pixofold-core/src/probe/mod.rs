@@ -7,6 +7,7 @@ use crate::model::{ImageInfo, PngColorType, ProcessingError, ResourceLimits};
 
 const PNG_SIGNATURE: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
 const MAX_CHUNKS: usize = 4096;
+pub(crate) const PNG_HEADER_LEN: usize = 33;
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct Chunk<'a> {
@@ -104,7 +105,28 @@ pub(crate) fn inspect_structure(
         return Err(ProcessingError::ResourceLimit("输入文件字节数"));
     }
     let parsed = chunks(data)?;
-    let header = parsed[0].data;
+    header_info(parsed[0].data, limits)
+}
+
+/// 只验证固定33字节PNG头供调度收紧执行上限；不证明后续chunk、动画或像素有效。
+pub(crate) fn inspect_header(
+    data: &[u8; PNG_HEADER_LEN],
+    limits: ResourceLimits,
+) -> Result<ImageInfo, ProcessingError> {
+    limits.validate()?;
+    if !data.starts_with(PNG_SIGNATURE) {
+        return Err(ProcessingError::UnsupportedFormat);
+    }
+    if data[8..12] != 13_u32.to_be_bytes() || &data[12..16] != b"IHDR" {
+        return Err(ProcessingError::InvalidPng("首个 chunk 必须为 IHDR"));
+    }
+    if crc32fast::hash(&data[12..29]).to_be_bytes() != data[29..33] {
+        return Err(ProcessingError::InvalidPng("chunk CRC 不匹配"));
+    }
+    header_info(&data[16..29], limits)
+}
+
+fn header_info(header: &[u8], limits: ResourceLimits) -> Result<ImageInfo, ProcessingError> {
     let width = u32::from_be_bytes([header[0], header[1], header[2], header[3]]);
     let height = u32::from_be_bytes([header[4], header[5], header[6], header[7]]);
     if width == 0 || height == 0 {

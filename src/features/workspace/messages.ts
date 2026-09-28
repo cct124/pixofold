@@ -32,10 +32,13 @@ const copy = {
   files: ['选择文件', 'Choose files'],
   folder: ['选择目录', 'Choose folder'],
   emptyTitle: ['选择图片或文件夹', 'Choose images or folders'],
-  emptyHint: ['导入后自动开始 · 支持文件夹及子目录', 'Starts automatically · Includes subfolders'],
+  emptyHint: [
+    '拖入图片或文件夹到此区域 · 导入后自动开始',
+    'Drop images or folders here · Starts automatically',
+  ],
   scope: [
-    '当前支持静态 PNG；拖放、JPEG、GIF 与 APNG 尚未接入。',
-    'Static PNG only. Drag and drop, JPEG, GIF and APNG are not available yet.',
+    '当前支持静态 PNG；JPEG、GIF 与 APNG 尚未接入。',
+    'Static PNG only. JPEG, GIF and APNG are not available yet.',
   ],
   settings: ['压缩设置', 'Compression settings'],
   mode: ['PNG 模式', 'PNG mode'],
@@ -70,8 +73,8 @@ const copy = {
   tips: ['操作技巧', 'Quick tips'],
   tipImportTitle: ['批量导入', 'Import in batches'],
   tipImport: [
-    '选择多张PNG或整个文件夹，自动读取子目录。',
-    'Select PNGs or a whole folder. Subfolders are included.',
+    '选择或拖入多张PNG、整个文件夹，自动读取子目录。',
+    'Choose or drop PNGs or folders. Subfolders are included.',
   ],
   tipSettingsTitle: ['先调好参数', 'Set your preferences'],
   tipSettings: [
@@ -90,8 +93,16 @@ const copy = {
   resultSize: ['压缩后', 'Result'],
   progress: ['总压缩进度', 'Overall progress'],
   dropUnavailable: [
-    '拖放尚未接入，请使用选择文件或选择目录。',
-    'Drag and drop is not available yet. Use Choose files or Choose folder.',
+    '此拖放没有桌面文件授权，请使用选择文件或选择目录。',
+    'This drop has no desktop file authorization. Use Choose files or Choose folder.',
+  ],
+  dropOutside: [
+    '请关闭弹窗后，将文件拖到左侧图片区域。',
+    'Close dialogs and drop files in the image area on the left.',
+  ],
+  dropInvalid: [
+    '本次拖放未接纳，请在空闲时重试或使用文件选择。',
+    'Drop not accepted. Retry when idle or use the file picker.',
   ],
   outputHint: [
     '覆盖前建立备份；无收益保留原图。副本使用 _compressed.png 名称，目标已存在则拒绝覆盖。',

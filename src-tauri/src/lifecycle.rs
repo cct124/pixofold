@@ -59,7 +59,7 @@ impl DesktopTasks {
     }
 }
 
-pub(crate) fn request_exit(app: &AppHandle, code: i32) {
+pub(crate) fn request_exit<R: tauri::Runtime>(app: &AppHandle<R>, code: i32) {
     let tasks = app.state::<DesktopTasks>();
     if let Some((mut runtime, owner_fault)) = tasks.take_for_shutdown() {
         let app = app.clone();

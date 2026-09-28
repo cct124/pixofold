@@ -6,6 +6,79 @@ fn root() -> PathBuf {
 }
 
 #[test]
+fn native_drag_requires_one_matching_enter_and_is_bounded_until_consumed_or_released() {
+    let imports = Arc::new(NativeImports::default());
+    let session = DecimalU64(7);
+    assert!(imports.finish_drag(session, &[root()]).is_err());
+    imports.begin_drag(session).unwrap();
+    assert!(imports.begin_drag(session).is_err());
+    assert!(imports.reserve(session).is_err());
+    assert!(imports.finish_drag(DecimalU64(8), &[root()]).is_err());
+    let offer = imports.finish_drag(session, &[root(), root()]).unwrap();
+    assert_eq!(offer.grant.unwrap().root_count, 2); // 去重仍由真实扫描器负责。
+    assert!(imports.finish_drag(session, &[root()]).is_err());
+    assert!(imports.begin_drag(session).is_err());
+    imports.leave_drag(); // 已投递Drop之后的Leave不偷走授权。
+    assert_eq!(
+        imports.consume(session, offer.offer_id, Ok).unwrap(),
+        vec![root(), root()]
+    );
+    assert!(imports.consume(session, offer.offer_id, Ok).is_err());
+    imports.begin_drag(session).unwrap();
+    let next = imports.finish_drag(session, &[root()]).unwrap();
+    imports.release_drop(session, offer.offer_id).unwrap();
+    imports.release_drop(DecimalU64(8), next.offer_id).unwrap();
+    assert!(imports.begin_drag(session).is_err());
+    imports.release_drop(session, next.offer_id).unwrap();
+    imports.release_drop(session, next.offer_id).unwrap();
+    assert!(imports.begin_drag(session).is_ok());
+}
+
+#[test]
+fn native_drag_rejects_invalid_roots_without_retaining_paths_or_authorizing_import() {
+    let imports = NativeImports::default();
+    for roots in [
+        vec![],
+        vec![PathBuf::from("relative.png")],
+        vec![root(); MAX_NATIVE_IMPORT_ROOTS + 1],
+        vec![std::env::temp_dir().join("x".repeat(MAX_PATH_UNITS + 1))],
+    ] {
+        imports.begin_drag(DecimalU64(1)).unwrap();
+        let offer = imports.finish_drag(DecimalU64(1), &roots).unwrap();
+        assert!(offer.grant.is_none());
+        assert!(imports.consume(DecimalU64(1), offer.offer_id, Ok).is_err());
+        assert!(imports.begin_drag(DecimalU64(1)).is_err());
+        imports.release_drop(DecimalU64(1), offer.offer_id).unwrap();
+    }
+}
+
+#[test]
+fn native_drag_revoke_leave_session_replacement_and_dialog_ownership_remain_separate() {
+    let imports = Arc::new(NativeImports::default());
+    imports.begin_drag(DecimalU64(1)).unwrap();
+    imports.leave_drag();
+    assert!(imports.finish_drag(DecimalU64(1), &[root()]).is_err());
+    imports.begin_drag(DecimalU64(1)).unwrap();
+    imports.revoke();
+    assert!(imports.finish_drag(DecimalU64(1), &[root()]).is_err());
+    imports.begin_drag(DecimalU64(2)).unwrap();
+    let old = imports.finish_drag(DecimalU64(2), &[root()]).unwrap();
+    imports.begin_drag(DecimalU64(3)).unwrap();
+    assert!(imports.consume(DecimalU64(2), old.offer_id, Ok).is_err());
+    imports.leave_drag();
+    let dialog = imports.reserve(DecimalU64(3)).unwrap();
+    assert!(imports.begin_drag(DecimalU64(4)).is_err());
+    imports.revoke();
+    imports.leave_drag();
+    assert!(imports.begin_drag(DecimalU64(4)).is_err());
+    assert!(dialog.complete(Some(vec![root()])).is_err());
+    imports.begin_drag(DecimalU64(4)).unwrap();
+    imports.close();
+    assert!(imports.finish_drag(DecimalU64(4), &[root()]).is_err());
+    assert!(imports.begin_drag(DecimalU64(5)).is_err());
+}
+
+#[test]
 fn page_revocation_drops_grants_but_keeps_physical_dialog_occupied() {
     let imports = Arc::new(NativeImports::default());
     let issued = grant(&imports, 1);

@@ -63,6 +63,7 @@ pub struct RetryRequest {
 
 /// 同时执行数、保留任务数和估算活跃工作集预算；不是进程 RSS 硬限额。
 /// 默认 1 worker、最多 1000 行、4 GiB 估算预算。worker 有效域 1–32，行数 1–100000。
+/// 这是可复现的核心默认值；桌面在启动时按CPU/RAM显式传入资源配置。
 #[derive(Debug, Clone, Copy)]
 pub struct BatchConfig {
     pub workers: usize,

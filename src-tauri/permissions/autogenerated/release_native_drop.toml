@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-release-native-drop"
+description = "Enables the release_native_drop command without any pre-configured scope."
+commands.allow = ["release_native_drop"]
+
+[[permission]]
+identifier = "deny-release-native-drop"
+description = "Denies the release_native_drop command without any pre-configured scope."
+commands.deny = ["release_native_drop"]

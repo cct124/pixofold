@@ -9,10 +9,10 @@ use crate::{
     output, quality,
 };
 
-/// 按请求上限保守计费，防止排队后图片变大绕过按旧文件头估计的预算。
+/// 按执行上限保守计费；调度前可根据PNG头收紧，但必须在pipeline中实际执行同样的上限。
 /// 9份输入覆盖候选/实际回读/源与备份复查及受控元数据工作副本；8份解码覆盖验证与编码缓冲。
 /// 有损另留每像素128 bytes给RGBA、索引和编码器工作区；16 MiB为固定余量。
-/// 这是准入估算，不是对第三方编码器内存上限的证明；默认仍保持单worker。
+/// 这是准入估算，不是对第三方编码器内存上限的证明，也不是实际RSS预分配。
 pub fn estimate_working_set(parameters: BatchParameters) -> Result<ByteCount, BatchError> {
     parameters
         .limits
@@ -103,9 +103,14 @@ pub(super) fn prepare(
                 None
             }
         };
+        let execution_limits = if failure.is_none() {
+            super::resources::execution_limits(&request, size)
+        } else {
+            request.limits
+        };
         let parameters = BatchParameters {
             mode: request.mode,
-            limits: request.limits,
+            limits: execution_limits,
         };
         let reservation = estimate_working_set(parameters)?;
         if reservation > budget {
@@ -118,6 +123,7 @@ pub(super) fn prepare(
             PngMode::Lossy { quality: q } => Some(quality::png_quality(q)),
         };
         jobs.push(Job {
+            execution_limits,
             view: JobSnapshot {
                 id: JobId(i + 1),
                 attempt: 1,

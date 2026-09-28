@@ -40,7 +40,7 @@ function grant(value: unknown): NativeImportGrant | null {
  * 一个应用级操作适配器，复用已经connect的唯一任务观察器，不创建Channel或TaskRuntime。
  * 操作最多一个在途；响应只是接纳票据，进度/成功/失败始终由订阅快照提供。
  * 不自动重试写操作。传输失败可能已接纳，调用方应先恢复权威快照再让用户决定下一步。
- * 不暴露文件路径；同目录副本/覆盖由Rust规划，自选目录和拖放尚未接入。
+ * 不暴露文件路径；选择/拖放共用单次授权，同目录副本/覆盖由Rust规划，自选目录尚未接入。
  */
 export class TaskActions {
   #busy = false;
@@ -70,6 +70,21 @@ export class TaskActions {
       if (selected === null) return null;
       // #select已经核对会话，#mutate再在投递前核对；旧页面选择不自动启动新任务。
       return this.#mutate(session, { kind: 'import', grantId: selected.grantId, settings: fixed });
+    });
+  }
+
+  /** 拖放只消费同一会话中的Rust授权；设置在接收时固定，不能由展示名还原路径。 */
+  importNativeDrop(
+    session: string,
+    selected: NativeImportGrant,
+    settings: TaskSettingsDto | null,
+  ): Promise<TaskMutationAccepted> {
+    const fixed = structuredClone(settings);
+    return this.#run((current) => {
+      if (current !== session) throw new Error('Native drop belongs to an old session');
+      const accepted = grant(selected);
+      if (!accepted) throw new Error('Native drop has no file authorization');
+      return this.#mutate(current, { kind: 'import', grantId: accepted.grantId, settings: fixed });
     });
   }
 

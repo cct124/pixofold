@@ -10,7 +10,7 @@ use std::{sync::mpsc, time::Instant};
 
 const TIMEOUT: Duration = Duration::from_secs(10);
 
-fn channel() -> (Channel<TaskChangeNotice>, mpsc::Receiver<Value>) {
+fn channel() -> (Channel<TaskStreamMessage>, mpsc::Receiver<Value>) {
     let (sender, receiver) = mpsc::channel();
     (
         Channel::new(move |body| {

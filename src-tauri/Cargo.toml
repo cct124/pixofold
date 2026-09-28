@@ -29,6 +29,7 @@ pixofold-core.workspace = true
 tauri.workspace = true
 tauri-plugin-dialog.workspace = true
 serde.workspace = true
+sysinfo.workspace = true
 ts-rs = { workspace = true, optional = true }
 
 [dev-dependencies]

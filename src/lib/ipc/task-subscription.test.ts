@@ -85,6 +85,80 @@ beforeEach(async () => {
 });
 
 describe('bounded task snapshot subscription', () => {
+  it('delivers native drop offers once without changing the snapshot ACK or allocating another Channel', async () => {
+    const dropped = vi.fn();
+    const stream = new Subscription(undefined, undefined, 'jobs', 50, undefined, dropped);
+    await stream.connect();
+    const offer = {
+      kind: 'native_drop',
+      protocolVersion: TASK_PROTOCOL_VERSION,
+      subscriptionId: '1',
+      offer: { offerId: '9007199254740993', grant: { grantId: '9007199254740993', rootCount: 1 } },
+      position: { x: 100, y: 100 },
+    };
+    const calls = vi.mocked(invoke).mock.calls.length;
+    send(offer);
+    send(offer);
+    send({ ...offer, subscriptionId: '999' });
+    expect(dropped).toHaveBeenCalledExactlyOnceWith(offer);
+    expect(invoke).toHaveBeenCalledTimes(calls);
+    expect(bridge.channels).toHaveLength(1);
+    expect(stream.current).toEqual(snapshot());
+    bridge.revision = '1';
+    send(ticket());
+    await vi.waitFor(() => expect(stream.current?.revision).toBe('1'));
+    expect(invoke).toHaveBeenCalledWith('acknowledge_task_changes', {
+      request: { subscriptionId: '1', revision: '1' },
+    });
+    await stream.disconnect();
+    send({ ...offer, offer: { ...offer.offer, offerId: '9007199254740994', grant: null } });
+    expect(dropped).toHaveBeenCalledOnce();
+  });
+
+  it('buffers one native drop between the server ACK and the frontend readiness transition', async () => {
+    const ack = deferred<unknown>();
+    vi.mocked(invoke).mockImplementation(async (command) =>
+      command === 'acknowledge_task_changes' ? ack.promise : defaultReply(command),
+    );
+    const dropped = vi.fn();
+    const stream = new Subscription(undefined, undefined, 'jobs', 50, undefined, dropped);
+    const connecting = stream.connect();
+    await vi.waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith('acknowledge_task_changes', expect.anything()),
+    );
+    send({
+      kind: 'native_drop',
+      protocolVersion: TASK_PROTOCOL_VERSION,
+      subscriptionId: '1',
+      offer: { offerId: '1', grant: null },
+      position: { x: 0, y: 0 },
+    });
+    expect(dropped).not.toHaveBeenCalled();
+    ack.resolve(null);
+    await connecting;
+    expect(dropped).toHaveBeenCalledOnce();
+    expect(stream.mutationSession).toBe('1');
+    await stream.disconnect();
+  });
+
+  it('fails closed on a malformed native drop envelope rather than authorizing a partial payload', async () => {
+    const dropped = vi.fn();
+    const stream = new Subscription(undefined, undefined, 'jobs', 50, undefined, dropped);
+    await stream.connect();
+    send({
+      kind: 'native_drop',
+      protocolVersion: TASK_PROTOCOL_VERSION,
+      subscriptionId: '1',
+      offer: { offerId: '1', grant: { grantId: '2', rootCount: 1 } },
+      position: { x: 0, y: 0 },
+    });
+    await vi.waitFor(() => expect(stream.state).toBe('failed'));
+    expect(dropped).not.toHaveBeenCalled();
+    expect(stream.mutationSession).toBeNull();
+    expect(stream.current).toEqual(snapshot());
+    await stream.disconnect();
+  });
+
   it('does not allocate a Channel or invent state in browser preview', async () => {
     vi.mocked(isTauri).mockReturnValue(false);
     const stream = new Subscription();

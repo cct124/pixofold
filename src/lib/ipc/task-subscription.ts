@@ -1,6 +1,12 @@
 import { Channel, invoke, isTauri } from '@tauri-apps/api/core';
 import { getTaskSnapshot, parseDecimalU64 } from './tasks';
-import type { TaskChangeNotice, TaskCollection, TaskSnapshotDto } from './tasks.generated';
+import type {
+  TaskChangeNotice,
+  TaskCollection,
+  TaskSnapshotDto,
+  NativeDropNotice,
+} from './tasks.generated';
+import { nativeDropNotice } from './native-drop';
 import { MAX_TASK_PAGE_SIZE, TASK_PROTOCOL_VERSION } from './tasks.generated';
 
 export type TaskConnectionState =
@@ -23,6 +29,8 @@ interface Connection {
   closing: Promise<void> | null;
   ticket: TaskChangeNotice | null;
   pending: TaskChangeNotice | null;
+  pendingDrop: NativeDropNotice | null;
+  lastDrop: bigint;
   lastNotice: bigint | null;
   stopped: boolean;
   ready: boolean;
@@ -68,6 +76,7 @@ export class TaskSnapshotSubscription {
   readonly #onSnapshot: (snapshot: TaskSnapshotDto) => void;
   readonly #onError: (error: unknown) => void;
   readonly #onState: (state: TaskConnectionState) => void;
+  readonly #onDrop: (notice: NativeDropNotice) => void;
 
   constructor(
     onSnapshot: (snapshot: TaskSnapshotDto) => void = () => {},
@@ -75,6 +84,7 @@ export class TaskSnapshotSubscription {
     collection: TaskCollection = 'jobs',
     limit = MAX_TASK_PAGE_SIZE,
     onState: (state: TaskConnectionState) => void = () => {},
+    onDrop: (notice: NativeDropNotice) => void = () => {},
   ) {
     if (
       !['jobs', 'candidates', 'issues'].includes(collection) ||
@@ -88,6 +98,7 @@ export class TaskSnapshotSubscription {
     this.#onSnapshot = onSnapshot;
     this.#onError = onError;
     this.#onState = onState;
+    this.#onDrop = onDrop;
   }
 
   #setState(state: TaskConnectionState): void {
@@ -154,6 +165,8 @@ export class TaskSnapshotSubscription {
       closing: null,
       ticket: null,
       pending: null,
+      pendingDrop: null,
+      lastDrop: 0n,
       lastNotice: null,
       stopped: false,
       ready: false,
@@ -175,6 +188,12 @@ export class TaskSnapshotSubscription {
       if (connection.stopped) return null;
       connection.ready = true;
       this.#setState('connected');
+      if (connection.stopped) return null;
+      if (connection.pendingDrop) {
+        const drop = connection.pendingDrop;
+        connection.pendingDrop = null;
+        this.#onDrop(drop);
+      }
       this.#drain(connection);
       return this.#current;
     } catch (error) {
@@ -194,6 +213,17 @@ export class TaskSnapshotSubscription {
   #receive(connection: Connection, value: unknown): void {
     if (connection.stopped) return;
     try {
+      if (record(value) && value.kind === 'native_drop') {
+        const drop = nativeDropNotice(value);
+        if (drop.subscriptionId !== connection.ticket?.subscriptionId) return;
+        const id = parseDecimalU64(drop.offer.offerId);
+        if (id <= connection.lastDrop) return;
+        connection.lastDrop = id;
+        if (connection.ready) this.#onDrop(drop);
+        else if (!connection.pendingDrop) connection.pendingDrop = drop;
+        else throw new Error('Native drop exceeded the in-flight bound');
+        return;
+      }
       const next = notice(value);
       if (connection.ticket && next.subscriptionId !== connection.ticket.subscriptionId) return;
       if (connection.lastNotice !== null && parseDecimalU64(next.revision) <= connection.lastNotice)
@@ -288,6 +318,7 @@ export class TaskSnapshotSubscription {
     if (connection.closing) return connection.closing;
     connection.stopped = true;
     connection.pending = null;
+    connection.pendingDrop = null;
     connection.channel.onmessage = () => {};
     this.#setState('disconnecting');
     connection.closing = (async () => {

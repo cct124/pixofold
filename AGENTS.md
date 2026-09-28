@@ -2,8 +2,10 @@
 
 ## 项目与入口
 
-- PixoFold（轻图）是本地批量图片压缩工具，计划支持 PNG、JPEG、GIF、APNG，采用 GPL-3.0-or-later。静态PNG真实工作台已接通核心、备份输出、批量/导入规划、应用协调、快照订阅及原生文件/目录选择。TaskRuntime与SubscriptionRuntime属于应用；WorkspaceController属于页面，StrictMode单连接，首次未知响应失败须重载。变更前完成握手；原生路径只留Rust，单槽/会话绑定/单次授权，不接受任意路径IPC。main页面开始重载会撤销旧订阅/授权，物理对话框仍占槽且后台任务不重跑。输出暂限覆盖/同目录副本，重试只用当前页稳定行ID与批次revision。设置草稿与批次分离，非法质量只扫描，修正自动启动，不自动重发不确定写操作。拖放、自选输出目录、缩略图及其他格式待接；查询名不是路径授权，分页保持同revision。实际GUI/平台验证以devlog为准，不沿用旧CI为新代码背书。
+- PixoFold（轻图）是本地批量图片压缩工具，计划支持 PNG、JPEG、GIF、APNG，采用 GPL-3.0-or-later。静态PNG真实工作台已接通核心、备份输出、批量/导入规划、应用协调、快照订阅、原生文件/目录选择及受控拖放。TaskRuntime与SubscriptionRuntime属于应用；WorkspaceController属于页面，StrictMode单连接，首次未知响应失败须重载。变更前完成握手；原生路径只留Rust，单槽/会话绑定/单次授权，不接受任意路径IPC。拖放复用唯一Channel和输入槽，Drop终点命中图片区域且无弹窗/忙态才导入，票据处理后释放，不发送高频Over。main页面开始重载会撤销旧订阅/授权，物理对话框仍占槽且后台任务不重跑。输出暂限覆盖/同目录副本；普通重试只用当前页稳定行ID与批次revision，caBX确认完整加载同版本列表后可全量选择，只有确认弹窗显式允许无备份覆盖。设置草稿与批次分离，非法质量只扫描，修正自动启动，不自动重发不确定写操作。自选输出目录、缩略图及其他格式待接；查询名不是路径授权，分页保持同revision。实际GUI/平台验证以devlog为准，不沿用旧CI为新代码背书。
 - 从 [README.md](README.md) 了解项目；架构与引擎选型见[项目方案](docs/架构设计文档/pixofold-proposal.md)，交互规则见[UI 交互设计](docs/架构设计文档/ui-interaction-design.md)。
+- 当前main为单WebviewWindow，原生拖放经WindowEvent::DragDrop分发，不是子WebView的WebviewEvent；不要双路转发。窗口分发回归与实际OS投递验收分开，未来增加子WebView时重新评估事件来源和区域归属。
+- 桌面启动按CPU/RAM配置唯一固定图片worker池（最多32）；普通压缩和凭据确认整图共用池，编码器内部不嵌套并行。PNG头/文件大小只用于收紧每图执行上限，预约按同一上限计费且pipeline必须实际执行，不能仅信扫描旧尺寸。全局预算不超过可用RAM/2、总RAM/4和4 GiB，未知RAM回退单worker/256 MiB；不是实时负载管理或RSS硬上限。核心手动BatchConfig默认仍为1，不将其误当桌面实际配置。
 - 界面以 [HTML 原型](docs/UI界面设计/PixoFold.html)及[原型说明](docs/UI界面设计/HTML原型说明.md)为准，生成的 UI 图片仅作历史参考。旧项目 png-palettes 用于参考，未经任务要求不修改。
 - 实际工具链与命令以 README、`package.json`、`rust-toolchain.toml` 为准；不把规划或未运行的跨平台 CI 写成已验证能力。
 

@@ -3,7 +3,10 @@
 //! worker持有Shared而非BatchService，避免所有权环；取消和Drop不等同于强杀编码器。
 
 mod model;
+#[cfg(test)]
+mod parallel_tests;
 mod planning;
+mod resources;
 mod worker;
 
 pub use model::*;
@@ -24,11 +27,13 @@ use std::{
 
 use crate::model::{
     ByteCount, CancellationToken, PngRequest, ProcessingError, ProcessingReport, ProcessingStage,
+    ResourceLimits,
 };
 
 #[derive(Clone)]
 struct Job {
     view: JobSnapshot,
+    execution_limits: ResourceLimits,
     reservation: ByteCount,
 }
 struct Batch {

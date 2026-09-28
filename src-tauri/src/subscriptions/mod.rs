@@ -3,7 +3,10 @@
 //! Channel发送/释放和join在锁外；替换或断开不取消任务，旧会话不能操作新会话。
 
 use crate::{
-    ipc::{DecimalU64, SubscriptionError, TASK_PROTOCOL_VERSION, TaskChangeAck, TaskChangeNotice},
+    ipc::{
+        DecimalU64, SubscriptionError, TASK_PROTOCOL_VERSION, TaskChangeAck, TaskChangeNotice,
+        TaskStreamMessage,
+    },
     tasks::{TaskControl, TaskError, TaskPhase},
 };
 use std::{
@@ -20,7 +23,7 @@ const CONTROL_WAIT: Duration = Duration::from_millis(100);
 
 struct Session {
     id: u64,
-    channel: Channel<TaskChangeNotice>,
+    channel: Channel<TaskStreamMessage>,
     acknowledged: Option<u64>,
     in_flight: Option<u64>,
     terminal: bool,
@@ -72,6 +75,23 @@ pub(crate) struct SubscriptionControl {
     tasks: TaskControl,
 }
 impl SubscriptionControl {
+    /// 原生事件绑定当前已ACK页面。闭包规则同with_ready；Channel只允许返回锁外发送。
+    pub(crate) fn with_current_ready<T>(
+        &self,
+        action: impl FnOnce(DecimalU64) -> T,
+    ) -> Result<(DecimalU64, Channel<TaskStreamMessage>, T), SubscriptionError> {
+        let state = self.shared.lock()?;
+        state.available()?;
+        let session = state
+            .session
+            .as_ref()
+            .ok_or(SubscriptionError::StaleSubscription)?;
+        if session.acknowledged.is_none() {
+            return Err(SubscriptionError::InvalidAcknowledgement);
+        }
+        let id = DecimalU64(session.id);
+        Ok((id, session.channel.clone(), action(id)))
+    }
     /// 将一次短小的接纳操作绑定到当前已ACK会话；替换/取消订阅不能从校验与接纳之间穿过。
     /// 闭包不得包含文件I/O、Channel发送、await或等待；锁序为订阅→授权槽→任务。
     pub(crate) fn with_ready<T>(
@@ -95,7 +115,7 @@ impl SubscriptionControl {
     /// 替换唯一会话，返回首次待确认票据；确认之前不向Channel发送任何通知。
     pub(crate) fn subscribe(
         &self,
-        channel: Channel<TaskChangeNotice>,
+        channel: Channel<TaskStreamMessage>,
     ) -> Result<TaskChangeNotice, SubscriptionError> {
         let snapshot = self.tasks.snapshot();
         let (notice, retired) = {
@@ -282,7 +302,10 @@ fn pump(shared: &Shared, tasks: &TaskControl) -> Result<(), SubscriptionError> {
             session.channel.clone()
         };
         // 替换/关闭可与投递并发；会话ID过滤迟到消息，旧发送失败不能移除新会话。
-        if channel.send(notice(id, snapshot.revision)).is_err() {
+        if channel
+            .send(TaskStreamMessage::Change(notice(id, snapshot.revision)))
+            .is_err()
+        {
             let retired = {
                 let mut state = shared.lock()?;
                 if state

@@ -1,12 +1,16 @@
 //! 薄 IPC 适配层；核心类型保持独立，后续耗时命令交给任务服务。
 
 mod mutations;
+mod native_drop;
+pub(crate) use native_drop::handle_native_drop;
+#[cfg(test)]
+mod drop_tests;
 #[cfg(test)]
 mod tests;
 
 use crate::ipc::{
-    MutationError, NativeImportGrant, NativeSelectionKind, NativeSelectionRequest,
-    TaskMutationAccepted, TaskMutationRequest,
+    MutationError, NativeDropRelease, NativeImportGrant, NativeSelectionKind,
+    NativeSelectionRequest, TaskMutationAccepted, TaskMutationRequest, TaskStreamMessage,
 };
 use crate::{
     ipc::{
@@ -29,6 +33,7 @@ pub(crate) fn register<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::
             acknowledge_task_changes,
             unsubscribe_task_changes,
             select_native_import,
+            release_native_drop,
             apply_task_mutation
         ])
 }
@@ -90,6 +95,22 @@ pub(crate) fn apply_task_mutation(
         .map_err(|error| MutationError::Subscription { error })?
 }
 
+/// 幂等释放已收到的拖放票据；不接受路径，不启动/取消任务，也不影响后续原生选择。
+#[tauri::command]
+pub(crate) fn release_native_drop(
+    tasks: tauri::State<'_, DesktopTasks>,
+    request: NativeDropRelease,
+) -> Result<(), MutationError> {
+    tasks
+        .subscriptions
+        .with_ready(request.subscription_id, || {
+            tasks
+                .imports
+                .release_drop(request.subscription_id, request.offer_id)
+        })
+        .map_err(|error| MutationError::Subscription { error })?
+}
+
 #[tauri::command]
 pub(crate) fn get_app_info() -> AppInfo {
     pixofold_core::app_info()
@@ -107,7 +128,7 @@ pub(crate) async fn get_task_snapshot(
 /// 替换只读订阅，先返回票据；前端查询快照并ACK后才开始投递变化。
 #[tauri::command]
 pub(crate) fn subscribe_task_changes(
-    on_change: tauri::ipc::Channel<TaskChangeNotice>,
+    on_change: tauri::ipc::Channel<TaskStreamMessage>,
     tasks: tauri::State<'_, DesktopTasks>,
 ) -> Result<TaskChangeNotice, SubscriptionError> {
     tasks.subscriptions.subscribe(on_change)

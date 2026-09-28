@@ -2,7 +2,7 @@
 
 基于 Tauri、React 和 Rust 的本地批量图片压缩工具，计划支持 PNG、JPEG、GIF 和 APNG，由 png-palettes 重构演进。
 
-当前已接通 **静态 PNG 真实工作台**：Tauri 2 + React 界面经受控原生选择、应用级任务协调和有界快照驱动独立 Rust 无损/有损核心，支持文件/目录导入、批量处理、备份覆盖/同目录副本、重试与清除记录。启动后不提供主动取消操作，退出时仍保留底层安全收尾。大小、状态和进度均来自实际任务。**仅支持静态 PNG；拖放、自选输出目录、缩略图及其他格式尚未接入。** compressionAvailable=true仅表示已有一种可用压缩格式，不表示全部plannedFormats已实现。含原生入口的584d1e9已通过三平台CI；本轮工作台验证见[开发记录](docs/devlog/_plan/260922/png-batch-desktop.md)，不沿用旧CI作为新代码证据。
+当前已接通 **静态 PNG 真实工作台**：Tauri 2 + React 界面经受控原生选择/拖放、应用级任务协调和有界快照驱动独立 Rust 无损/有损核心，支持文件/目录导入、批量处理、备份覆盖/同目录副本、重试与清除记录。启动后不提供主动取消操作，退出时仍保留底层安全收尾。大小、状态和进度均来自实际任务。**仅支持静态 PNG；自选输出目录、缩略图及其他格式尚未接入。** compressionAvailable=true仅表示已有一种可用压缩格式，不表示全部plannedFormats已实现。含原生选择入口的584d1e9曾通过三平台CI；本轮拖放验证见[开发记录](docs/devlog/_plan/260922/png-batch-desktop.md)，不沿用旧GUI/CI作为新代码证据。
 
 UI 设计与可交互 HTML 原型保留作为实现依据：质量采用 0–100 连续滑块和精细输入，默认 80；当前质量描述以纯文字显示在标题行右侧。
 
@@ -74,6 +74,7 @@ pnpm desktop:dev
 | `pnpm fixtures:check` | 只读重生成并核对 PNG 语料与 SHA256 清单 |
 | `cargo run -p pixofold-core --release --locked --example png_baseline` | 在隔离目录测量静态 PNG 体积与耗时基线 |
 | `cargo run -p pixofold-core --release --locked --example png_quality_baseline` | q 锚点、实际回退、库评分及黑白背景误差基线 |
+| `cargo run -p pixofold-core --release --locked --example batch_profile -- SOURCE WORKERS COPIES [--confirm-credentials]` | 临时副本上测量整图并发；有损68，采样RSS/活动数；可显式移除测试副本凭据 |
 
 Windows 可执行文件位于 `target/release/pixofold.exe`，安装包位于 `target/release/bundle/`。安装包工具可能需要首次联网下载；签名、自动更新与正式发行尚未配置。
 
@@ -115,7 +116,10 @@ cargo run -p pixofold-core --release --locked --example optimize_png -- path/to/
 | `clear` | 仅清除已结束记录并返回最后快照，不删除产物或备份；换批同样不会删除文件。 |
 | `shutdown` / `Drop` | 服务自身取消并锁外等待所有线程；无法硬中断的编码可能延长退出。显式关闭可返回基础设施错误。 |
 
-- 默认 1 worker、最多 1000 行、4 GiB **估算准入预算**；可配置 worker 为 1–32、行数为 1–100000，预算必须非零。估算按请求上限计算：`8×max_input_bytes + 8×max_decoded_bytes + 有损时128×max_pixels + 16 MiB`。预算不实际预分配，也不是进程 RSS 上限；没有峰值 RSS 实测前不提高默认并发。默认有损上限下，即使配置两个 worker 也可能因预算而串行。
+- 核心显式配置默认1 worker/1000行/4 GiB；worker有效域1–32。**正式桌面按系统资源自动配置线程池**：启动时读取可用CPU并行度及RAM，预算取可用RAM的一半、总RAM的四分之一、4 GiB中的最小值；池大小同时受CPU、32上限和每槽128 MiB基础预算限制。内存查询不可用时保守回退1 worker/256 MiB；低资源设备不强制多线程。此配置不实时追踪其他进程负载，也不是OS硬内存限额。
+- 每张图片作为一个完整任务交空闲worker：读取/解码、受控移除caBX、压缩、验证和输出全在该worker中执行；普通导入、普通重试和凭据确认共用唯一池，凭据确认一次提交所选行，不由前端逐张调用。编码器内部仍关闭并行，避免线程池嵌套。移除只作用于内存工作副本，成功且有收益后才提交；保留备份、文件冲突和源变化检查。
+- 调度前仅依据CRC有效的33字节PNG头与文件大小收紧该图执行上限：像素数与单边按图约束，解码缓冲按RGBA16最坏大小并留1 MiB最低余量，输入/候选上限覆盖源字节+RGBA16大小+1 MiB，均不超过用户原上限。完整pipeline实际采用同一上限，排队后图片变大不能绕过预算；头部不可用时沿用原始上限，不信任损坏尺寸。完整结构、动画和像素仍由原pipeline检查。
+- 工作集按上述**执行上限**计费：`9×max_input_bytes + 8×max_decoded_bytes + 有损时128×max_pixels + 16 MiB`，包含凭据工作副本。单项超过总预算失败，多个任务预算不足时排队，真实返回才释放预约；不是预分配或真实RSS承诺。大图可能仍串行，小图可并行；公共快照仍保留用户设置，不将内部收紧上限写成新的用户参数。
 - 预检拒绝重复源/硬链接、重复目标、输出覆盖其他输入，以及一个计划产物同时成为另一产物父目录；单项坏文件、目标已存在、超预算等独立失败，不中断其余项。预检关闭全部身份句柄后才编码，最终文件仍仅由 output 层复查和提交。Windows 比较键保守折叠大小写，可能过度拒绝；其他平台不存在的目标别名可能直到最终提交才冲突，不承诺跨文件系统预检完全一致或抵御外部路径竞争。
 - 单项执行异常转为失败并释放预算；`WorkerPanicked` 的文件结果未知，需先检查源/目标/备份。锁故障停止接纳但仍可读快照；`CleanupFailed` 保留原始错误和残留路径，不伪装成成功取消。
 - 汇总仅成功项计节省量，其余保留源大小；未知大小/溢出返回 `None`。阶段与数量不是耗时百分比。批量模型保留 `PathBuf`、`Duration` 和错误上下文，**不是 IPC DTO**，TS 生成文件本阶段不变。
@@ -140,7 +144,7 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 
 桌面库的 [tasks 模块](src-tauri/src/tasks/mod.rs) 在核心之上统一管理导入、参数修正、启动、取消、重试和清除；[退出桥](src-tauri/src/lifecycle.rs) 将所有者装配到 Tauri 应用。模块本身无窗口/IPC 依赖，可用 [真实文件与确定性门闩测试](src-tauri/src/tasks/tests.rs) 脱离 GUI 验收，不等于前端已经可调用压缩。
 
-- `TaskRuntime` 是唯一线程所有者，持有一个协调线程及核心配置内的固定编码 worker；`TaskControl` 克隆不新建服务，句柄销毁不取消后台任务，窗口重载不改变所有权。默认仍为 1 个编码 worker，资源上限不提高。
+- `TaskRuntime` 是唯一线程所有者，持有一个协调线程及核心配置内的固定图片worker池；`TaskControl` 克隆不新建服务，句柄销毁不取消后台任务，窗口重载不改变所有权。桌面启动通过resources按CPU/RAM构造配置，扫描/规划仍由协调线程执行；不因每次确认或重试再创建池。
 - 单槽命令接纳覆盖扫描、待修正清单、规划、运行与清除。`import(roots, Some(settings))` 完整扫描后自动规划启动；`None` 等待设置，`start(selection, settings)` 只允许 Ready。参数/输出错误保留同一冻结清单，取消/超限部分结果不能启动。接纳成功不代表后台处理成功，结果通过快照读取。
 - `SelectionId` 防止旧导入请求操作新清单；重试还要求最新批次 revision，防止旧请求重复增加 attempt。核心继续按行校验、保留成功项及备份；清除返回旧快照供恢复信息留存，不删除文件。Rust 快照不是 IPC DTO，也不承诺跨进程恢复/自动续跑。
 - 扫描回调提供真实计数；活跃批次按 100ms 间隔采样核心快照，空闲等待通知，不忙轮询。`wait_for_change` 使用单调应用 revision，超时只停止等待；阶段/数量不是编码耗时百分比，轮询采样不是逐事件无损日志。批次全部取消后外层仍为 Finished，具体结果以核心状态和计数为准。
@@ -152,7 +156,7 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 
 [桌面IPC模块](src-tauri/src/ipc/mod.rs) 与 [前端适配器](src/lib/ipc/tasks.ts) 复用唯一 TaskControl。主窗口可调用 get_task_snapshot 查询状态；该查询本身不启动导入、重试或压缩，也不创建第二个任务服务。P4工作台通过订阅复用此有界查询。
 
-- Rust DTO 与协议常量为权威来源，生成 [tasks.generated.ts](src/lib/ipc/tasks.generated.ts)；原有核心 generated.ts 和 get_app_info 契约保持不变。协议版本当前为 4，前后端须使用同一构建。
+- Rust DTO 与协议常量为权威来源，生成 [tasks.generated.ts](src/lib/ipc/tasks.generated.ts)；原有核心 generated.ts 和 get_app_info 契约保持不变。协议版本当前为 5，前后端须使用同一构建。
 - `JobErrorDto` 的 `unsupported_content_credentials` / `unsupported_metadata` 分别表示 caBX 与其他不支持安全改写的元数据；嵌套恢复原因使用同样类别，真正的产物验证错误仍为 `validation`。不能仅凭错误代码授予移除权限：v3的confirmations集合仅包含完整解码/元数据检查通过且唯一不支持类别是caBX的直接失败行，清理失败或其他未知块不入选。
 - 应用/批次 revision、selection/batch ID、字节数、elapsedMs 均为规范 u64 十进制字符串，前端用 BigInt 比较；不经过 Number。毫秒向下取整，异常溢出返回 invalid_snapshot；未知大小保留 null。行 ID、候选/问题索引、attempt 与数量使用检查过的整数；行身份由 selection/batch/id/attempt 共同界定，不是文件名。
 - 查询指定 jobs、candidates、issues或confirmations，limit 为 1–100。offset=0、expectedRevision=null 读取最新版本；后续页必须带该 revision。一次响应的摘要与行来自同一份 Arc 快照；版本不匹配返回 stale_snapshot/currentRevision，应丢弃旧分页并从第一页重新读取，不拼接不同版本，也不保存无限历史快照。确认集合带安全父目录标签和稳定行ID区分同名图片，批次摘要带全量confirmationCount，不以当前页数量冒充总数。
@@ -187,6 +191,15 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 - 首次查询/ACK握手完成后才能操作。后端在订阅锁内原子校验会话并短时接纳，锁序为订阅→授权槽→任务，无文件I/O/await；旧会话、旧授权、旧selection/revision不影响新任务。命令返回selectionId仅表示接纳，后台成功/失败仍经任务快照查询。
 - TaskActions固定点击时的参数并限制一个在途操作；默认有损80/覆盖，浏览器明确不可用。选择期间断开/重连的迟到结果不能自动启动；操作传输失败可能已经接纳，不自动重试，应先恢复权威快照。P4工作台复用此适配器，不构造模拟进度。
 
+## 受控原生拖放（协议v5）
+
+- 文件/文件夹拖到左侧图片区域可导入；当前main是单WebviewWindow，Rust从WindowEvent::DragDrop接收原生Enter/Drop/Leave，不监听子WebView专用的WebviewEvent拖放分支，也不双路转发。同一次手势绑定当时已ACK的订阅会话。路径不交给JS，DOM File、展示名或伪造浏览器drop不构成授权；未握手、扫描/准备/运行/待修正或原生对话框占槽时不排队接纳下一批。
+- NativeImports复用唯一输入槽：一个对话框、未完成手势或待决票据。Drop检查最多1000根和1 MiB路径编码长度后才复制路径；同会话待决票据未释放前不接受新手势。无效原生输入只发拒绝票据，不保留路径；重复Drop、旧会话和重载后的迟到Drop不能产生授权。
+- 唯一订阅Channel的TaskStreamMessage是普通TaskChangeNotice或带kind=native_drop的NativeDropNotice；后者只携带会话、offerId、可选grantId/rootCount和客户区物理坐标。不发送高频Over或另建监听；任务变化的revision ACK/背压不变。前端最多缓存一份握手间隙票据，并按规范u64 ID忽略重复/旧票据。
+- 前端按当前devicePixelRatio转换Drop终点，以elementFromPoint命中实际图片区域；隐藏页面、区域外、任何打开的弹窗或操作未完成时不导入，释放票据。接受时冻结当前参数，经原有TaskActions/import扫描、去重和处理；质量非法只扫描，修正后启动。不会按拖入名称自行拼路径，也不添加模拟图片或进度。
+- release_native_drop仅由main本地页在已ACK会话下调用，幂等释放匹配票据，不停止任务、不影响下一票据或物理选择框；处理后即使写响应不确定也释放残余授权，绝不自动重发导入。释放失败进入显式恢复；通知发送失败由Rust回收该票据。
+- 当前不实现原生悬停高亮动画，仅在Drop终点判断区域；浏览器预览不能处理图片，DOM drop全局阻止文件导航。真实OS拖放、不同DPI/缩放、亮暗/中英及窗口适配须独立原生验收，结果见开发记录。
+
 ## PNG 工作台（P4最小纵向闭环）
 
 [Workspace](src/features/workspace/Workspace.tsx)沿HTML原型呈现中央列表、右侧设置与固定底部汇总。[控制器](src/features/workspace/controller.ts)是页面唯一会话所有者；StrictMode、外观切换与组件重挂载不创建重复Channel，不取消后台任务。卸载后异步释放订阅，重挂载等待旧会话清理。
@@ -197,7 +210,7 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 - jobs/candidates/issues每页50项；状态更新时回到首屏，额外分页最多一个在途查询。过期页不拼接，按最新revision恢复。未知大小显示“—”，精确字节按bigint计算；进度为processed/total，取消不冒充100%成功。
 - 重试只接纳当前同revision可见页内失败/取消行的稳定ID，使用草稿模式但保留原输出位置；清除需确认，仅清记录，不删除文件。结果展示实际回退原因、输出/备份名及失败恢复信息；展示名不是可访问路径，截断或替换明确标注。
 - main页面Started生命周期在同一订阅锁域撤销会话与授权，不清除或重跑任务；尚未关闭的物理对话框仍占槽，晚到结果拒绝后才释放。非main或Finished事件不撤销新会话，不依赖unload必达。
-- 浏览器仅预览，不读取图片或模拟业务。未开放拖放、自选输出目录、缩略图、高级编码参数、新格式和通用fs/dialog/event权限；这些入口及原生GUI覆盖范围按开发记录后续验收。
+- 浏览器仅预览，不读取图片或模拟业务。桌面拖放接入上述受控入口；未开放自选输出目录、缩略图、高级编码参数、新格式和通用fs/dialog/event权限。原生GUI覆盖范围按开发记录独立验收。
 
 ## 工程边界
 
@@ -222,7 +235,7 @@ Rust DTO 通过可选 `bindings` feature 使用 ts-rs 12 生成 TypeScript，普
 
 pnpm types:generate/types:check 同时运行核心与桌面生成器，后者需具备桌面编译系统依赖，但不启动窗口或任务线程。桌面全部单元/mock测试由显式 tests/desktop.rs target 承载（库默认 test harness 关闭以免重复运行），Windows MSVC 通过 build.rs 复用 Tauri 生成的资源 manifest；这保证 mock 使用的 Common Controls v6 可加载，不修改发行行为或跳过旧测试。
 
-生产与mock共用一次Tauri上下文宏展开和同一命令注册入口，避免macOS重复嵌入plist符号及测试路由漂移。mock IPC从WebView实际URL获取正常来源，分别覆盖配置中的开发地址与平台打包协议；其他窗口、远程/相似域名仍由真实capability拒绝，不为测试开放额外权限。这些回归不启动原生WebView，也不证明原生GUI导航/拖放已经验收。
+生产与mock共用一次Tauri上下文宏展开及命令/事件装配入口，避免macOS重复嵌入plist符号及测试路由漂移。拖放回归将WindowEvent交给生产注册的窗口处理函数，再运行授权/真实扫描压缩；mock不模拟OS事件投递。mock IPC从WebView实际URL获取正常来源，分别覆盖配置中的开发地址与平台打包协议；其他窗口、远程/相似域名仍由真实capability拒绝，不为测试开放额外权限。这些回归不启动原生WebView，也不证明原生GUI导航/拖放已经验收。
 
 2026-09-21 脚手架已通过冻结安装、统一检查、Windows 可执行文件构建/启动及浏览器外观交互验证。2026-09-22 无损 `3f6c617`、有损 `ab9b2bb`、包含 P1/P2 的 `11c55fa` 分别通过三平台 CI 统一检查和桌面构建；最后一轮为 run `35713030818`，已复验旧批量提交的 Ubuntu/macOS 测试导入修复。
 

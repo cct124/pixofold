@@ -36,7 +36,8 @@ impl Default for TaskSettings {
     }
 }
 
-/// 沿用核心默认边界；协调线程不创建第二份编码线程池或扩大资源预算。
+/// 显式配置默认沿用核心边界；桌面启动由resources按CPU/RAM构造实际配置。
+/// 协调线程不创建第二份编码线程池或扩大资源预算。
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TaskConfig {
     pub batch: BatchConfig,

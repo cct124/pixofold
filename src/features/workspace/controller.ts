@@ -1,4 +1,5 @@
 import { TaskActions } from '../../lib/ipc/task-actions';
+import { releaseNativeDrop } from '../../lib/ipc/native-drop';
 import {
   TaskSnapshotSubscription,
   type TaskConnectionState,
@@ -9,6 +10,8 @@ import type {
   ConfirmationDto,
   CredentialsOutput,
   NativeSelectionKind,
+  NativeDropNotice,
+  NativeDropPosition,
   TaskCollection,
   TaskMutation,
   TaskSettingsDto,
@@ -17,6 +20,7 @@ import type {
 
 export const WORKSPACE_PAGE_SIZE = 50;
 export interface WorkspaceView {
+  dropNotice: 'dropOutside' | 'dropInvalid' | 'dropUnavailable' | null;
   connection: TaskConnectionState;
   snapshot: TaskSnapshotDto | null;
   page: TaskSnapshotDto | null;
@@ -32,6 +36,7 @@ export interface WorkspaceView {
   confirmationRevision: string | null;
 }
 const initialView: WorkspaceView = {
+  dropNotice: null,
   connection: 'idle',
   snapshot: null,
   page: null,
@@ -61,6 +66,7 @@ export class WorkspaceController {
     'jobs',
     WORKSPACE_PAGE_SIZE,
     (connection) => this.#publish({ connection }),
+    (notice) => this.#nativeDrop(notice),
   );
   #actions = new TaskActions(this.#stream);
   #opening: Promise<void> | null = null;
@@ -74,6 +80,55 @@ export class WorkspaceController {
   #lifecycle = 0;
   #confirmationBaseline: { selection: string; revision: string } | null = null;
   #offeredConfirmation = '';
+  #dropTarget: ((position: NativeDropPosition) => boolean) | null = null;
+
+  /** 组件只提供命中判断，不接触原生路径；卸载撤销命中能力。 */
+  setDropTarget(target: ((position: NativeDropPosition) => boolean) | null): void {
+    this.#dropTarget = target;
+  }
+
+  browserDrop(): void {
+    // DOM File、名称或用户构造的事件不是原生路径授权。
+    this.#publish({ dropNotice: 'dropUnavailable' });
+  }
+
+  #nativeDrop(notice: NativeDropNotice): void {
+    const inside = this.#dropTarget?.(notice.position) ?? false;
+    if (
+      !inside ||
+      !this.canChange ||
+      !this.canImport ||
+      this.#view.confirmationOpen ||
+      !notice.offer.grant
+    ) {
+      this.#publish({ dropNotice: !inside ? 'dropOutside' : 'dropInvalid' });
+      void releaseNativeDrop(notice).catch(() => {
+        if (this.#stream.mutationSession === notice.subscriptionId)
+          this.#publish({ error: 'operation', needsRecovery: true });
+      });
+      return;
+    }
+    const version = this.#settingsVersion;
+    const revision = this.#view.snapshot?.revision ?? '0';
+    const settings = structuredClone(this.#settings);
+    const grant = notice.offer.grant;
+    this.#publish({ dropNotice: null });
+    void this.#perform(async () => {
+      try {
+        const accepted = await this.#actions.importNativeDrop(
+          notice.subscriptionId,
+          grant,
+          settings,
+        );
+        this.#autoSelection = accepted.selectionId;
+        this.#attempt = { selection: accepted.selectionId, version, revision: '' };
+        this.#confirmationBaseline = { selection: accepted.selectionId, revision };
+      } finally {
+        // 即使提交响应不确定也不重发；释放残余授权，恢复时只查询真实任务。
+        await releaseNativeDrop(notice);
+      }
+    });
+  }
 
   getSnapshot = (): WorkspaceView => this.#view;
   subscribe = (listener: () => void): (() => void) => {
@@ -165,6 +220,7 @@ export class WorkspaceController {
 
   async import(kind: NativeSelectionKind): Promise<void> {
     if (!this.canChange || !this.canImport) return;
+    this.#publish({ dropNotice: null });
     const version = this.#settingsVersion;
     const revision = this.#view.snapshot?.revision ?? '0';
     await this.#perform(async () => {

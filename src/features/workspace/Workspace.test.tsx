@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import {
   TASK_PROTOCOL_VERSION,
@@ -60,6 +60,7 @@ function reply(command: string, args: unknown): unknown {
         revision: current.revision,
       };
     case 'acknowledge_task_changes':
+    case 'release_native_drop':
       return null;
     case 'unsubscribe_task_changes':
       return true;
@@ -170,6 +171,150 @@ function credentialsSnapshot(count = 2): TaskSnapshotDto {
     page: { kind: 'jobs', offset: 0, total: 0, items: [] },
   };
 }
+
+describe('native drop import workflow', () => {
+  const originalPoint = Object.getOwnPropertyDescriptor(document, 'elementFromPoint');
+  const originalScale = Object.getOwnPropertyDescriptor(window, 'devicePixelRatio');
+  const hit = vi.fn<(_: number, __: number) => Element | null>();
+  beforeEach(() => {
+    hit.mockReset().mockImplementation(() => document.querySelector('[data-has-files]'));
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: hit });
+    Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: 2 });
+  });
+  afterEach(() => {
+    if (originalPoint) Object.defineProperty(document, 'elementFromPoint', originalPoint);
+    else Reflect.deleteProperty(document, 'elementFromPoint');
+    if (originalScale) Object.defineProperty(window, 'devicePixelRatio', originalScale);
+  });
+  async function drop(id = '8', session = String(bridge.id), authorized = true) {
+    await act(async () =>
+      bridge.channels.at(-1)?.onmessage({
+        kind: 'native_drop',
+        protocolVersion: TASK_PROTOCOL_VERSION,
+        subscriptionId: session,
+        offer: { offerId: id, grant: authorized ? { grantId: id, rootCount: 2 } : null },
+        position: { x: 400, y: 300 },
+      }),
+    );
+  }
+  const releases = () =>
+    vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === 'release_native_drop');
+
+  it('hits the actual image area with scaled physical coordinates, freezes settings and imports once', async () => {
+    const accepted = deferred<unknown>();
+    vi.mocked(invoke).mockImplementation(async (cmd, args) =>
+      cmd === 'apply_task_mutation' ? accepted.promise : reply(cmd, args),
+    );
+    await mount();
+    fireEvent.click(screen.getByRole('button', { name: '另存副本' }));
+    await drop();
+    expect(hit).toHaveBeenCalledWith(200, 150);
+    expect(writes()).toHaveLength(1);
+    fireEvent.change(screen.getByRole('spinbutton', { name: '精细调整' }), {
+      target: { value: '91' },
+    });
+    await drop(); // 同一票据重复投递不再次写入或提前释放。
+    expect(writes()).toEqual([
+      {
+        request: {
+          subscriptionId: '1',
+          operation: {
+            kind: 'import',
+            grantId: '8',
+            settings: { mode: { kind: 'lossy', quality: 80 }, output: 'copy_beside' },
+          },
+        },
+      },
+    ]);
+    expect(releases()).toHaveLength(0);
+    await act(async () => accepted.resolve({ selectionId: '1' }));
+    await waitFor(() => expect(controller.getSnapshot().pending).toBe(false));
+    expect(releases()).toHaveLength(1);
+    expect(bridge.channels).toHaveLength(1);
+    expect(invoke).not.toHaveBeenCalledWith('select_native_import', expect.anything());
+  });
+
+  it('releases outside, unauthorised and busy drops without writing or navigating', async () => {
+    await mount();
+    hit.mockReturnValue(screen.getByRole('heading', { name: '压缩设置' }));
+    await drop();
+    expect(writes()).toHaveLength(0);
+    expect(screen.getByRole('status')).toHaveTextContent('左侧图片区域');
+    hit.mockImplementation(() => document.querySelector('[data-has-files]'));
+    await drop('9', '1', false);
+    expect(screen.getByRole('status')).toHaveTextContent('本次拖放未接纳');
+    await update({ ...snapshot(), revision: '1', selectionId: '1', phase: 'running' });
+    await drop('10');
+    expect(writes()).toHaveLength(0);
+    expect(releases()).toHaveLength(3);
+    const event = new Event('drop', { bubbles: true, cancelable: true });
+    fireEvent(document.body, event);
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it('does not import underneath a modal and does not accept a late drop after unmount', async () => {
+    current = credentialsSnapshot();
+    const ui = await mount();
+    fireEvent.click(screen.getByRole('button', { name: '需要确认的图片 (2)' }));
+    await screen.findByRole('button', { name: '移除内容凭据后压缩 (2)' });
+    await drop();
+    expect(writes()).toHaveLength(0);
+    expect(releases()).toHaveLength(1);
+    ui.unmount();
+    await waitFor(() => expect(controller.getSnapshot().connection).toBe('idle'));
+    await drop('9');
+    expect(writes()).toHaveLength(0);
+    expect(releases()).toHaveLength(1);
+  });
+
+  it('scans with invalid quality and automatically starts once when the draft is corrected', async () => {
+    await mount();
+    const input = screen.getByRole('spinbutton', { name: '精细调整' });
+    fireEvent.change(input, { target: { value: '' } });
+    await drop();
+    await waitFor(() => expect(controller.getSnapshot().pending).toBe(false));
+    expect(writes()[0]).toMatchObject({
+      request: { operation: { kind: 'import', settings: null } },
+    });
+    await update({ ...snapshot(), selectionId: '1', revision: '1', phase: 'ready' });
+    expect(writes()).toHaveLength(1);
+    fireEvent.keyDown(input, { key: 'Escape' });
+    await waitFor(() => expect(writes()).toHaveLength(2));
+    expect(writes()[1]).toMatchObject({
+      request: { operation: { kind: 'start', selectionId: '1' } },
+    });
+  });
+
+  it('releases uncertain writes without retrying and ignores old-session offers', async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+      if (cmd === 'apply_task_mutation') throw new Error('response lost after admission');
+      return reply(cmd, args);
+    });
+    await mount();
+    await drop();
+    await waitFor(() => expect(controller.getSnapshot().needsRecovery).toBe(true));
+    expect(writes()).toHaveLength(1);
+    expect(releases()).toHaveLength(1);
+    await drop('9');
+    expect(writes()).toHaveLength(1);
+    await drop('10', '999');
+    expect(releases()).toHaveLength(2);
+    expect(controller.getSnapshot().connection).toBe('connected');
+  });
+
+  it('blocks changes after uncertain release and lets the user reconnect explicitly', async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+      if (cmd === 'release_native_drop') throw new Error('release response lost');
+      return reply(cmd, args);
+    });
+    await mount();
+    hit.mockReturnValue(null);
+    await drop();
+    await waitFor(() => expect(controller.getSnapshot().needsRecovery).toBe(true));
+    expect(writes()).toHaveLength(0);
+    expect(screen.getByRole('button', { name: '重新连接任务' })).toBeEnabled();
+  });
+});
 
 describe('content credentials confirmation workflow', () => {
   it('submits the default backup option on confirmation without any extra agreement step', async () => {
@@ -560,7 +705,7 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
     fireEvent.keyDown(window, { key: 'o', ctrlKey: true, repeat: true });
     expect(writes()).toHaveLength(1);
     fireEvent.drop(screen.getByText('选择图片或文件夹'));
-    expect(screen.getByRole('status')).toHaveTextContent('拖放尚未接入');
+    expect(screen.getByRole('status')).toHaveTextContent('此拖放没有桌面文件授权');
     expect(writes()).toHaveLength(1);
   });
   it.each([

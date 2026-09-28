@@ -7,6 +7,7 @@ fn main() {
             "acknowledge_task_changes",
             "unsubscribe_task_changes",
             "select_native_import",
+            "release_native_drop",
             "apply_task_mutation",
         ]),
     ))

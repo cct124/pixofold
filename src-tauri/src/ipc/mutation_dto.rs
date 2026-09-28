@@ -1,6 +1,6 @@
 //! 变更入口只接收领域参数与会话/授权标识；不允许路径字符串或资源预算覆盖。
 
-use super::{DecimalU64, SubscriptionError, dto::TaskFailureDto};
+use super::{DecimalU64, SubscriptionError, TaskChangeNotice, dto::TaskFailureDto};
 use pixofold_core::model::PngMode;
 use serde::{Deserialize, Serialize};
 
@@ -30,6 +30,56 @@ pub(crate) struct NativeSelectionRequest {
 pub(crate) struct NativeImportGrant {
     pub grant_id: DecimalU64,
     pub root_count: u32,
+}
+
+/// 一个待决拖放票据；无效/超限的原生输入不授予文件授权，但仍等待释放票据。
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) struct NativeDropOffer {
+    pub offer_id: DecimalU64,
+    pub grant: Option<NativeImportGrant>,
+}
+
+/// WebView客户区物理像素；前端按当前devicePixelRatio命中实际工作台，不携带路径。
+#[derive(Debug, Clone, Copy, Serialize)]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) struct NativeDropPosition {
+    pub x: f64,
+    pub y: f64,
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) enum NativeDropNotice {
+    NativeDrop {
+        protocol_version: u32,
+        subscription_id: DecimalU64,
+        offer: NativeDropOffer,
+        position: NativeDropPosition,
+    },
+}
+
+/// 共用现有订阅，不为拖放再建立Channel。拖放最多一份待决票据，不发送高频Over。
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(untagged)]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) enum TaskStreamMessage {
+    Change(TaskChangeNotice),
+    NativeDrop(NativeDropNotice),
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) struct NativeDropRelease {
+    pub subscription_id: DecimalU64,
+    pub offer_id: DecimalU64,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -166,6 +216,11 @@ pub(super) fn declarations() -> String {
         NativeSelectionKind,
         NativeSelectionRequest,
         NativeImportGrant,
+        NativeDropOffer,
+        NativeDropPosition,
+        NativeDropNotice,
+        TaskStreamMessage,
+        NativeDropRelease,
         TaskOutput,
         TaskSettingsDto,
         ImportTask,

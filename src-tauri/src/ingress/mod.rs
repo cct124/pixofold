@@ -1,8 +1,10 @@
-//! 应用唯一原生选择槽。路径只由Rust原生入口写入，不对WebView序列化。
-//! 最多一个物理对话框或一份授权，授权单次消费、绑定订阅、5分钟惰性失效。
+//! 应用唯一原生输入槽。路径只由Rust原生选择/拖放写入，不对WebView序列化。
+//! 最多一个物理对话框、拖放手势或待决授权；授权单次消费、绑定订阅、5分钟惰性失效。
 //! 锁内仅做有界内存操作和TaskControl接纳；不得持锁打开对话框/扫描/等待线程。
 
-use crate::ipc::{DecimalU64, MAX_NATIVE_IMPORT_ROOTS, MutationError, NativeImportGrant};
+use crate::ipc::{
+    DecimalU64, MAX_NATIVE_IMPORT_ROOTS, MutationError, NativeDropOffer, NativeImportGrant,
+};
 use std::{
     path::PathBuf,
     sync::{Arc, Mutex},
@@ -13,6 +15,14 @@ const GRANT_TTL: Duration = Duration::from_secs(5 * 60);
 // OsStr长度按本机编码计量；同时限制根数，避免持有无界原生选择结果。
 const MAX_PATH_UNITS: usize = 1024 * 1024;
 enum Slot {
+    Drag {
+        id: u64,
+        session: u64,
+    },
+    RejectedDrop {
+        id: u64,
+        session: u64,
+    },
     Dialog {
         id: u64,
         session: u64,
@@ -54,7 +64,11 @@ impl NativeImports {
         if state.closed {
             return Err(MutationError::Closed);
         }
-        if matches!(state.slot, Some(Slot::Dialog { .. })) {
+        // 旧会话的手势不是仍打开的物理对话框；新页面选择可撤销它，晚到Drop无授权。
+        if matches!(&state.slot, Some(Slot::Drag { session: owner, .. }) if *owner != session.0) {
+            state.slot = None;
+        }
+        if matches!(state.slot, Some(Slot::Dialog { .. } | Slot::Drag { .. })) {
             return Err(MutationError::SelectionBusy);
         }
         let id = state.next_id;
@@ -69,6 +83,88 @@ impl NativeImports {
             id,
             session: session.0,
         })
+    }
+
+    /// Enter只占位，不保存路径；上一票据未处理时忽略新拖放，不积压Channel消息。
+    pub(crate) fn begin_drag(&self, session: DecimalU64) -> Result<(), MutationError> {
+        let mut state = self.state.lock().map_err(|_| MutationError::ServiceFault)?;
+        if state.closed {
+            return Err(MutationError::Closed);
+        }
+        // 旧页面票据不能阻塞新会话；物理对话框例外，仍须等其真正返回。
+        if matches!(&state.slot, Some(Slot::Grant { session: owner, .. } | Slot::RejectedDrop { session: owner, .. } | Slot::Drag { session: owner, .. }) if *owner != session.0)
+        {
+            state.slot = None;
+        }
+        if state.slot.is_some() {
+            return Err(MutationError::SelectionBusy);
+        }
+        let id = state.next_id;
+        state.next_id = id.checked_add(1).ok_or(MutationError::IdExhausted)?;
+        state.slot = Some(Slot::Drag {
+            id,
+            session: session.0,
+        });
+        Ok(())
+    }
+
+    /// Drop只能结束同会话Enter，重复Drop没有授权；无效输入也占待决槽直到页面释放。
+    pub(crate) fn finish_drag(
+        &self,
+        session: DecimalU64,
+        roots: &[PathBuf],
+    ) -> Result<NativeDropOffer, MutationError> {
+        let mut state = self.state.lock().map_err(|_| MutationError::ServiceFault)?;
+        if state.closed {
+            return Err(MutationError::Closed);
+        }
+        let Some(Slot::Drag { id, session: owner }) = state.slot else {
+            return Err(MutationError::StaleGrant);
+        };
+        if owner != session.0 {
+            return Err(MutationError::StaleGrant);
+        }
+        let grant = if valid_roots(roots) {
+            state.slot = Some(Slot::Grant {
+                id,
+                session: owner,
+                roots: roots.to_vec(),
+                expires: Instant::now() + GRANT_TTL,
+            });
+            Some(NativeImportGrant {
+                grant_id: DecimalU64(id),
+                root_count: roots.len() as u32,
+            })
+        } else {
+            state.slot = Some(Slot::RejectedDrop { id, session: owner });
+            None
+        };
+        Ok(NativeDropOffer {
+            offer_id: DecimalU64(id),
+            grant,
+        })
+    }
+
+    /// Leave只撤销未完成手势，不回收已投递票据或影响原生选择框。
+    pub(crate) fn leave_drag(&self) {
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        if matches!(state.slot, Some(Slot::Drag { .. })) {
+            state.slot = None;
+        }
+    }
+
+    /// 拖放处理完成/区域外/弹窗阻挡时释放匹配票据；不影响后续票据或对话框。
+    pub(crate) fn release_drop(
+        &self,
+        session: DecimalU64,
+        id: DecimalU64,
+    ) -> Result<(), MutationError> {
+        let mut state = self.state.lock().map_err(|_| MutationError::ServiceFault)?;
+        if matches!(&state.slot, Some(Slot::Grant { id: granted, session: owner, .. } | Slot::RejectedDrop { id: granted, session: owner }) if *granted == id.0 && *owner == session.0)
+        {
+            state.slot = None;
+        }
+        Ok(())
     }
 
     /// 接纳成功才消费；忙/参数拒绝保留同一授权供显式重试，不执行文件I/O。
@@ -156,13 +252,7 @@ impl SelectionPermit {
         let Some(roots) = roots.filter(|roots| !roots.is_empty()) else {
             return Ok(None);
         };
-        if roots.len() > MAX_NATIVE_IMPORT_ROOTS
-            || roots.iter().any(|path| !path.is_absolute())
-            || roots
-                .iter()
-                .try_fold(0usize, |sum, path| sum.checked_add(path.as_os_str().len()))
-                .is_none_or(|sum| sum > MAX_PATH_UNITS)
-        {
+        if !valid_roots(&roots) {
             return Err(MutationError::InvalidSelection);
         }
         let grant = NativeImportGrant {
@@ -189,3 +279,13 @@ impl Drop for SelectionPermit {
 
 #[cfg(test)]
 mod tests;
+
+fn valid_roots(roots: &[PathBuf]) -> bool {
+    !roots.is_empty()
+        && roots.len() <= MAX_NATIVE_IMPORT_ROOTS
+        && roots.iter().all(|path| path.is_absolute())
+        && roots
+            .iter()
+            .try_fold(0usize, |sum, path| sum.checked_add(path.as_os_str().len()))
+            .is_some_and(|sum| sum <= MAX_PATH_UNITS)
+}

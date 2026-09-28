@@ -11,14 +11,17 @@ use tauri::{
     webview::InvokeRequest,
 };
 
-fn app(context: tauri::Context<MockRuntime>) -> tauri::App<MockRuntime> {
+pub(super) fn app(context: tauri::Context<MockRuntime>) -> tauri::App<MockRuntime> {
     let runtime = TaskRuntime::new(TaskConfig::default()).unwrap();
-    super::register(mock_builder().manage(DesktopTasks::new(runtime).unwrap()))
+    super::super::configure_app(mock_builder().manage(DesktopTasks::new(runtime).unwrap()))
         .build(context)
         .unwrap()
 }
 
-fn window(app: &tauri::App<MockRuntime>, label: &str) -> tauri::WebviewWindow<MockRuntime> {
+pub(super) fn window(
+    app: &tauri::App<MockRuntime>,
+    label: &str,
+) -> tauri::WebviewWindow<MockRuntime> {
     tauri::WebviewWindowBuilder::new(app, label, Default::default())
         .build()
         .unwrap()
@@ -28,7 +31,7 @@ fn snapshot_request() -> Value {
     json!({"request": {"expectedRevision": null, "collection": "jobs", "offset": 0, "limit": 100}})
 }
 
-fn invoke(
+pub(super) fn invoke(
     window: &tauri::WebviewWindow<MockRuntime>,
     command: &str,
     body: Value,
@@ -128,6 +131,10 @@ fn assert_local_queries_and_permissions(app: &tauri::App<MockRuntime>) {
             json!({"request":{"subscriptionId":"0"}}),
         ),
         (
+            "release_native_drop",
+            json!({"request":{"subscriptionId":"0", "offerId":"1"}}),
+        ),
+        (
             "select_native_import",
             json!({"request":{"subscriptionId":"0", "kind":"files"}}),
         ),
@@ -177,7 +184,7 @@ fn connected(app: &tauri::App<MockRuntime>) -> crate::ipc::DecimalU64 {
         .unwrap();
     ticket.subscription_id
 }
-fn mutate(
+pub(super) fn mutate(
     window: &tauri::WebviewWindow<MockRuntime>,
     session: crate::ipc::DecimalU64,
     operation: Value,
@@ -188,7 +195,7 @@ fn mutate(
         json!({"request":{"subscriptionId":session, "operation":operation}}),
     )
 }
-fn phase(
+pub(super) fn phase(
     control: &crate::tasks::TaskControl,
     phase: crate::tasks::TaskPhase,
 ) -> crate::tasks::TaskSnapshot {
@@ -233,6 +240,10 @@ fn native_and_mutation_commands_require_acknowledged_current_subscription() {
     let before = tasks.control.snapshot().revision;
     for (command, body) in [
         (
+            "release_native_drop",
+            json!({"request":{"subscriptionId":ticket.subscription_id, "offerId":"1"}}),
+        ),
+        (
             "select_native_import",
             json!({"request":{"subscriptionId":ticket.subscription_id, "kind":"files"}}),
         ),
@@ -265,6 +276,17 @@ fn strict_mutation_contract_rejects_paths_quality_and_malformed_identifiers() {
     let main = window(&app, "main");
     let session = connected(&app);
     let before = app.state::<DesktopTasks>().control.snapshot().revision;
+    assert!(
+        invoke(
+            &main,
+            "release_native_drop",
+            json!({"request": {
+                "subscriptionId": session, "offerId": "1", "path": "private.png"
+            }})
+        )
+        .unwrap_err()
+        .is_string()
+    );
     for operation in [
         json!({"kind":"import", "grantId":"1", "settings":null, "paths":["private.png"]}),
         json!({"kind":"clear", "selectionId":"01"}),

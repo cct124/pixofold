@@ -44,11 +44,14 @@ fn take(shared: &Shared) -> Option<Work> {
                 batch.running += 1;
                 batch.reserved += job.reservation.0;
                 batch.revision += 1;
+                let mut request = job.view.request.clone();
+                // 公共快照保留用户参数；整条执行链受真实预约所对应的更小上限约束。
+                request.limits = job.execution_limits;
                 let work = Work {
                     batch: batch.id,
                     index,
                     attempt: job.view.attempt,
-                    request: job.view.request.clone(),
+                    request,
                     cancel: batch.cancel.clone(),
                     reservation: job.reservation.0,
                 };
