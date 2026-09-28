@@ -694,4 +694,10 @@
 - 验证：新增png_backup_names六项真实文件回归（中文/emoji/空格/多点/无扩展、重复备份保留历史、同stem不同扩展两worker并行、非Unicode原名、Windows大小写匹配、NTFS叶名过长失败清理）。png_import扩充新旧形状及六类近似名称，显式include_artifacts共13项样本均可导入。首轮新测试因excluded计数参数写成u64而实际为usize编译失败，已改匹配领域类型后通过；未跳过测试。
 - cargo test --workspace --all-features --locked通过186项Rust（含84项桌面）及2项doctest；既有取消、无收益、源变更、备份篡改、Windows占用失败恢复和凭据确认保护均通过。收紧超长名测试断言后单独重跑六项通过，全workspace/all-target/all-feature Clippy再次通过；cargo fmt --all --check、git diff --check及62个修改文档本地链接检查通过。前端/DTO无变化，不重复前序104项Vitest或类型生成；正式构建中的TS/Vite检查通过。
 - 正式构建完成：锁定pnpm 12.5.1、Node 26.9.0执行pnpm tauri build --no-bundle --ci成功；target/release/pixofold.exe为2026-09-28 17:46:01（Asia/Shanghai）、10,178,560 bytes、SHA256 `5E7F228EF6EA6A359CAE59646DC4ADA9D782E204CF5967FD09DBA532CE2D4E51`。未制作安装包，未运行本轮release专用回归或跨平台CI，不沿用旧EXE散列。
-- 开工及构建前未发现pixofold进程，不强制关闭程序。本轮不操作GUI；原生外观/手测仍由用户验收。前序暂存内容保持26份，用户图片/旧备份未改，png-palettes工作区无变化。本轮改动均未暂存/提交/推送。下一步由用户在隔离样本目录验证备份名称、覆盖开关及再次导入时排除备份；性能排查不并入本轮。
+- 开工及构建前未发现pixofold进程，不强制关闭程序。本轮不操作GUI；原生外观/手测仍由用户验收。前序暂存内容保持26份，用户图片/旧备份未改，png-palettes工作区无变化。本轮改动已提交为e5ec54c并推送origin/dev（见下节）。下一步由用户在隔离样本目录验证备份名称、覆盖开关及再次导入时排除备份；性能排查不并入本轮。
+
+### 2026-09-28 编写提交信息、提交与推送（备份开关与原名备份）
+
+- 用户要求根据工作区内容编写提交信息、提交并推送，无需执行其它任务。复核暂存范围：32份文件（7份文档与规范、7份核心Rust含新增png_backup_names回归、7份Tauri、11份前端），无未暂存改动与未跟踪残留，git diff --check通过；范围即主设置备份开关与高级区常显、协议v6、凭据弹窗初值继承、普通重试沿用原行策略、原名-backup-6位随机标识.png及日志去文件名。
+- 提交e5ec54c「feat: 增加覆盖前备份开关并按原文件名命名备份」（32 files changed、746 insertions、135 deletions）。沙箱内.git只读，add/commit/push按规则提升同一条命令执行，未绕开沙箱约束；a5595ea..e5ec54c  dev -> dev已同步origin/dev，本地与远端一致。
+- 沿用本轮已完成验证（备份开关轮pnpm check：104项前端、180项Rust含84项桌面、2项doctest、34份语料；原名备份轮186项Rust及2项doctest、Clippy/格式/diff与62个文档链接，17:05:38和17:46:01两次正式无安装包构建）；本次未改动业务代码，不重复构建或测试。GUI手测、release专用回归与跨平台CI仍未由本轮执行，不据此声明通过。
