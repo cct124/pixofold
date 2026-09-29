@@ -292,7 +292,8 @@
   justify-items: start;
   gap: 2px;
 }
-.rowActions > button {
+.rowActions > button:not(:disabled),
+.fileActions button:not(:disabled) {
   color: var(--accent);
 }
 .actionNotice {
@@ -312,19 +313,6 @@
 .jobDetails small {
   display: block;
   color: var(--muted);
-}
-.detailName {
-  margin: 0 0 6px;
-  font-weight: 600;
-}
-.jobDetails [data-state='succeeded'] {
-  color: var(--success);
-}
-.jobDetails [data-state='failed'] {
-  color: var(--danger);
-}
-.jobDetails [data-state='running'] {
-  color: var(--accent);
 }
 .batchDirectories {
   max-width: 100%;

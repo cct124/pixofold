@@ -22,10 +22,6 @@ function JobResult({ job, language }: { job: JobDto; language: Language }) {
   const state = job.state;
   return (
     <>
-      <strong data-state={state.kind}>
-        {t(state.kind)}
-        {state.kind === 'running' && ' · ' + t(state.stage)}
-      </strong>
       <small>
         {t(job.mode.kind)}
         {job.mode.kind === 'lossy' && ' ' + job.mode.quality} · {t('attempt')} {job.attempt}
@@ -168,9 +164,6 @@ export function WorkspaceRows({
                       disabled={!access.enabled}
                     >
                       <div className={styles.jobDetails}>
-                        <p className={styles.detailName}>
-                          <Name value={job.sourceName} t={t} />
-                        </p>
                         <JobResult job={job} language={language} />
                         <JobFileActions
                           job={job}

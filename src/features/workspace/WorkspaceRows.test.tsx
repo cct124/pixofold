@@ -31,20 +31,46 @@ afterEach(() => {
   access.assets.reset();
 });
 
-it('adds a rightmost Actions column, hover details in a portal and a direct result button', () => {
-  const ui = render(<WorkspaceRows page={page} language="zh-CN" access={access} />);
-  expect(screen.getAllByRole('columnheader').at(-1)).toHaveTextContent('操作');
-  expect(ui.container.querySelector('details')).toBeNull();
-  expect(screen.queryByText('result.png')).not.toBeInTheDocument();
-  expect(screen.getByRole('button', { name: '在文件夹中查看' })).toBeEnabled();
-  fireEvent.mouseEnter(screen.getByRole('button', { name: '详情' }));
-  const panel = screen.getByRole('dialog', { name: '详情' });
-  expect(panel.parentElement).toBe(document.body);
-  expect(within(panel).getByText('result.png')).toBeVisible();
-  expect(within(panel).getByRole('button', { name: '定位备份' })).toBeVisible();
-  expect(ui.container).not.toHaveTextContent('result.png');
-  expect(parseFloat(panel.style.left)).toBeGreaterThanOrEqual(12);
-});
+it.each([
+  {
+    language: 'zh-CN',
+    actions: '操作',
+    view: '在文件夹中查看',
+    details: '详情',
+    backup: '定位备份',
+    status: '已压缩',
+  },
+  {
+    language: 'en',
+    actions: 'Actions',
+    view: 'Show in folder',
+    details: 'Details',
+    backup: 'Locate backup',
+    status: 'Compressed',
+  },
+] as const)(
+  'keeps $language details supplemental to the table with a direct result button',
+  ({ language, actions, view, details, backup, status }) => {
+    const ui = render(<WorkspaceRows page={page} language={language} access={access} />);
+    expect(screen.getAllByRole('columnheader').at(-1)).toHaveTextContent(actions);
+    expect(ui.container.querySelector('details')).toBeNull();
+    expect(screen.queryByText('result.png')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: view })).toBeEnabled();
+    fireEvent.mouseEnter(screen.getByRole('button', { name: details }));
+    const panel = screen.getByRole('dialog', { name: details });
+    expect(panel.parentElement).toBe(document.body);
+    expect(within(panel).queryByText('source.png')).not.toBeInTheDocument();
+    expect(within(panel).queryByText(status, { exact: true })).not.toBeInTheDocument();
+    expect(within(ui.container).getByText('source.png')).toBeVisible();
+    expect(within(ui.container).getByText(status, { exact: true })).toBeVisible();
+    expect(within(panel).getByText('result.png')).toBeVisible();
+    expect(within(panel).getByText(/42 ms/)).toBeVisible();
+    expect(within(panel).getByText('source-backup-abc123.png')).toBeVisible();
+    expect(within(panel).getByRole('button', { name: backup })).toBeVisible();
+    expect(ui.container).not.toHaveTextContent('result.png');
+    expect(parseFloat(panel.style.left)).toBeGreaterThanOrEqual(12);
+  },
+);
 
 it('keeps the hover panel while crossing the gap and reading it, then closes on leave', () => {
   vi.useFakeTimers();
@@ -116,5 +142,8 @@ it('shows only one hover panel and disables viewing for rows without an actual r
   fireEvent.mouseEnter(details[0]!);
   fireEvent.mouseEnter(details[1]!);
   expect(screen.getAllByRole('dialog')).toHaveLength(1);
+  const panel = screen.getByRole('dialog');
+  expect(within(panel).queryByText('Failed', { exact: true })).not.toBeInTheDocument();
+  expect(within(panel).getByText('Decoding failed')).toBeVisible();
   expect(screen.getAllByRole('button', { name: 'Show in folder' })[1]).toBeDisabled();
 });
