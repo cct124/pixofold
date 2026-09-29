@@ -1,12 +1,14 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "主窗口允许有界任务查询/订阅、受控原生选择与任务接纳；不授权任意路径或通用dialog/fs/event操作。",
+  "description": "主窗口允许有界任务查询/订阅、受控原生选择、任务接纳及任务绑定预览/定位；不授权任意路径或通用dialog/fs/event/opener操作。",
   "windows": ["main"],
   "permissions": [
     "allow-get-app-info",
     "allow-get-log-status",
     "allow-open-log-directory",
+    "allow-get-task-thumbnail",
+    "allow-reveal-task-file",
     "allow-get-task-snapshot",
     "allow-subscribe-task-changes",
     "allow-acknowledge-task-changes",

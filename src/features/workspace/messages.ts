@@ -1,6 +1,58 @@
 import type { Language } from '../../stores/preferences';
 
 const copy = {
+  revealResult: ['在文件夹中查看结果', 'Show result in folder'],
+  revealOriginal: ['在文件夹中查看原图', 'Show original in folder'],
+  revealBackup: ['定位备份', 'Locate backup'],
+  revealPending: ['正在请求文件管理器…', 'Requesting file manager…'],
+  revealRequested: [
+    '已请求文件管理器定位；部分系统可能仅打开所在目录。',
+    'Requested file location; some systems may only open the containing folder.',
+  ],
+  thumbnailResult: ['当前结果文件预览', 'Current result preview'],
+  thumbnailSource: ['当前源文件预览', 'Current source preview'],
+  thumbnailPending: [
+    '处理结束后在可见区域加载预览',
+    'Preview loads when this completed image is visible',
+  ],
+  asset_session_unavailable: [
+    '连接已变化，请恢复任务连接后重试。',
+    'Connection changed. Reconnect before retrying.',
+  ],
+  asset_stale_task: [
+    '任务已变化，请使用当前列表重试。',
+    'Task changed. Retry from the current list.',
+  ],
+  asset_unavailable: [
+    '当前文件不可用，或暂不支持预览。',
+    'File unavailable or preview unsupported.',
+  ],
+  asset_busy: [
+    '正在处理另一个查看请求，请稍后重试。',
+    'Another viewing request is in progress. Try again shortly.',
+  ],
+  asset_file_missing: ['文件已被移动或删除。', 'File has been moved or deleted.'],
+  asset_file_changed: [
+    '文件已变化，请刷新任务视图后重试。',
+    'File changed. Refresh the task view before retrying.',
+  ],
+  asset_unsafe_path: [
+    '文件位置已变化或包含链接，无法安全访问。',
+    'File location changed or contains a link; access refused.',
+  ],
+  asset_resource_limit: [
+    '图片超出预览资源限制；不影响压缩结果。',
+    'Image exceeds preview limits; compression is unaffected.',
+  ],
+  asset_decode_failed: [
+    '无法生成预览；不影响压缩结果。',
+    'Preview unavailable; compression is unaffected.',
+  ],
+  asset_reveal_failed: [
+    '无法打开系统文件管理器，请稍后重试。',
+    'Could not open the system file manager. Try again later.',
+  ],
+  asset_service_fault: ['查看请求失败，请稍后重试。', 'Viewing request failed. Try again later.'],
   confirmations: ['需要确认的图片', 'Images needing confirmation'],
   credentialsIntro: [
     '这些图片含内容凭据，压缩需将其移除。原图尚未修改。',

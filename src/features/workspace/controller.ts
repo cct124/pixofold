@@ -1,4 +1,5 @@
 import { TaskActions } from '../../lib/ipc/task-actions';
+import { TaskAssets } from '../../lib/ipc/task-assets';
 import { releaseNativeDrop } from '../../lib/ipc/native-drop';
 import {
   TaskSnapshotSubscription,
@@ -72,6 +73,7 @@ export class WorkspaceController {
     (notice) => this.#nativeDrop(notice),
   );
   #actions = new TaskActions(this.#stream);
+  readonly assets = new TaskAssets(() => this.#stream.mutationSession);
   #opening: Promise<void> | null = null;
   #closing: Promise<void> | null = null;
   #settings: TaskSettingsDto | null = null;
@@ -154,6 +156,8 @@ export class WorkspaceController {
   }
 
   #publish(change: Partial<WorkspaceView>): void {
+    if ((change.connection && change.connection !== 'connected') || change.needsRecovery)
+      this.assets.reset();
     this.#view = { ...this.#view, ...change };
     this.#listeners.forEach((listener) => listener());
   }
@@ -386,6 +390,8 @@ export class WorkspaceController {
     const previous = this.#view.snapshot;
     if (previous && parseDecimalU64(snapshot.revision) < parseDecimalU64(previous.revision)) return;
     const changed = snapshot.selectionId !== previous?.selectionId;
+    if (changed || snapshot.phase === 'clearing' || snapshot.phase === 'preparing')
+      this.assets.reset();
     if (snapshot.selectionId && ['scanning', 'preparing', 'running'].includes(snapshot.phase)) {
       this.#confirmationBaseline = { selection: snapshot.selectionId, revision: snapshot.revision };
     }

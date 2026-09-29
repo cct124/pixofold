@@ -183,7 +183,18 @@ export function Workspace({
                 {view.pageLoading && !view.confirmationOpen ? (
                   <p className={styles.listNotice}>{t('loading')}</p>
                 ) : page?.items.length ? (
-                  <WorkspaceRows page={page} language={language} />
+                  <WorkspaceRows
+                    page={page}
+                    language={language}
+                    access={{
+                      assets: controller.assets,
+                      selectionId: snapshot?.selectionId ?? '0',
+                      enabled:
+                        view.connection === 'connected' &&
+                        !view.needsRecovery &&
+                        (snapshot?.phase === 'running' || snapshot?.phase === 'finished'),
+                    }}
+                  />
                 ) : (
                   <p className={styles.listNotice}>{t('noRows')}</p>
                 )}

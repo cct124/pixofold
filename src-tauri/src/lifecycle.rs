@@ -17,23 +17,34 @@ pub(crate) struct DesktopTasks {
     pub(crate) control: TaskControl,
     pub(crate) subscriptions: SubscriptionControl,
     pub(crate) imports: Arc<NativeImports>,
+    pub(crate) assets: Arc<crate::assets::AssetService>,
     ready_to_exit: AtomicBool,
 }
 struct DesktopRuntime {
     // 兜底Drop也先停止订阅，再停止任务，不能让通知线程依赖窗口释放。
     subscriptions: SubscriptionRuntime,
     tasks: TaskRuntime,
+    assets: Arc<crate::assets::AssetService>,
+}
+impl Drop for DesktopRuntime {
+    fn drop(&mut self) {
+        self.assets.close();
+        self.assets.wait_idle();
+    }
 }
 impl DesktopTasks {
     pub(crate) fn new(runtime: TaskRuntime) -> Result<Self, std::io::Error> {
         let subscriptions = SubscriptionRuntime::new(runtime.control())?;
+        let assets = Arc::new(crate::assets::AssetService::default());
         Ok(Self {
             control: runtime.control(),
             subscriptions: subscriptions.control(),
             imports: Arc::new(NativeImports::default()),
+            assets: assets.clone(),
             runtime: Mutex::new(Some(DesktopRuntime {
                 subscriptions,
                 tasks: runtime,
+                assets,
             })),
             ready_to_exit: AtomicBool::new(false),
         })
@@ -44,13 +55,17 @@ impl DesktopTasks {
     pub(crate) fn page_load(&self, label: &str, event: tauri::webview::PageLoadEvent) {
         if label == "main" && matches!(event, tauri::webview::PageLoadEvent::Started) {
             // 与任务变更保持订阅→授权锁序，不依赖旧页面unload/JS清理必达。
-            self.subscriptions.invalidate_page(|| self.imports.revoke());
+            self.subscriptions.invalidate_page(|| {
+                self.imports.revoke();
+                self.assets.invalidate();
+            });
         }
     }
     fn take_for_shutdown(&self) -> Option<(DesktopRuntime, bool)> {
         self.subscriptions.request_close();
         self.imports.close();
         self.control.request_close();
+        self.assets.close();
         // 只在锁内转移所有权；OS/I/O和join均不持锁，且不会再次创建收尾线程。
         match self.runtime.lock() {
             Ok(mut runtime) => runtime.take().map(|runtime| (runtime, false)),
@@ -67,6 +82,7 @@ pub(crate) fn request_exit<R: tauri::Runtime>(app: &AppHandle<R>, code: i32) {
             // 即使某个服务收尾失败，另一个也必须join；不得用?提前返回。
             let subscriptions = runtime.subscriptions.shutdown();
             let result = runtime.tasks.shutdown();
+            runtime.assets.wait_idle();
             let failed = subscriptions.is_err() || result.is_err() || owner_fault;
             if subscriptions.is_err() {
                 tracing::error!(target: "pixofold", event = "shutdown_failed", operation = "subscriptions");

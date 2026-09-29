@@ -1,5 +1,6 @@
 //! 桌面装配层：注册窗口权限与薄 IPC 命令，不执行图片处理。
 
+pub(crate) mod assets;
 mod commands;
 pub(crate) mod diagnostics;
 pub(crate) mod ingress;

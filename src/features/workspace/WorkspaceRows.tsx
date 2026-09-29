@@ -1,6 +1,6 @@
 import type { DisplayName, JobDto, TaskPageDto } from '../../lib/ipc/tasks.generated';
 import type { Language } from '../../stores/preferences';
-import { Icon } from '../../components/ui/Icon';
+import { JobThumbnail, JobFileActions, type RowAssets } from './JobAssets';
 import { formatBytes, formatReduction } from './format';
 import { workspaceText, type WorkspaceText } from './messages';
 import styles from './Workspace.module.css';
@@ -76,8 +76,16 @@ function JobResult({ job, language }: { job: JobDto; language: Language }) {
   );
 }
 
-/** 表格字段全部来自任务快照；尚未接入缩略图时仅显示文件图标。 */
-export function WorkspaceRows({ page, language }: { page: TaskPageDto; language: Language }) {
+/** 表格来自权威快照；真实缩略图按可见行读取，不作为原图保留或色彩校验凭据。 */
+export function WorkspaceRows({
+  page,
+  language,
+  access,
+}: {
+  page: TaskPageDto;
+  language: Language;
+  access: RowAssets;
+}) {
   const t = workspaceText(language);
   const jobs = page.kind === 'jobs';
   return (
@@ -114,9 +122,12 @@ export function WorkspaceRows({ page, language }: { page: TaskPageDto; language:
               <tr key={job.id} data-status={state.kind}>
                 <td aria-label={job.sourceName.text}>
                   <div className={styles.fileIdentity}>
-                    <span className={styles.fileThumb}>
-                      <Icon name="image" />
-                    </span>
+                    <JobThumbnail
+                      key={[access.selectionId, job.id, job.attempt, state.kind].join('/')}
+                      job={job}
+                      language={language}
+                      access={access}
+                    />
                     <div className={styles.fileText}>
                       <Name value={job.sourceName} t={t} />
                       <small>PNG · #{job.id}</small>
@@ -142,6 +153,7 @@ export function WorkspaceRows({ page, language }: { page: TaskPageDto; language:
                   <details className={styles.rowDetails}>
                     <summary>{t('details')}</summary>
                     <JobResult job={job} language={language} />
+                    <JobFileActions job={job} language={language} access={access} />
                   </details>
                 </td>
               </tr>

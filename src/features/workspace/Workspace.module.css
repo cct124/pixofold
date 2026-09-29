@@ -246,6 +246,31 @@
   width: 26px;
   height: 26px;
 }
+.fileThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background-color: var(--surface);
+  background-image: repeating-conic-gradient(var(--chip) 0% 25%, transparent 0% 50%);
+  background-size: 12px 12px;
+}
+.fileActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 4px 12px;
+  margin-top: 8px;
+}
+.fileActions button {
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.fileActions output {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 11px;
+}
 .fileText {
   min-width: 0;
 }

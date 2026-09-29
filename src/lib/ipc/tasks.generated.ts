@@ -1,6 +1,6 @@
 // 由 Rust 任务DTO生成；请运行 pnpm types:generate，勿手工编辑。
 import type { PngMode } from './generated';
-export const TASK_PROTOCOL_VERSION = 7;
+export const TASK_PROTOCOL_VERSION = 8;
 export const MAX_TASK_PAGE_SIZE = 100;
 export type DecimalU64 = string;
 export type TaskCollection = "jobs" | "candidates" | "issues" | "confirmations";
@@ -65,3 +65,13 @@ export type TaskMutationAccepted = { selectionId: DecimalU64, };
 export type MutationError = { "code": "subscription", error: SubscriptionError, } | { "code": "task", error: TaskFailureDto, } | { "code": "selection_busy" } | { "code": "stale_grant" } | { "code": "invalid_selection" } | { "code": "stale_output_directory" } | { "code": "invalid_output_directory" } | { "code": "invalid_retry" } | { "code": "closed" } | { "code": "id_exhausted" } | { "code": "native_dialog_failed" } | { "code": "service_fault" };
 export type LogState = "starting" | "ready" | "unavailable" | "busy" | "stopped";;
 export type LogStatus = { state: LogState, droppedEvents: string, writeFailures: string, canOpen: boolean, };;
+export const MAX_THUMBNAIL_WIDTH = 128;
+export const MAX_THUMBNAIL_HEIGHT = 96;
+export const MAX_THUMBNAIL_BYTES = 65536;
+export type AssetState = "succeeded" | "no_gain" | "failed" | "cancelled";
+export type JobAssetRequest = { subscriptionId: DecimalU64, selectionId: DecimalU64, jobId: number, attempt: number, expectedState: AssetState, };
+export type RevealTarget = "result" | "backup";
+export type RevealRequest = { job: JobAssetRequest, target: RevealTarget, };
+export type RevealResult = "requested";
+export type ThumbnailDto = { width: number, height: number, png: Array<number>, };
+export type AssetError = { "code": "session_unavailable" } | { "code": "stale_task" } | { "code": "unavailable" } | { "code": "busy" } | { "code": "file_missing" } | { "code": "file_changed" } | { "code": "unsafe_path" } | { "code": "resource_limit" } | { "code": "decode_failed" } | { "code": "reveal_failed" } | { "code": "service_fault" };

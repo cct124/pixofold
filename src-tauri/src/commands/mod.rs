@@ -1,5 +1,8 @@
 //! 薄 IPC 适配层；核心类型保持独立，后续耗时命令交给任务服务。
 
+#[cfg(test)]
+mod asset_tests;
+mod assets;
 mod mutations;
 mod native_drop;
 pub(crate) use native_drop::handle_native_drop;
@@ -32,6 +35,8 @@ pub(crate) fn register<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::
             get_app_info,
             get_log_status,
             open_log_directory,
+            assets::get_task_thumbnail,
+            assets::reveal_task_file,
             get_task_snapshot,
             subscribe_task_changes,
             acknowledge_task_changes,
@@ -157,7 +162,11 @@ pub(crate) fn apply_task_mutation(
     tasks
         .subscriptions
         .with_ready(request.subscription_id, || {
-            mutations::mutate(&tasks.control, &tasks.imports, request)
+            let result = mutations::mutate(&tasks.control, &tasks.imports, request);
+            if result.is_ok() {
+                tasks.assets.invalidate();
+            }
+            result
         })
         .map_err(|error| MutationError::Subscription { error })?
 }
@@ -213,7 +222,9 @@ pub(crate) fn subscribe_task_changes(
     on_change: tauri::ipc::Channel<TaskStreamMessage>,
     tasks: tauri::State<'_, DesktopTasks>,
 ) -> Result<TaskChangeNotice, SubscriptionError> {
-    tasks.subscriptions.subscribe(on_change)
+    let result = tasks.subscriptions.subscribe(on_change)?;
+    tasks.assets.invalidate();
+    Ok(result)
 }
 
 #[tauri::command]
@@ -230,6 +241,9 @@ pub(crate) fn unsubscribe_task_changes(
     request: TaskSubscriptionRequest,
 ) -> Result<bool, SubscriptionError> {
     let removed = tasks.subscriptions.unsubscribe(request.subscription_id)?;
+    if removed {
+        tasks.assets.invalidate();
+    }
     tasks.imports.revoke_output_session(request.subscription_id);
     Ok(removed)
 }

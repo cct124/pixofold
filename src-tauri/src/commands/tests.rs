@@ -130,6 +130,14 @@ fn assert_local_queries_and_permissions(app: &tauri::App<MockRuntime>) {
     for (command, body) in [
         ("get_log_status", json!({})),
         ("open_log_directory", json!({})),
+        (
+            "get_task_thumbnail",
+            json!({"request":{"subscriptionId":"0","selectionId":"1","jobId":1,"attempt":1,"expectedState":"succeeded"}}),
+        ),
+        (
+            "reveal_task_file",
+            json!({"request":{"job":{"subscriptionId":"0","selectionId":"1","jobId":1,"attempt":1,"expectedState":"succeeded"},"target":"result"}}),
+        ),
         ("get_app_info", json!({})),
         ("get_task_snapshot", snapshot_request()),
         (
@@ -183,7 +191,12 @@ fn assert_local_queries_and_permissions(app: &tauri::App<MockRuntime>) {
     assert_eq!(after.phase, before.phase);
     assert!(after.selection.is_none());
     // 生产确实装配dialog插件，但前端无权绕过受控入口获取路径。
-    for command in ["plugin:dialog|open", "plugin:dialog|save"] {
+    for command in [
+        "plugin:dialog|open",
+        "plugin:dialog|save",
+        "plugin:opener|open_path",
+        "plugin:opener|reveal_item_in_dir",
+    ] {
         assert!(invoke(&main, command, json!({"options":{}})).is_err());
     }
 }

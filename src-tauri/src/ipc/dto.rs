@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 
 pub(super) const MAX_PAGE_SIZE: u16 = 100;
 pub(super) const MAX_DISPLAY_CHARS: usize = 240;
-// v7增加会话绑定输出目录和布局；沿用同一Channel及任务变化的ACK/背压契约。
-pub(crate) const TASK_PROTOCOL_VERSION: u32 = 7;
+// v8增加任务绑定的结果定位/缩略图窄命令；沿用同一Channel与ACK/背压契约。
+pub(crate) const TASK_PROTOCOL_VERSION: u32 = 8;
 
 /// 无符号64位十进制字符串；拒绝数字JSON、符号、空白、前导零及溢出。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

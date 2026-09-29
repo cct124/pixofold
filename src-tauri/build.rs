@@ -4,6 +4,8 @@ fn main() {
             "get_app_info",
             "get_log_status",
             "open_log_directory",
+            "get_task_thumbnail",
+            "reveal_task_file",
             "get_task_snapshot",
             "subscribe_task_changes",
             "acknowledge_task_changes",
