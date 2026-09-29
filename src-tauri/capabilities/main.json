@@ -9,6 +9,8 @@
     "allow-open-log-directory",
     "allow-get-task-thumbnail",
     "allow-reveal-task-file",
+    "allow-get-output-directories",
+    "allow-open-output-directory",
     "allow-get-task-snapshot",
     "allow-subscribe-task-changes",
     "allow-acknowledge-task-changes",

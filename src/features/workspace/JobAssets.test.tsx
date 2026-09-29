@@ -130,7 +130,7 @@ it('keeps running images as icons and degrades oversized/broken previews without
 it('never labels an overwritten result as an original preview and does not invent backup actions', async () => {
   render(<JobFileActions job={job} language="zh-CN" access={access} />);
   expect(screen.queryByRole('button', { name: '定位备份' })).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: '在文件夹中查看结果' }));
+  fireEvent.click(screen.getByRole('button', { name: '在文件夹中查看' }));
   await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('已请求文件管理器定位'));
   expect(invoke).toHaveBeenCalledExactlyOnceWith('reveal_task_file', {
     request: {
@@ -157,8 +157,10 @@ it('locates the original on NoGain, and only an actual success/recovery backup',
       access={access}
     />,
   );
-  expect(screen.getByRole('button', { name: 'Show original in folder' })).toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: 'Show result in folder' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Show in folder' })).toHaveAttribute(
+    'title',
+    'Show original in folder',
+  );
   ui.rerender(
     <JobFileActions
       job={{
@@ -170,6 +172,7 @@ it('locates the original on NoGain, and only an actual success/recovery backup',
       }}
       language="en"
       access={access}
+      target="backup"
     />,
   );
   expect(screen.getByRole('button', { name: 'Locate backup' })).toBeInTheDocument();
@@ -191,6 +194,7 @@ it('locates the original on NoGain, and only an actual success/recovery backup',
       }}
       language="en"
       access={access}
+      target="backup"
     />,
   );
   expect(screen.getAllByRole('button')).toHaveLength(1);
@@ -200,7 +204,7 @@ it('locates the original on NoGain, and only an actual success/recovery backup',
 it('reports missing files in both languages without displaying raw paths', async () => {
   vi.mocked(invoke).mockRejectedValue({ code: 'file_missing', message: 'private/path' });
   const ui = render(<JobFileActions job={job} language="zh-CN" access={access} />);
-  fireEvent.click(screen.getByRole('button', { name: '在文件夹中查看结果' }));
+  fireEvent.click(screen.getByRole('button', { name: '在文件夹中查看' }));
   await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('文件已被移动或删除'));
   ui.rerender(<JobFileActions job={job} language="en" access={access} />);
   expect(screen.getByRole('status')).toHaveTextContent('File has been moved or deleted.');
@@ -215,7 +219,7 @@ it('drops a late location acknowledgement after a row changes attempt', async ()
     }),
   );
   const ui = render(<JobFileActions job={job} language="en" access={access} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Show result in folder' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Show in folder' }));
   expect(screen.getByRole('button')).toBeDisabled();
   ui.rerender(<JobFileActions job={{ ...job, attempt: 2 }} language="en" access={access} />);
   await act(async () => {

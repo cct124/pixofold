@@ -1291,6 +1291,79 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
       request: { operation: { kind: 'clear', selectionId: '3' } },
     });
   });
+  it.each([
+    ['running', 1, false],
+    ['finished', 0, false],
+    ['finished', 1, true],
+  ] as const)(
+    'shows batch output action only for completed actual results (%s/%s)',
+    async (phase, succeeded, visible) => {
+      current = {
+        ...snapshot(),
+        selectionId: '1',
+        revision: '1',
+        phase,
+        batch: {
+          id: '1',
+          revision: '1',
+          phase,
+          mode: { kind: 'lossless' },
+          confirmationCount: 0,
+          summary: {
+            total: 1,
+            queued: 0,
+            running: 0,
+            succeeded,
+            noGain: 1 - succeeded,
+            failed: 0,
+            cancelled: 0,
+            processed: 1,
+            terminal: 1,
+            inputBytes: '1000',
+            currentBytes: '500',
+            savedBytes: '500',
+          },
+        },
+        page: {
+          kind: 'jobs',
+          offset: 0,
+          total: 1,
+          items: [
+            {
+              id: 1,
+              attempt: 1,
+              sourceName: name('image.png'),
+              inputBytes: '1000',
+              mode: { kind: 'lossless' },
+              state: {
+                kind: succeeded ? 'succeeded' : 'no_gain',
+                report: {
+                  inputBytes: '1000',
+                  outputBytes: '500',
+                  elapsedMs: '1',
+                  processing: { kind: 'lossless' },
+                  outputName: succeeded ? name('image.png') : null,
+                  backupName: null,
+                  contentCredentialsRemoved: false,
+                },
+              },
+            },
+          ],
+        },
+      };
+      await mount();
+      const button = screen.queryByRole('button', { name: '打开输出目录' });
+      if (visible) expect(button).toBeEnabled();
+      else expect(button).not.toBeInTheDocument();
+      expect(
+        vi
+          .mocked(invoke)
+          .mock.calls.filter(
+            ([cmd]) => cmd === 'get_output_directories' || cmd === 'open_output_directory',
+          ),
+      ).toHaveLength(0);
+    },
+  );
   it('keeps only the latest page request and resets stale revisions instead of mixing rows', async () => {
     current = { ...snapshot(), selectionId: '1', phase: 'ready', revision: '10' };
     await mount();

@@ -18,7 +18,10 @@ impl OutputDirectory {
         Ok(result)
     }
 
-    pub(crate) fn verify(&self) -> Result<(), ProcessingError> {
+    /// 只读复查目录仍存在、非链接且身份未变；用于输出提交及受控结果目录定位。
+    /// # Errors
+    /// 目录被移走、替换、改为链接或无法读取时拒绝，不重新授权新目录。
+    pub fn verify(&self) -> Result<(), ProcessingError> {
         let path = paths::directory(self.path())?;
         let identity = same_file::Handle::from_path(&path)
             .map_err(|e| ProcessingError::io("复查输出目录身份", e))?;

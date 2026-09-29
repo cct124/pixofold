@@ -1,6 +1,7 @@
 import type { DisplayName, JobDto, TaskPageDto } from '../../lib/ipc/tasks.generated';
 import type { Language } from '../../stores/preferences';
 import { JobThumbnail, JobFileActions, type RowAssets } from './JobAssets';
+import { HoverDetails } from '../../components/ui/HoverDetails';
 import { formatBytes, formatReduction } from './format';
 import { workspaceText, type WorkspaceText } from './messages';
 import styles from './Workspace.module.css';
@@ -89,9 +90,10 @@ export function WorkspaceRows({
   const t = workspaceText(language);
   const jobs = page.kind === 'jobs';
   return (
-    <table className={styles.table}>
+    <table className={styles.table} data-jobs={jobs}>
       {jobs && (
         <colgroup>
+          <col />
           <col />
           <col />
           <col />
@@ -110,6 +112,7 @@ export function WorkspaceRows({
             </>
           )}
           <th>{t('result')}</th>
+          {jobs && <th>{t('actions')}</th>}
         </tr>
       </thead>
       <tbody>
@@ -144,17 +147,41 @@ export function WorkspaceRows({
                 >
                   {formatReduction(report?.inputBytes ?? null, report?.outputBytes ?? null)}
                 </td>
-                <td>
+                <td data-label={t('result')}>
                   <span data-state={state.kind}>
                     {t(state.kind)}
                     {state.kind === 'running' && ' · ' + t(state.stage)}
                   </span>
                   {report?.contentCredentialsRemoved && <small>{t('credentialsRemoved')}</small>}
-                  <details className={styles.rowDetails}>
-                    <summary>{t('details')}</summary>
-                    <JobResult job={job} language={language} />
+                </td>
+                <td data-label={t('actions')}>
+                  <div className={styles.rowActions}>
+                    <HoverDetails
+                      key={[
+                        access.selectionId,
+                        job.id,
+                        job.attempt,
+                        state.kind,
+                        access.enabled,
+                      ].join('/')}
+                      label={t('details')}
+                      disabled={!access.enabled}
+                    >
+                      <div className={styles.jobDetails}>
+                        <p className={styles.detailName}>
+                          <Name value={job.sourceName} t={t} />
+                        </p>
+                        <JobResult job={job} language={language} />
+                        <JobFileActions
+                          job={job}
+                          language={language}
+                          access={access}
+                          target="backup"
+                        />
+                      </div>
+                    </HoverDetails>
                     <JobFileActions job={job} language={language} access={access} />
-                  </details>
+                  </div>
                 </td>
               </tr>
             );

@@ -1,6 +1,6 @@
 // 由 Rust 任务DTO生成；请运行 pnpm types:generate，勿手工编辑。
 import type { PngMode } from './generated';
-export const TASK_PROTOCOL_VERSION = 8;
+export const TASK_PROTOCOL_VERSION = 9;
 export const MAX_TASK_PAGE_SIZE = 100;
 export type DecimalU64 = string;
 export type TaskCollection = "jobs" | "candidates" | "issues" | "confirmations";
@@ -68,7 +68,13 @@ export type LogStatus = { state: LogState, droppedEvents: string, writeFailures:
 export const MAX_THUMBNAIL_WIDTH = 128;
 export const MAX_THUMBNAIL_HEIGHT = 96;
 export const MAX_THUMBNAIL_BYTES = 65536;
+export const OUTPUT_DIRECTORY_PAGE_SIZE = 50;
 export type AssetState = "succeeded" | "no_gain" | "failed" | "cancelled";
+export type BatchAssetRequest = { subscriptionId: DecimalU64, selectionId: DecimalU64, batchId: DecimalU64, batchRevision: DecimalU64, };
+export type OutputDirectoriesRequest = { batch: BatchAssetRequest, offset: number, };
+export type OpenOutputDirectoryRequest = { batch: BatchAssetRequest, jobId: number, };
+export type OutputDirectoryDto = { jobId: number, name: DisplayName, exampleName: DisplayName, resultCount: number, };
+export type OutputDirectoryPage = { total: number, offset: number, items: Array<OutputDirectoryDto>, };
 export type JobAssetRequest = { subscriptionId: DecimalU64, selectionId: DecimalU64, jobId: number, attempt: number, expectedState: AssetState, };
 export type RevealTarget = "result" | "backup";
 export type RevealRequest = { job: JobAssetRequest, target: RevealTarget, };

@@ -139,6 +139,14 @@ fn assert_local_queries_and_permissions(app: &tauri::App<MockRuntime>) {
             json!({"request":{"job":{"subscriptionId":"0","selectionId":"1","jobId":1,"attempt":1,"expectedState":"succeeded"},"target":"result"}}),
         ),
         ("get_app_info", json!({})),
+        (
+            "get_output_directories",
+            json!({"request":{"batch":{"subscriptionId":"0","selectionId":"1","batchId":"1","batchRevision":"1"},"offset":0}}),
+        ),
+        (
+            "open_output_directory",
+            json!({"request":{"batch":{"subscriptionId":"0","selectionId":"1","batchId":"1","batchRevision":"1"},"jobId":1}}),
+        ),
         ("get_task_snapshot", snapshot_request()),
         (
             "subscribe_task_changes",

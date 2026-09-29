@@ -8,6 +8,7 @@ import { detailText, workspaceText } from './messages';
 import { WorkspaceRows } from './WorkspaceRows';
 import { WorkspaceSettings } from './WorkspaceSettings';
 import { ContentCredentialsDialog } from './ContentCredentialsDialog';
+import { BatchOutputDirectories } from './BatchOutputDirectories';
 import styles from './Workspace.module.css';
 
 /** 只呈现Rust快照；组件重挂载不创建第二份任务或Channel。 */
@@ -27,7 +28,10 @@ export function Workspace({
   const t = workspaceText(language);
   useEffect(() => {
     controller.setDropTarget((position) => {
-      if (document.visibilityState === 'hidden' || document.querySelector('dialog[open]'))
+      if (
+        document.visibilityState === 'hidden' ||
+        document.querySelector('dialog[open]:not([data-floating-panel])')
+      )
         return false;
       const scale = window.devicePixelRatio;
       if (!Number.isFinite(scale) || scale <= 0) return false;
@@ -42,7 +46,7 @@ export function Workspace({
         (event.ctrlKey || event.metaKey) &&
         !event.altKey &&
         event.key.toLowerCase() === 'o' &&
-        !document.querySelector('dialog[open]')
+        !document.querySelector('dialog[open]:not([data-floating-panel])')
       ) {
         event.preventDefault();
         if (!event.repeat && controller.canChange && controller.canImport)
@@ -192,6 +196,9 @@ export function Workspace({
                       enabled:
                         view.connection === 'connected' &&
                         !view.needsRecovery &&
+                        !view.pending &&
+                        !confirm &&
+                        !view.confirmationOpen &&
                         (snapshot?.phase === 'running' || snapshot?.phase === 'finished'),
                     }}
                   />
@@ -267,6 +274,30 @@ export function Workspace({
               {view.pending ? t('pending') : snapshot?.selectionId ? t(snapshot.phase) : t('tips')}
             </p>
             <div className={styles.workActions}>
+              {snapshot?.phase === 'finished' &&
+                snapshot.selectionId &&
+                snapshot.batch &&
+                summary &&
+                summary.succeeded > 0 && (
+                  <BatchOutputDirectories
+                    key={[
+                      snapshot.selectionId,
+                      snapshot.batch.id,
+                      snapshot.batch.revision,
+                      canChange,
+                      confirm,
+                      view.confirmationOpen,
+                    ].join('/')}
+                    assets={controller.assets}
+                    identity={{
+                      selectionId: snapshot.selectionId,
+                      batchId: snapshot.batch.id,
+                      batchRevision: snapshot.batch.revision,
+                    }}
+                    language={language}
+                    enabled={canChange && !confirm && !view.confirmationOpen}
+                  />
+                )}
               {retryable && (
                 <button
                   className="text-button"

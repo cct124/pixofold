@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-output-directories"
+description = "Enables the get_output_directories command without any pre-configured scope."
+commands.allow = ["get_output_directories"]
+
+[[permission]]
+identifier = "deny-get-output-directories"
+description = "Denies the get_output_directories command without any pre-configured scope."
+commands.deny = ["get_output_directories"]

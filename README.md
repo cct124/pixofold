@@ -157,7 +157,7 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 
 [桌面IPC模块](src-tauri/src/ipc/mod.rs) 与 [前端适配器](src/lib/ipc/tasks.ts) 复用唯一 TaskControl。主窗口可调用 get_task_snapshot 查询状态；该查询本身不启动导入、重试或压缩，也不创建第二个任务服务。P4工作台通过订阅复用此有界查询。
 
-- Rust DTO 与协议常量为权威来源，生成 [tasks.generated.ts](src/lib/ipc/tasks.generated.ts)；原有核心 generated.ts 和 get_app_info 契约保持不变。协议版本当前为 5，前后端须使用同一构建。
+- Rust DTO 与协议常量为权威来源，生成 [tasks.generated.ts](src/lib/ipc/tasks.generated.ts)；原有核心 generated.ts 和 get_app_info 契约保持不变。协议版本当前为 9，前后端须使用同一构建。
 - `JobErrorDto` 的 `unsupported_content_credentials` / `unsupported_metadata` 分别表示 caBX 与其他不支持安全改写的元数据；嵌套恢复原因使用同样类别，真正的产物验证错误仍为 `validation`。不能仅凭错误代码授予移除权限：v3的confirmations集合仅包含完整解码/元数据检查通过且唯一不支持类别是caBX的直接失败行，清理失败或其他未知块不入选。
 - 应用/批次 revision、selection/batch ID、字节数、elapsedMs 均为规范 u64 十进制字符串，前端用 BigInt 比较；不经过 Number。毫秒向下取整，异常溢出返回 invalid_snapshot；未知大小保留 null。行 ID、候选/问题索引、attempt 与数量使用检查过的整数；行身份由 selection/batch/id/attempt 共同界定，不是文件名。
 - 查询指定 jobs、candidates、issues或confirmations，limit 为 1–100。offset=0、expectedRevision=null 读取最新版本；后续页必须带该 revision。一次响应的摘要与行来自同一份 Arc 快照；版本不匹配返回 stale_snapshot/currentRevision，应丢弃旧分页并从第一页重新读取，不拼接不同版本，也不保存无限历史快照。确认集合带安全父目录标签和稳定行ID区分同名图片，批次摘要带全量confirmationCount，不以当前页数量冒充总数。
@@ -222,10 +222,12 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 - caBX弹窗固定打开时的目录/布局，只给选中行授权移除；使用Rust保存的导入来源和同一个`ImportOutput::outputs_for`规划目标，不把所有普通成功项搬到新目录。指定目录副本同样不显示备份模块，目标存在则拒绝覆盖。
 - 默认扁平输出，保留原文件名；保留结构时映射为`目标/导入根名/相对父目录/原文件名`，单独选择的文件放目标根。目标已存在或冲突只使相关图片失败，其他任务继续；普通重试保留原目标、caBX确认同样逐项检查，均不自动编号或覆盖已有副本。无收益不生成副本，失败/无收益可能留下空结构目录。输出位于输入树内时只在完整扫描后写入；历史_compressed文件仍是普通候选，不一律排除。此命名/错误语义更新不改变协议v7形状；显式核心Copy目标路径不被改名。
 
-## 结果定位与真实缩略图（协议v8）
+## 结果定位、批次目录与真实缩略图（协议v9）
 
-- 任务行展开“详情”后可在文件夹中查看实际结果；无收益定位保留的原图，不伪造未生成的副本。成功备份或失败恢复报告确有备份才显示“定位备份”。文件被移动、删除或路径包含链接时明确拒绝；不从显示名拼接路径。
-- `reveal_task_file`和`get_task_thumbnail`只接收已ACK的subscriptionId、selectionId、jobId、attempt、expectedState，定位再选择result/backup。Rust按当前权威终态行解析；拒绝旧会话/清单/尝试、运行行及清除/重试准备/关闭状态。不沿用批次revision作图片版本，以免其他行进度更新使已完成预览反复失效。协议由7升至8，旧页面须更新重载；既有输出与确认策略不变。
+- 任务表最右侧“操作”列常显“详情”和“在文件夹中查看”。详情悬停或键盘聚焦即弹出非模态浮层，不展开表格行；鼠标可移入面板阅读，Tab可访问其中的真实备份定位，Escape、外部点击、来源列表滚动或行失效会关闭。实际结果可直接定位；无收益定位保留原图，没有可用结果的行禁用查看。成功备份或失败恢复报告确有备份才在浮层内显示“定位备份”。文件被移动、删除或包含链接时拒绝，不从显示名拼接路径。
+- 底部“打开输出目录”仅在本批结束且至少一张成功时显示，不在结束时自动打开。指定目录打开各成功行实际采用的根目录（保留结构也从根进入），覆盖打开结果所在目录；不使用当前设置草稿。多个目录按成功行顺序去重，显示目录名、代表任务ID/样例文件和结果数量，用户逐次选择；菜单每页最多50个目录，不同时打开多个窗口。全失败/全无收益不伪造新结果入口。
+- get_output_directories/open_output_directory绑定已ACK会话、selectionId、batchId及batchRevision，打开再指定代表成功行ID；后端解析路径，重试/清除/换批/断连后拒绝旧请求。分组在后台且不持状态锁，仅转换当前页名称；查询和打开与文件定位共享单在途许可，退出等待真实返回。打开前复查目录存在/父链，指定输出根另核对原生授权身份，被删除或同名替换不重新授权；覆盖结果父目录沿用路径级检查，不宣称文件系统CAS。不创建目录、不执行任意命令，也不自动重发打开请求。v9扩展命令与生成DTO，旧页面须更新重载。
+- `reveal_task_file`和`get_task_thumbnail`自协议v8引入，只接收已ACK的subscriptionId、selectionId、jobId、attempt、expectedState，定位再选择result/backup。Rust按当前权威终态行解析；拒绝旧会话/清单/尝试、运行行及清除/重试准备/关闭状态。不沿用批次revision作图片版本，以免其他行进度更新使已完成预览反复失效。当前协议v9，旧页面须更新重载；既有输出与确认策略不变。
 - 定位复用固定版本tauri-plugin-opener的Rust API，不安装其JS插件或授予通用路径权限；每次最多一个定位请求，Requested仅表示已请求文件管理器，系统可能只打开目录而非选中文件。macOS非UTF-8路径明确拒绝，避免其API有损转换到另一文件。Windows/macOS/Linux真实系统行为分别验收。
 - 每张图处理结束后，仅可见任务行按需申请缩略图。成功项读取当前结果文件，其余终态读取当前源文件；无备份覆盖后不会声称仍有原图预览。未处理、损坏、超限或不支持的图片回退图标/提示，不影响压缩。仅用于识别，不承诺ICC色彩管理、EXIF方向应用或压缩前后保真对比；扫描候选/问题列表仍用文字。
 - 单解码在途、无后端等待队列；文件最多16 MiB、8,388,608像素、单边16,384，解码输出与png内部预算各32 MiB。图片缩放到最多128×96、不放大小图，透明度使用预乘alpha采样；只编码像素到最多65,536 bytes的PNG，不回传原始图片、凭据或元数据。限额不是进程RSS硬上限，所有读/解码均在后台且不持服务锁。

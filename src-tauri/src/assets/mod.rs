@@ -1,7 +1,11 @@
 //! 当前任务的只读展示能力：受控文件定位与有界缩略图。
 //! 单个解码/定位在途，不创建无界队列；I/O不持状态锁，清除/重载使迟到结果失效。
 
+mod directories;
 mod dto;
+pub(crate) use directories::{directory_page, resolve_directory, validate_batch};
+#[cfg(test)]
+mod directory_tests;
 mod png;
 #[cfg(test)]
 mod tests;
@@ -138,6 +142,12 @@ impl AssetService {
             return Err(AssetError::StaleTask);
         }
         Ok(())
+    }
+
+    /// 不做I/O；只复查在途许可未被清除、重载或退出撤销。
+    pub(crate) fn ensure_current(&self, permit: &Permit) -> Result<(), AssetError> {
+        let state = self.state.lock().map_err(|_| AssetError::ServiceFault)?;
+        Self::current(&state, permit)
     }
 
     /// 打开并复查授权路径，即使命中缓存也检查外部删除/变化。无锁读/解码，不写磁盘。
@@ -295,6 +305,10 @@ pub(crate) fn resolve(
 }
 
 pub(crate) fn validate_file(path: &Path) -> Result<(), AssetError> {
+    validate_path(path, false)
+}
+
+fn validate_path(path: &Path, directory: bool) -> Result<(), AssetError> {
     if !path.is_absolute()
         || path.components().any(|part| {
             matches!(
@@ -308,8 +322,8 @@ pub(crate) fn validate_file(path: &Path) -> Result<(), AssetError> {
     for (index, ancestor) in path.ancestors().enumerate() {
         let metadata = std::fs::symlink_metadata(ancestor).map_err(io_error)?;
         if metadata.file_type().is_symlink()
-            || (index == 0 && !metadata.is_file())
-            || (index > 0 && !metadata.is_dir())
+            || (index == 0 && !directory && !metadata.is_file())
+            || ((index > 0 || directory) && !metadata.is_dir())
         {
             return Err(AssetError::UnsafePath);
         }

@@ -84,6 +84,19 @@ fn asset_commands_require_acknowledgement_and_reject_unknown_targets_and_paths()
     )
     .unwrap();
     let job = json!({"subscriptionId":ticket["subscriptionId"],"selectionId":"1","jobId":1,"attempt":1,"expectedState":"succeeded"});
+    let batch = json!({"subscriptionId":ticket["subscriptionId"],"selectionId":"1","batchId":"1","batchRevision":"1"});
+    for (command, request) in [
+        ("get_output_directories", json!({"batch":batch,"offset":0})),
+        ("open_output_directory", json!({"batch":batch,"jobId":1})),
+    ] {
+        assert_eq!(
+            invoke(&main, command, json!({"request":request})).unwrap_err(),
+            json!({"code":"session_unavailable"})
+        );
+        let mut bad = request.clone();
+        bad["path"] = json!("private");
+        assert!(invoke(&main, command, json!({"request":bad})).is_err());
+    }
     assert_eq!(
         invoke(&main, "get_task_thumbnail", json!({"request":job})).unwrap_err(),
         json!({"code":"session_unavailable"})
@@ -112,5 +125,74 @@ fn asset_commands_require_acknowledgement_and_reject_unknown_targets_and_paths()
             json!({"request":{"job":job,"target":"result","path":"private-path"}})
         )
         .is_err()
+    );
+}
+
+#[test]
+fn batch_directory_commands_bind_completed_results_not_new_output_drafts() {
+    let app = app(super::super::app_context());
+    let main = window(&app, "main");
+    let session = connected(&app);
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("sample.png");
+    fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/png/rgb8.png"),
+        &source,
+    )
+    .unwrap();
+    let out = dir.path().join("actual-output");
+    fs::create_dir(&out).unwrap();
+    let other = dir.path().join("new-draft");
+    fs::create_dir(&other).unwrap();
+    let selected = super::tests::output_grant(&app, session, &out);
+    let grant = native_grant(&app, session, vec![source]);
+    let accepted=mutate(&main,session,json!({"kind":"import","grantId":grant["grantId"],"settings":{"mode":{"kind":"lossless"},"output":{"copy_to":{"directoryId":selected["directoryId"],"preserveStructure":false}}}})).unwrap();
+    let tasks = app.state::<DesktopTasks>();
+    let finished = phase(&tasks.control, TaskPhase::Finished);
+    let batch = finished.batch.unwrap();
+    let request = json!({"subscriptionId":session.0.to_string(),"selectionId":accepted["selectionId"],"batchId":batch.id.get().to_string(),"batchRevision":batch.revision.to_string()});
+    super::tests::output_grant(&app, session, &other);
+    let page = invoke(
+        &main,
+        "get_output_directories",
+        json!({"request":{"batch":request,"offset":0}}),
+    )
+    .unwrap();
+    assert_eq!(page["total"], 1);
+    assert_eq!(page["items"][0]["name"]["text"], "actual-output");
+    assert!(!page.to_string().contains("new-draft"));
+    assert!(page["items"][0].get("path").is_none());
+    let mut stale = request.clone();
+    stale["batchRevision"] = json!((batch.revision + 1).to_string());
+    assert_eq!(
+        invoke(
+            &main,
+            "get_output_directories",
+            json!({"request":{"batch":stale,"offset":0}})
+        )
+        .unwrap_err(),
+        json!({"code":"stale_task"})
+    );
+    fs::remove_file(out.join("sample.png")).unwrap();
+    fs::remove_dir(&out).unwrap();
+    // 删除目录必须在调用系统文件管理器前失败；测试从不真实打开Explorer。
+    assert_eq!(
+        invoke(
+            &main,
+            "open_output_directory",
+            json!({"request":{"batch":request,"jobId":page["items"][0]["jobId"]}})
+        )
+        .unwrap_err(),
+        json!({"code":"file_missing"})
+    );
+    tasks.page_load("main", tauri::webview::PageLoadEvent::Started);
+    assert_eq!(
+        invoke(
+            &main,
+            "get_output_directories",
+            json!({"request":{"batch":request,"offset":0}})
+        )
+        .unwrap_err(),
+        json!({"code":"session_unavailable"})
     );
 }

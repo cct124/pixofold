@@ -3,6 +3,7 @@
 #[cfg(test)]
 mod asset_tests;
 mod assets;
+mod directories;
 mod mutations;
 mod native_drop;
 pub(crate) use native_drop::handle_native_drop;
@@ -37,6 +38,8 @@ pub(crate) fn register<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::
             open_log_directory,
             assets::get_task_thumbnail,
             assets::reveal_task_file,
+            directories::get_output_directories,
+            directories::open_output_directory,
             get_task_snapshot,
             subscribe_task_changes,
             acknowledge_task_changes,

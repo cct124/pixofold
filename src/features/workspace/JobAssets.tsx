@@ -107,10 +107,12 @@ export function JobFileActions({
   job,
   language,
   access,
+  target = 'result',
 }: {
   job: JobDto;
   language: Language;
   access: RowAssets;
+  target?: RevealTarget;
 }) {
   const t = workspaceText(language);
   const identity = useIdentity(access.selectionId, job);
@@ -122,7 +124,10 @@ export function JobFileActions({
       : state.kind === 'failed'
         ? state.failure.recovery?.backupName
         : null;
-  const owner = useMemo(() => ({ identity, enabled: access.enabled }), [identity, access.enabled]);
+  const owner = useMemo(
+    () => ({ identity, enabled: access.enabled, target }),
+    [identity, access.enabled, target],
+  );
   type Message = 'requested' | ReturnType<typeof assetErrorCode> | null;
   const [notice, setNotice] = useState<{
     owner: typeof owner;
@@ -139,10 +144,11 @@ export function JobFileActions({
       token.active = false;
     };
   }, [owner]);
-  if (!identity || (!result && !backup)) return null;
-  const reveal = async (target: RevealTarget) => {
+  const available = target === 'result' ? result : Boolean(backup);
+  if (target === 'backup' && !backup) return null;
+  const reveal = async () => {
     const token = lifetime.current;
-    if (pending || !access.enabled || !token?.active) return;
+    if (!identity || !available || pending || !access.enabled || !token?.active) return;
     setNotice({ owner, pending: true, message: null });
     let message: Message;
     try {
@@ -155,29 +161,23 @@ export function JobFileActions({
   };
   return (
     <div className={styles.fileActions}>
-      {result && (
-        <button
-          className="text-button"
-          disabled={!access.enabled || pending}
-          onClick={() => {
-            void reveal('result');
-          }}
-        >
-          {state.kind === 'no_gain' ? t('revealOriginal') : t('revealResult')}
-        </button>
-      )}
-      {backup && (
-        <button
-          className="text-button"
-          disabled={!access.enabled || pending}
-          onClick={() => {
-            void reveal('backup');
-          }}
-        >
-          {t('revealBackup')}
-        </button>
-      )}
-      <output>
+      <button
+        className="text-button"
+        disabled={!available || !access.enabled || pending}
+        title={
+          target === 'backup'
+            ? t('revealBackup')
+            : state.kind === 'no_gain'
+              ? t('revealOriginal')
+              : t('revealResult')
+        }
+        onClick={() => {
+          void reveal();
+        }}
+      >
+        {target === 'backup' ? t('revealBackup') : t('viewInFolder')}
+      </button>
+      <output className={styles.actionNotice}>
         {pending
           ? t('revealPending')
           : message === 'requested'

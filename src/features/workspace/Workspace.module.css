@@ -171,16 +171,22 @@
   font-size: 14px;
 }
 .table col:nth-child(1) {
-  width: 38%;
+  width: 30%;
+}
+.table[data-jobs='true'] {
+  min-width: 740px;
 }
 .table col:nth-child(2),
 .table col:nth-child(3) {
-  width: 16%;
+  width: 13%;
 }
 .table col:nth-child(4) {
-  width: 12%;
+  width: 10%;
 }
 .table col:nth-child(5) {
+  width: 16%;
+}
+.table col:nth-child(6) {
   width: 18%;
 }
 .table th {
@@ -259,7 +265,7 @@
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 4px 12px;
-  margin-top: 8px;
+  margin-top: 0;
 }
 .fileActions button {
   text-align: left;
@@ -281,15 +287,74 @@
   white-space: nowrap;
   font-weight: 500;
 }
-.rowDetails {
-  margin-top: 4px;
-  font-size: 12px;
+.rowActions {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
 }
-.rowDetails summary {
+.rowActions > button {
+  color: var(--accent);
+}
+.actionNotice {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.actionNotice:empty,
+.directoryNotice:empty {
+  display: none;
+}
+.jobDetails {
+  display: grid;
+  gap: 6px;
+}
+.jobDetails small {
+  display: block;
   color: var(--muted);
 }
-.rowDetails[open] {
-  min-width: 0;
+.detailName {
+  margin: 0 0 6px;
+  font-weight: 600;
+}
+.jobDetails [data-state='succeeded'] {
+  color: var(--success);
+}
+.jobDetails [data-state='failed'] {
+  color: var(--danger);
+}
+.jobDetails [data-state='running'] {
+  color: var(--accent);
+}
+.batchDirectories {
+  max-width: 100%;
+}
+.directoryNotice {
+  display: block;
+  max-width: 260px;
+  color: var(--muted);
+}
+.directoryList {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0;
+  display: grid;
+  gap: 4px;
+}
+.directoryList button {
+  display: grid;
+  text-align: left;
+  width: 100%;
+  padding: 8px;
+}
+.directoryList small {
+  color: var(--muted);
+}
+.directoryPages {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
 }
 .pagination {
   flex: none;
@@ -753,6 +818,9 @@
     display: block;
     min-width: 0;
   }
+  .table[data-jobs='true'] {
+    min-width: 0;
+  }
   .table colgroup,
   .table thead {
     display: none;
@@ -774,8 +842,15 @@
     font-size: 12px;
   }
   .table td:first-child,
-  .table td:last-child {
+  .table td:last-child,
+  .table td:nth-child(5) {
     grid-column: 1 / -1;
+  }
+  .rowActions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: flex-start;
   }
   .table td[data-label]::before {
     content: attr(data-label);

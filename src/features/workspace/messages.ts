@@ -2,6 +2,21 @@ import type { Language } from '../../stores/preferences';
 
 const copy = {
   revealResult: ['在文件夹中查看结果', 'Show result in folder'],
+  actions: ['操作', 'Actions'],
+  viewInFolder: ['在文件夹中查看', 'Show in folder'],
+  openOutputDirectory: ['打开输出目录', 'Open output folder'],
+  chooseResultDirectory: ['选择要打开的输出目录', 'Choose an output folder'],
+  directoryRequested: ['已请求打开输出目录。', 'Output folder open requested.'],
+  directoryMissing: ['输出目录已被移动或删除。', 'Output folder has been moved or deleted.'],
+  directoryChanged: [
+    '输出目录已被替换，无法打开原目录。',
+    'Output folder was replaced; the original folder is unavailable.',
+  ],
+  directoryUnavailable: [
+    '本批没有可打开的输出目录。',
+    'No output folder is available for this batch.',
+  ],
+  directoryResultCount: ['张结果', 'results'],
   revealOriginal: ['在文件夹中查看原图', 'Show original in folder'],
   revealBackup: ['定位备份', 'Locate backup'],
   revealPending: ['正在请求文件管理器…', 'Requesting file manager…'],

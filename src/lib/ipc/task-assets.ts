@@ -1,9 +1,18 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { parseDecimalU64 } from './tasks';
+import { outputDirectoryPage } from './output-directories';
 import { MAX_THUMBNAIL_WIDTH, MAX_THUMBNAIL_HEIGHT, MAX_THUMBNAIL_BYTES } from './tasks.generated';
-import type { AssetError, JobAssetRequest, RevealTarget, ThumbnailDto } from './tasks.generated';
+import type {
+  AssetError,
+  BatchAssetRequest,
+  JobAssetRequest,
+  OutputDirectoryPage,
+  RevealTarget,
+  ThumbnailDto,
+} from './tasks.generated';
 
 export type AssetIdentity = Omit<JobAssetRequest, 'subscriptionId'>;
+export type BatchAssetIdentity = Omit<BatchAssetRequest, 'subscriptionId'>;
 export type ThumbnailView =
   | { kind: 'loading' }
   | { kind: 'ready'; url: string; width: number; height: number }
@@ -168,6 +177,65 @@ export class TaskAssets {
     } finally {
       this.#revealing = false;
     }
+  }
+
+  #batchRequest(identity: BatchAssetIdentity): BatchAssetRequest {
+    const session = this.#session();
+    if (!isTauri() || !session) throw fail('session_unavailable');
+    if (
+      parseDecimalU64(session) === 0n ||
+      parseDecimalU64(identity.selectionId) === 0n ||
+      parseDecimalU64(identity.batchId) === 0n
+    )
+      throw fail('stale_task');
+    parseDecimalU64(identity.batchRevision);
+    return {
+      subscriptionId: session,
+      selectionId: identity.selectionId,
+      batchId: identity.batchId,
+      batchRevision: identity.batchRevision,
+    };
+  }
+
+  /** 单次查询一页；不自动重发目录打开，重载/换批迟到响应一律丢弃。 */
+  async outputDirectories(
+    identity: BatchAssetIdentity,
+    offset: number,
+  ): Promise<OutputDirectoryPage> {
+    const batch = this.#batchRequest(identity),
+      generation = this.#generation;
+    if (!Number.isSafeInteger(offset) || offset < 0 || offset > 100_000) throw fail('stale_task');
+    if (this.#revealing) throw fail('busy');
+    this.#revealing = true;
+    try {
+      const result = await invoke<unknown>('get_output_directories', {
+        request: { batch, offset },
+      });
+      this.#checkBatchResponse(batch, generation);
+      return outputDirectoryPage(result, offset);
+    } finally {
+      this.#revealing = false;
+    }
+  }
+
+  async openOutputDirectory(identity: BatchAssetIdentity, jobId: number): Promise<void> {
+    const batch = this.#batchRequest(identity),
+      generation = this.#generation;
+    if (!Number.isSafeInteger(jobId) || jobId < 1 || jobId > 0xffff_ffff) throw fail('stale_task');
+    if (this.#revealing) throw fail('busy');
+    this.#revealing = true;
+    try {
+      const result = await invoke<unknown>('open_output_directory', { request: { batch, jobId } });
+      this.#checkBatchResponse(batch, generation);
+      if (result !== 'requested') throw fail('service_fault');
+    } finally {
+      this.#revealing = false;
+    }
+  }
+
+  #checkBatchResponse(batch: BatchAssetRequest, generation: number): void {
+    if (this.#session() !== batch.subscriptionId) throw fail('session_unavailable');
+    if (generation !== this.#generation) throw fail('stale_task');
   }
 
   #live(key: string, entry: Entry): boolean {
