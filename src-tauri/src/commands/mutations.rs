@@ -14,7 +14,7 @@ use pixofold_core::{
     import::{ImportOutput, copy_beside},
     model::{OutputPolicy, PngMetadataPolicy},
 };
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 
 fn failure(error: TaskError) -> MutationError {
     match ipc::task_error(&error) {
@@ -22,8 +22,26 @@ fn failure(error: TaskError) -> MutationError {
         Err(_) => MutationError::ServiceFault,
     }
 }
-fn settings(value: TaskSettingsDto) -> TaskSettings {
-    TaskSettings {
+fn directory_output(
+    imports: &NativeImports,
+    session: DecimalU64,
+    target: ipc::DirectoryTarget,
+) -> Result<ImportOutput, MutationError> {
+    Ok(ImportOutput::CopyToAuthorized {
+        directory: imports.output(session, target.directory_id)?,
+        layout: if target.preserve_structure {
+            pixofold_core::import::CopyLayout::PreserveRoots
+        } else {
+            pixofold_core::import::CopyLayout::Flat
+        },
+    })
+}
+fn settings(
+    value: TaskSettingsDto,
+    imports: &NativeImports,
+    session: DecimalU64,
+) -> Result<TaskSettings, MutationError> {
+    Ok(TaskSettings {
         parameters: BatchParameters {
             mode: value.mode,
             ..Default::default()
@@ -32,8 +50,9 @@ fn settings(value: TaskSettingsDto) -> TaskSettings {
             TaskOutput::Overwrite => ImportOutput::Overwrite,
             TaskOutput::OverwriteWithoutBackup => ImportOutput::OverwriteWithoutBackup,
             TaskOutput::CopyBeside => ImportOutput::CopyBeside,
+            TaskOutput::CopyTo(target) => directory_output(imports, session, target)?,
         },
-    }
+    })
 }
 fn selection(control: &TaskControl, id: DecimalU64) -> Result<SelectionId, MutationError> {
     control
@@ -62,17 +81,26 @@ pub(crate) fn mutate(
         TaskMutation::Import(ImportTask {
             grant_id,
             settings: value,
-        }) => imports
-            .consume(request.subscription_id, grant_id, |roots| {
-                control.import(roots, value.map(settings)).map_err(failure)
-            })?
-            .get(),
+        }) => {
+            // 先解析输出授权再占输入授权锁，不能在consume闭包内递归锁同一服务。
+            let fixed = value
+                .map(|v| settings(v, imports, request.subscription_id))
+                .transpose()?;
+            imports
+                .consume(request.subscription_id, grant_id, |roots| {
+                    control.import(roots, fixed).map_err(failure)
+                })?
+                .get()
+        }
         TaskMutation::Start(StartTask {
             selection_id,
             settings: value,
         }) => {
             control
-                .start(selection(control, selection_id)?, settings(value))
+                .start(
+                    selection(control, selection_id)?,
+                    settings(value, imports, request.subscription_id)?,
+                )
                 .map_err(failure)?;
             selection_id.0
         }
@@ -173,12 +201,43 @@ pub(crate) fn mutate(
             if selected.len() != job_ids.len() {
                 return Err(MutationError::InvalidRetry);
             }
-            let mut jobs = Vec::with_capacity(selected.len());
-            for job in batch
+            let selected_jobs: Vec<_> = batch
                 .jobs
                 .iter()
                 .filter(|job| selected.contains(&job.id.get()))
-            {
+                .collect();
+            if selected_jobs.len() != selected.len() {
+                return Err(MutationError::InvalidRetry);
+            }
+            let mut directory_policies = if let CredentialsOutput::CopyTo(target) = &output {
+                let policy = directory_output(imports, request.subscription_id, *target)?;
+                let scan = snapshot
+                    .import
+                    .as_ref()
+                    .ok_or(MutationError::InvalidRetry)?;
+                let sources: HashMap<_, _> = scan
+                    .files()
+                    .iter()
+                    .map(|file| (&file.source, file))
+                    .collect();
+                let files = selected_jobs
+                    .iter()
+                    .map(|job| {
+                        sources
+                            .get(&job.request.source)
+                            .copied()
+                            .ok_or(MutationError::InvalidRetry)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                policy
+                    .outputs_for(&files)
+                    .map_err(|_| MutationError::InvalidRetry)?
+                    .into_iter()
+            } else {
+                Vec::new().into_iter()
+            };
+            let mut jobs = Vec::with_capacity(selected.len());
+            for job in selected_jobs {
                 let source = job
                     .content_credentials_source()
                     .ok_or(MutationError::InvalidRetry)?;
@@ -191,6 +250,9 @@ pub(crate) fn mutate(
                         }
                         CredentialsOutput::CopyBeside => copy_beside(&job.request.source)
                             .map_err(|_| MutationError::InvalidRetry)?,
+                        CredentialsOutput::CopyTo(_) => directory_policies
+                            .next()
+                            .ok_or(MutationError::InvalidRetry)?,
                     },
                     metadata: PngMetadataPolicy::RemoveContentCredentials(source.clone()),
                 });

@@ -34,7 +34,8 @@ pub fn optimize_png(
         crate::model::OutputPolicy::Overwrite => "overwrite_with_backup",
         crate::model::OutputPolicy::OverwriteWithoutBackup => "overwrite_without_backup",
         crate::model::OutputPolicy::Copy { .. } => "copy_beside",
-        crate::model::OutputPolicy::CopyTree { .. } => "copy_tree",
+        crate::model::OutputPolicy::CopyTree { .. }
+        | crate::model::OutputPolicy::CopyTreeAuthorized { .. } => "copy_tree",
     };
     let quality = match request.mode {
         crate::model::PngMode::Lossless => None,

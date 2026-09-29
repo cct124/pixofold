@@ -26,6 +26,77 @@ fn fixture(name: &str) -> Vec<u8> {
     )
     .unwrap()
 }
+
+#[test]
+fn authorized_tree_shares_layout_safety_and_rejects_replaced_directory_before_writes() {
+    use pixofold_core::model::OutputDirectory;
+    let dir = tempfile::tempdir().unwrap();
+    let source = sample(dir.path(), "images/sub/photo.png", "rgb8.png");
+    let out = dir.path().join("out");
+    fs::create_dir(&out).unwrap();
+    let found = collect(&[dir.path().join("images")]);
+    let directory = OutputDirectory::open(&out).unwrap();
+    let strategy = ImportOutput::CopyToAuthorized {
+        directory: directory.clone(),
+        layout: CopyLayout::PreserveRoots,
+    };
+    let request = found.plan(&strategy, BatchParameters::default()).unwrap();
+    assert_eq!(fs::read_dir(&out).unwrap().count(), 0, "规划不得写入");
+    let mut png = PngRequest::new(&source);
+    png.output = request.items[0].output.clone();
+    let old = dir.path().join("old-out");
+    fs::rename(&out, &old).unwrap();
+    fs::create_dir(&out).unwrap();
+    assert!(found.plan(&strategy, BatchParameters::default()).is_err());
+    assert!(optimize_png(&png, &CancellationToken::default(), |_| {}).is_err());
+    assert_eq!(fs::read_dir(&out).unwrap().count(), 0);
+    assert_eq!(fs::read_dir(&old).unwrap().count(), 0);
+    assert_eq!(fs::read(&source).unwrap(), fixture("rgb8.png"));
+    let valid = ImportOutput::CopyToAuthorized {
+        directory: OutputDirectory::open(&out).unwrap(),
+        layout: CopyLayout::PreserveRoots,
+    };
+    assert_eq!(run(&found, valid).summary.succeeded, 1);
+    assert!(out.join("images/sub/photo_compressed.png").exists());
+}
+
+#[test]
+fn authorized_tree_no_gain_and_late_conflict_never_overwrite_or_leave_candidate_files() {
+    use pixofold_core::model::OutputDirectory;
+    for (fixture_name, late_conflict) in [("already-optimized.png", false), ("rgb8.png", true)] {
+        let dir = tempfile::tempdir().unwrap();
+        let source = sample(dir.path(), "input.png", fixture_name);
+        let out = dir.path().join("out");
+        fs::create_dir(&out).unwrap();
+        let found = collect(std::slice::from_ref(&source));
+        let strategy = ImportOutput::CopyToAuthorized {
+            directory: OutputDirectory::open(&out).unwrap(),
+            layout: CopyLayout::Flat,
+        };
+        let request = found.plan(&strategy, BatchParameters::default()).unwrap();
+        let mut png = PngRequest::new(&source);
+        png.output = request.items[0].output.clone();
+        let result = optimize_png(&png, &CancellationToken::default(), |stage| {
+            if late_conflict && stage == ProcessingStage::BeforeCommit {
+                fs::write(out.join("input_compressed.png"), b"keep existing").unwrap();
+            }
+        });
+        if late_conflict {
+            assert!(result.is_err());
+            assert_eq!(
+                fs::read(out.join("input_compressed.png")).unwrap(),
+                b"keep existing"
+            );
+        } else {
+            assert!(matches!(result.unwrap().outcome, ProcessingOutcome::NoGain));
+        }
+        assert_eq!(
+            fs::read_dir(&out).unwrap().count(),
+            usize::from(late_conflict)
+        );
+        assert_eq!(fs::read(source).unwrap(), fixture(fixture_name));
+    }
+}
 fn sample(root: &Path, relative: &str, name: &str) -> PathBuf {
     let path = root.join(relative);
     fs::create_dir_all(path.parent().unwrap()).unwrap();

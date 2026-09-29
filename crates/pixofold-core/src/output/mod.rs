@@ -2,6 +2,7 @@
 //! 不采用先删除源文件的回退；默认覆盖保留备份，仅显式无备份策略不建立备份。
 //! 检查点不是文件系统 compare-and-swap；不承诺抵御恶意路径竞争或断电事务性。
 
+mod directory;
 pub(crate) mod paths;
 
 use std::{
@@ -16,8 +17,8 @@ use sha2::{Digest, Sha256};
 use tempfile::{Builder, NamedTempFile};
 
 use crate::model::{
-    CancellationToken, ContentCredentialsSource, OutputPolicy, ProcessingError, ProcessingOutcome,
-    ProcessingStage, ResourceLimits,
+    CancellationToken, ContentCredentialsSource, OutputDirectory, OutputPolicy, ProcessingError,
+    ProcessingOutcome, ProcessingStage, ResourceLimits,
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -133,6 +134,7 @@ pub(crate) struct Destination {
     overwrite: bool,
     backup: bool,
     tree: Option<(PathBuf, PathBuf)>,
+    authorized_root: Option<OutputDirectory>,
 }
 
 impl Destination {
@@ -150,29 +152,38 @@ impl Destination {
                     overwrite: true,
                     backup: matches!(policy, OutputPolicy::Overwrite),
                     tree: None,
+                    authorized_root: None,
                 })
             }
-            OutputPolicy::Copy { .. } | OutputPolicy::CopyTree { .. } => {
+            OutputPolicy::Copy { .. }
+            | OutputPolicy::CopyTree { .. }
+            | OutputPolicy::CopyTreeAuthorized { .. } => {
                 let mut policy = policy.clone();
                 let path =
                     paths::copy_destination(&mut policy)?.ok_or(ProcessingError::InvalidPath)?;
                 ensure_absent(&path)?;
-                let tree = if let OutputPolicy::CopyTree { root, relative } = policy {
-                    Some((root, relative))
-                } else {
-                    None
+                let (tree, authorized_root) = match policy {
+                    OutputPolicy::CopyTree { root, relative } => (Some((root, relative)), None),
+                    OutputPolicy::CopyTreeAuthorized { root, relative } => {
+                        (Some((root.path().to_owned(), relative)), Some(root))
+                    }
+                    _ => (None, None),
                 };
                 Ok(Self {
                     path,
                     overwrite: false,
                     backup: false,
                     tree,
+                    authorized_root,
                 })
             }
         }
     }
 
     pub fn stage(&self) -> Result<NamedTempFile, ProcessingError> {
+        if let Some(root) = &self.authorized_root {
+            root.verify()?;
+        }
         if let Some((root, relative)) = &self.tree
             && paths::tree_path(root, relative, true)? != self.path
         {
@@ -182,6 +193,9 @@ impl Destination {
     }
 
     fn verify_tree(&self) -> Result<(), ProcessingError> {
+        if let Some(root) = &self.authorized_root {
+            root.verify()?;
+        }
         if let Some((root, relative)) = &self.tree
             && paths::tree_path(root, relative, false)? != self.path
         {

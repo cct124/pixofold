@@ -153,6 +153,14 @@ fn assert_local_queries_and_permissions(app: &tauri::App<MockRuntime>) {
             json!({"request":{"subscriptionId":"0", "kind":"files"}}),
         ),
         (
+            "select_output_directory",
+            json!({"request":{"subscriptionId":"0"}}),
+        ),
+        (
+            "release_output_directory",
+            json!({"request":{"subscriptionId":"0", "directoryId":"1"}}),
+        ),
+        (
             "apply_task_mutation",
             json!({"request":{"subscriptionId":"0", "operation":{"kind":"clear", "selectionId":"1"}}}),
         ),
@@ -180,7 +188,7 @@ fn assert_local_queries_and_permissions(app: &tauri::App<MockRuntime>) {
     }
 }
 
-fn connected(app: &tauri::App<MockRuntime>) -> crate::ipc::DecimalU64 {
+pub(super) fn connected(app: &tauri::App<MockRuntime>) -> crate::ipc::DecimalU64 {
     let tasks = app.state::<DesktopTasks>();
     let ticket = tasks
         .subscriptions
@@ -225,7 +233,7 @@ pub(super) fn phase(
     }
     view
 }
-fn native_grant(
+pub(super) fn native_grant(
     app: &tauri::App<MockRuntime>,
     session: crate::ipc::DecimalU64,
     paths: Vec<std::path::PathBuf>,
@@ -260,6 +268,14 @@ fn native_and_mutation_commands_require_acknowledged_current_subscription() {
         (
             "select_native_import",
             json!({"request":{"subscriptionId":ticket.subscription_id, "kind":"files"}}),
+        ),
+        (
+            "select_output_directory",
+            json!({"request":{"subscriptionId":ticket.subscription_id}}),
+        ),
+        (
+            "release_output_directory",
+            json!({"request":{"subscriptionId":ticket.subscription_id, "directoryId":"1"}}),
         ),
         (
             "apply_task_mutation",

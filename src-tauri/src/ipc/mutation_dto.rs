@@ -32,6 +32,31 @@ pub(crate) struct NativeImportGrant {
     pub root_count: u32,
 }
 
+/// 当前会话可复用的输出目录，路径及身份句柄只在Rust；替换/清除/重载后标识失效。
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) struct NativeOutputDirectory {
+    pub directory_id: DecimalU64,
+    pub name: super::dto::DisplayName,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) struct DirectoryTarget {
+    pub directory_id: DecimalU64,
+    pub preserve_structure: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) struct ReleaseOutputDirectory {
+    pub subscription_id: DecimalU64,
+    pub directory_id: DecimalU64,
+}
+
 /// 一个待决拖放票据；无效/超限的原生输入不授予文件授权，但仍等待释放票据。
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -90,6 +115,7 @@ pub(crate) enum TaskOutput {
     Overwrite,
     OverwriteWithoutBackup,
     CopyBeside,
+    CopyTo(DirectoryTarget),
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -145,6 +171,7 @@ pub(crate) enum CredentialsConsent {
 #[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
 pub(crate) enum CredentialsOutput {
     CopyBeside,
+    CopyTo(DirectoryTarget),
     OverwriteWithBackup,
     OverwriteWithoutBackup,
 }
@@ -197,6 +224,8 @@ pub(crate) enum MutationError {
     SelectionBusy,
     StaleGrant,
     InvalidSelection,
+    StaleOutputDirectory,
+    InvalidOutputDirectory,
     InvalidRetry,
     Closed,
     IdExhausted,
@@ -218,6 +247,9 @@ pub(super) fn declarations() -> String {
         NativeSelectionKind,
         NativeSelectionRequest,
         NativeImportGrant,
+        NativeOutputDirectory,
+        DirectoryTarget,
+        ReleaseOutputDirectory,
         NativeDropOffer,
         NativeDropPosition,
         NativeDropNotice,

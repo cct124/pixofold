@@ -75,6 +75,40 @@ async function connected() {
 }
 
 describe('controlled native task actions', () => {
+  it('selects an output grant without import, rejects malformed labels, and drops late session responses', async () => {
+    const { stream, actions } = await connected();
+    const selected = deferred<unknown>();
+    vi.mocked(invoke).mockImplementation(async (command) =>
+      command === 'select_output_directory' ? selected.promise : reply(command),
+    );
+    const choosing = actions.selectOutputDirectory();
+    await expect(actions.select('files')).rejects.toThrow('pending');
+    await stream.disconnect();
+    selected.resolve({
+      directoryId: '8',
+      name: { text: 'out', truncated: false, lossy: false, sanitized: false },
+    });
+    await expect(choosing).rejects.toThrow('connection changed');
+    await stream.connect();
+    for (const invalid of [
+      {},
+      { directoryId: '0', name: { text: 'out', truncated: false, lossy: false, sanitized: false } },
+      {
+        directoryId: '8',
+        name: { text: 'x'.repeat(241), truncated: false, lossy: false, sanitized: false },
+      },
+      { directoryId: '8', name: 'private path' },
+    ]) {
+      vi.mocked(invoke).mockImplementation(async (command) =>
+        command === 'select_output_directory' ? invalid : reply(command),
+      );
+      await expect(actions.selectOutputDirectory()).rejects.toThrow();
+    }
+    expect(
+      vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === 'apply_task_mutation'),
+    ).toHaveLength(0);
+    await stream.disconnect();
+  });
   it('requires native environment and completed initial snapshot/ACK', async () => {
     const stream = new Subscription();
     const actions = new Actions(stream);
@@ -294,6 +328,53 @@ describe('controlled native task actions', () => {
       );
       await expect(actions.apply({ kind: 'clear', selectionId: '2' })).rejects.toThrow();
     }
+    await stream.disconnect();
+  });
+
+  it('validates directory targets for import, start and credentials before invoking a mutation', async () => {
+    const { stream, actions } = await connected();
+    const selectionId = '9007199254740994';
+    const outputs: unknown[] = [
+      null,
+      { copy_to: null },
+      { copy_to: { directoryId: '0', preserveStructure: false } },
+      { copy_to: { directoryId: '3', preserveStructure: 'true' } },
+      { copy_to: { directoryId: '3', preserveStructure: true, path: '/private' } },
+    ];
+    const before = vi.mocked(invoke).mock.calls.length;
+    for (const output of outputs) {
+      // 有意模拟绕过静态类型的边界输入，必须在IPC之前拒绝。
+      const settings = { mode: { kind: 'lossless' }, output };
+      const operations: unknown[] = [
+        { kind: 'import', grantId: '3', settings },
+        { kind: 'start', selectionId, settings },
+        {
+          kind: 'confirm_content_credentials',
+          selectionId,
+          expectedBatchRevision: '3',
+          jobIds: [7],
+          mode: { kind: 'lossless' },
+          output,
+          consent: 'remove_content_credentials',
+        },
+      ];
+      for (const operation of operations)
+        await expect(actions.apply(operation as TaskMutation)).rejects.toThrow();
+    }
+    expect(vi.mocked(invoke).mock.calls).toHaveLength(before);
+    const operation: TaskMutation = {
+      kind: 'confirm_content_credentials',
+      selectionId,
+      expectedBatchRevision: '3',
+      jobIds: [7],
+      mode: { kind: 'lossless' },
+      output: { copy_to: { directoryId: '3', preserveStructure: true } },
+      consent: 'remove_content_credentials',
+    };
+    await actions.apply(operation);
+    expect(invoke).toHaveBeenLastCalledWith('apply_task_mutation', {
+      request: { subscriptionId: '1', operation },
+    });
     await stream.disconnect();
   });
 });

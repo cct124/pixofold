@@ -3,6 +3,34 @@ import { draftSettings, qualityValue, useCompressionPreferences } from './settin
 import { formatBytes, formatReduction } from './format';
 
 describe('workspace settings and exact display', () => {
+  it('does not silently fall back from a missing directory grant or persist it', async () => {
+    const directory = { directoryId: '123', preserveStructure: true };
+    expect(draftSettings('lossless', '', 'copy_beside', true, directory)?.output).toEqual({
+      copy_to: directory,
+    });
+    expect(draftSettings('lossless', '', 'copy_beside', false, null)).toBeNull();
+    expect(draftSettings('lossless', '', 'overwrite', false, null)?.output).toBe(
+      'overwrite_without_backup',
+    );
+    localStorage.setItem(
+      'pixofold.compression',
+      JSON.stringify({
+        version: 1,
+        state: {
+          customOutput: true,
+          preserveStructure: true,
+          directoryId: '123',
+          path: '/private',
+        },
+      }),
+    );
+    await useCompressionPreferences.persist.rehydrate();
+    useCompressionPreferences.getState().setOutput('copy_beside');
+    const saved = JSON.parse(localStorage.getItem('pixofold.compression') ?? '{}').state;
+    expect(saved).toMatchObject({ customOutput: true, preserveStructure: true });
+    expect(saved).not.toHaveProperty('directoryId');
+    expect(saved).not.toHaveProperty('path');
+  });
   it('derives reduction only from known nonzero exact byte counts', () => {
     expect(formatReduction(null, '1')).toBe('—');
     expect(formatReduction('10', null)).toBe('—');
@@ -39,6 +67,8 @@ describe('workspace settings and exact display', () => {
       quality: 80,
       output: 'overwrite',
       backupBeforeOverwrite: false,
+      customOutput: false,
+      preserveStructure: false,
     });
   });
   it('maps the backup preference explicitly and ignores it for copies', () => {

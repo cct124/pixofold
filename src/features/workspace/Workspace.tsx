@@ -3,7 +3,6 @@ import type { Language } from '../../stores/preferences';
 import { Icon } from '../../components/ui/Icon';
 import { Dialog } from '../../components/ui/Dialog';
 import { getWorkspace, WORKSPACE_PAGE_SIZE, type WorkspaceController } from './controller';
-import { draftSettings, useCompressionPreferences } from './settings';
 import { formatBytes, formatReduction } from './format';
 import { detailText, workspaceText } from './messages';
 import { WorkspaceRows } from './WorkspaceRows';
@@ -27,11 +26,6 @@ export function Workspace({
   const dropzone = useRef<HTMLDivElement>(null);
   const t = workspaceText(language);
   useEffect(() => {
-    const saved = useCompressionPreferences.getState();
-    controller.setSettings(
-      draftSettings(saved.mode, String(saved.quality), saved.output, saved.backupBeforeOverwrite),
-      false,
-    );
     controller.setDropTarget((position) => {
       if (document.visibilityState === 'hidden' || document.querySelector('dialog[open]'))
         return false;
@@ -153,14 +147,14 @@ export function Workspace({
               >
                 {t('reconnect')}
               </button>
-            ) : (
+            ) : view.error === 'page' ? (
               <button
                 className="text-button"
                 onClick={() => controller.setPage(view.collection, view.offset)}
               >
                 {t('pageRetry')}
               </button>
-            )}
+            ) : null}
           </div>
         )}
         {snapshot?.error && (

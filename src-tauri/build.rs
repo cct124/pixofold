@@ -9,6 +9,8 @@ fn main() {
             "acknowledge_task_changes",
             "unsubscribe_task_changes",
             "select_native_import",
+            "select_output_directory",
+            "release_output_directory",
             "release_native_drop",
             "apply_task_mutation",
         ]),

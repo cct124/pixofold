@@ -1,9 +1,10 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Icon } from '../../components/ui/Icon';
-import { draftSettings, qualityValue, useCompressionPreferences } from './settings';
+import { draftMode, draftSettings, qualityValue, useCompressionPreferences } from './settings';
 import type { WorkspaceController } from './controller';
 import type { WorkspaceText } from './messages';
 import styles from './Workspace.module.css';
+import { Name } from './WorkspaceRows';
 
 /** 设置草稿独立于当前批次；尚未支持的参数不发送给后端。 */
 export function WorkspaceSettings({
@@ -18,10 +19,37 @@ export function WorkspaceSettings({
   onValidityChange: (invalid: boolean) => void;
 }) {
   const preferences = useCompressionPreferences();
+  const view = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
+  const initialized = useRef(false);
   const [quality, setQuality] = useState(String(preferences.quality));
   const lossless = preferences.mode === 'lossless';
   const invalid = !lossless && qualityValue(quality) === null;
   useEffect(() => onValidityChange(invalid), [invalid, onValidityChange]);
+  const directoryId = view.outputDirectory?.directoryId;
+  const { mode, output, backupBeforeOverwrite, customOutput, preserveStructure } = preferences;
+  useEffect(() => {
+    controller.setSettings(
+      draftSettings(
+        mode,
+        quality,
+        output,
+        backupBeforeOverwrite,
+        customOutput ? (directoryId ? { directoryId, preserveStructure } : null) : undefined,
+      ),
+      initialized.current,
+      draftMode(mode, quality),
+    );
+    initialized.current = true;
+  }, [
+    controller,
+    mode,
+    quality,
+    output,
+    backupBeforeOverwrite,
+    customOutput,
+    preserveStructure,
+    directoryId,
+  ]);
   const current = qualityValue(quality) ?? preferences.quality;
   const level =
     current < 30
@@ -39,9 +67,6 @@ export function WorkspaceSettings({
     setQuality(value);
     const parsed = qualityValue(value);
     if (parsed !== null) preferences.setQuality(parsed);
-    controller.setSettings(
-      draftSettings(preferences.mode, value, preferences.output, preferences.backupBeforeOverwrite),
-    );
   };
   return (
     <aside className={styles.settings} aria-labelledby="settingsTitle">
@@ -54,14 +79,6 @@ export function WorkspaceSettings({
               aria-pressed={preferences.mode === mode}
               onClick={() => {
                 preferences.setMode(mode);
-                controller.setSettings(
-                  draftSettings(
-                    mode,
-                    quality,
-                    preferences.output,
-                    preferences.backupBeforeOverwrite,
-                  ),
-                );
               }}
             >
               {t(mode)}
@@ -126,14 +143,6 @@ export function WorkspaceSettings({
                 aria-pressed={preferences.output === output}
                 onClick={() => {
                   preferences.setOutput(output);
-                  controller.setSettings(
-                    draftSettings(
-                      preferences.mode,
-                      quality,
-                      output,
-                      preferences.backupBeforeOverwrite,
-                    ),
-                  );
                 }}
               >
                 {t(output)}
@@ -146,13 +155,41 @@ export function WorkspaceSettings({
               <div className={styles.directoryControl}>
                 <div>
                   <Icon name="folder" />
-                  <span>{t('originalFolder')}</span>
+                  <span>
+                    {customOutput ? (
+                      view.outputDirectory ? (
+                        <Name value={view.outputDirectory.name} t={t} />
+                      ) : (
+                        t('outputRequired')
+                      )
+                    ) : (
+                      t('originalFolder')
+                    )}
+                  </span>
                 </div>
-                <button disabled title={t('settingsHint')}>
-                  {t('folder')}
+                <button
+                  disabled={!controller.canChange || view.confirmationOpen}
+                  onClick={() =>
+                    void controller.selectOutputDirectory(() => preferences.setCustomOutput(true))
+                  }
+                >
+                  {t('chooseOutput')}
                 </button>
               </div>
-              <p className="hint">{t('settingsHint')}</p>
+              {customOutput && (
+                <button
+                  className="text-button"
+                  disabled={!controller.canChange || view.confirmationOpen}
+                  onClick={() =>
+                    void controller.useOriginalFolder(() => preferences.setCustomOutput(false))
+                  }
+                >
+                  {t('useOriginalFolder')}
+                </button>
+              )}
+              <p className={customOutput && !directoryId ? styles.invalid : 'hint'}>
+                {t(customOutput && !directoryId ? 'outputRequiredHint' : 'settingsHint')}
+              </p>
             </div>
           )}
         </section>
@@ -168,12 +205,19 @@ export function WorkspaceSettings({
                   onChange={(event) => {
                     const backup = event.target.checked;
                     preferences.setBackupBeforeOverwrite(backup);
-                    controller.setSettings(
-                      draftSettings(preferences.mode, quality, preferences.output, backup),
-                    );
                   }}
                 />
                 {t('backupBeforeOverwrite')}
+              </label>
+            )}
+            {output === 'copy_beside' && customOutput && (
+              <label className={styles.backupOption}>
+                <input
+                  type="checkbox"
+                  checked={preserveStructure}
+                  onChange={(event) => preferences.setPreserveStructure(event.target.checked)}
+                />
+                {t('preserveStructure')}
               </label>
             )}
             <p id="backupHint">

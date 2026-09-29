@@ -137,6 +137,8 @@ beforeEach(async () => {
     quality: 80,
     output: 'overwrite',
     backupBeforeOverwrite: false,
+    customOutput: false,
+    preserveStructure: false,
   });
 });
 
@@ -318,6 +320,208 @@ describe('native drop import workflow', () => {
     await waitFor(() => expect(controller.getSnapshot().needsRecovery).toBe(true));
     expect(writes()).toHaveLength(0);
     expect(screen.getByRole('button', { name: '重新连接任务' })).toBeEnabled();
+  });
+});
+
+describe('session-bound custom output folders', () => {
+  const selected = { directoryId: '91', name: name('导出目录') };
+  function nativeOutput() {
+    vi.mocked(invoke).mockImplementation(async (cmd, args) =>
+      cmd === 'select_output_directory'
+        ? selected
+        : cmd === 'release_output_directory'
+          ? null
+          : reply(cmd, args),
+    );
+  }
+  async function choose() {
+    fireEvent.click(screen.getByRole('button', { name: '选择输出目录' }));
+    await waitFor(() => expect(screen.getByText('导出目录')).toBeVisible());
+    await waitFor(() => expect(controller.getSnapshot().pending).toBe(false));
+  }
+
+  it('selects without importing, preserves toggles and cancellation, and restores original folder', async () => {
+    nativeOutput();
+    await mount();
+    fireEvent.click(screen.getByRole('button', { name: '另存副本' }));
+    await choose();
+    expect(writes()).toHaveLength(0);
+    const structure = screen.getByRole('checkbox', { name: '保留输入目录结构' });
+    expect(structure).not.toBeChecked();
+    fireEvent.click(structure);
+    fireEvent.click(screen.getByRole('button', { name: '原图覆盖' }));
+    expect(screen.queryByRole('button', { name: '选择输出目录' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '另存副本' }));
+    expect(screen.getByRole('checkbox', { name: '保留输入目录结构' })).toBeChecked();
+    vi.mocked(invoke).mockImplementation(async (cmd, args) =>
+      cmd === 'select_output_directory' || cmd === 'release_output_directory'
+        ? null
+        : reply(cmd, args),
+    );
+    await choose(); // 取消保留已选择的目录和布局。
+    fireEvent.click(screen.getByRole('button', { name: '选择文件' }));
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(writes()[0]).toMatchObject({
+      request: {
+        operation: {
+          settings: { output: { copy_to: { directoryId: '91', preserveStructure: true } } },
+        },
+      },
+    });
+    await waitFor(() => expect(controller.getSnapshot().pending).toBe(false));
+    fireEvent.click(screen.getByRole('button', { name: '恢复原文件夹' }));
+    await waitFor(() => expect(screen.getByText('原文件夹')).toBeVisible());
+    expect(invoke).toHaveBeenCalledWith('release_output_directory', {
+      request: { subscriptionId: '1', directoryId: '91' },
+    });
+    expect(screen.queryByRole('checkbox', { name: '保留输入目录结构' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '选择文件' }));
+    await waitFor(() => expect(writes()).toHaveLength(2));
+    expect(writes()[1]).toMatchObject({
+      request: { operation: { settings: { output: 'copy_beside' } } },
+    });
+  });
+
+  it('keeps missing authorization scan-only and starts Ready once after selecting a folder', async () => {
+    nativeOutput();
+    useCompressionPreferences.setState({ output: 'copy_beside', customOutput: true });
+    await mount();
+    expect(screen.getByText(/当前导入只扫描/)).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: '选择文件' }));
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(writes()[0]).toMatchObject({ request: { operation: { settings: null } } });
+    await waitFor(() => expect(controller.getSnapshot().pending).toBe(false));
+    await update({ ...snapshot(), selectionId: '1', revision: '1', phase: 'ready' });
+    await choose();
+    await waitFor(() => expect(writes()).toHaveLength(2));
+    expect(writes()[1]).toMatchObject({
+      request: {
+        operation: {
+          kind: 'start',
+          settings: { output: { copy_to: { directoryId: '91', preserveStructure: false } } },
+        },
+      },
+    });
+    await update({ ...current, revision: '2' });
+    expect(writes()).toHaveLength(2);
+  });
+
+  it('reports an explicitly rejected folder without losing the draft or requiring reconnect', async () => {
+    nativeOutput();
+    useCompressionPreferences.setState({ output: 'copy_beside' });
+    const ui = await mount();
+    await choose();
+    vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+      if (cmd === 'select_output_directory') throw { code: 'invalid_output_directory' };
+      return reply(cmd, args);
+    });
+    fireEvent.click(screen.getByRole('button', { name: '选择输出目录' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('所选输出目录不可用');
+    expect(controller.getSnapshot().needsRecovery).toBe(false);
+    expect(controller.getSnapshot().outputDirectory?.directoryId).toBe('91');
+    expect(screen.getByRole('button', { name: '选择输出目录' })).toBeEnabled();
+    ui.rerender(
+      <StrictMode>
+        <Workspace language="en" controller={controller} />
+      </StrictMode>,
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'The selected output folder is unavailable',
+    );
+    expect(screen.getByRole('button', { name: 'Choose output folder' })).toBeEnabled();
+    expect(screen.getByRole('checkbox', { name: 'Keep input folder structure' })).not.toBeChecked();
+    expect(writes()).toHaveLength(0);
+    expect(bridge.channels).toHaveLength(1);
+  });
+
+  it('retries frozen jobs after reconnect without a new directory grant but still requires valid quality', async () => {
+    nativeOutput();
+    useCompressionPreferences.setState({ output: 'copy_beside' });
+    current = credentialsSnapshot(1);
+    current.batch!.confirmationCount = 0;
+    current.page = {
+      kind: 'jobs',
+      offset: 0,
+      total: 1,
+      items: [
+        {
+          id: 7,
+          attempt: 1,
+          sourceName: name('failed.png'),
+          mode: { kind: 'lossless' },
+          inputBytes: '2048',
+          state: { kind: 'failed', failure: { code: 'io', recovery: null } },
+        },
+      ],
+    };
+    await mount();
+    await choose();
+    await act(async () => controller.reconnect());
+    expect(controller.getSnapshot().outputDirectory).toBeNull();
+    expect(writes()).toHaveLength(0);
+    const quality = screen.getByRole('spinbutton', { name: '精细调整' });
+    fireEvent.change(quality, { target: { value: '' } });
+    await act(async () => controller.retryPage());
+    expect(writes()).toHaveLength(0);
+    fireEvent.change(quality, { target: { value: '70' } });
+    fireEvent.click(screen.getByRole('button', { name: '重试本页未完成项' }));
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(writes()[0]).toEqual({
+      request: {
+        subscriptionId: '2',
+        operation: {
+          kind: 'retry',
+          selectionId: '3',
+          expectedBatchRevision: '9007199254740993',
+          jobIds: [7],
+          mode: { kind: 'lossy', quality: 70 },
+        },
+      },
+    });
+  });
+
+  it('invalidates the folder on reconnect without restarting the current batch', async () => {
+    nativeOutput();
+    useCompressionPreferences.setState({ output: 'copy_beside' });
+    await mount();
+    await choose();
+    await act(async () => controller.reconnect());
+    expect(controller.getSnapshot().outputDirectory).toBeNull();
+    expect(screen.getByText(/当前导入只扫描/)).toBeVisible();
+    expect(writes()).toHaveLength(0);
+    expect(useCompressionPreferences.getState().customOutput).toBe(true);
+  });
+
+  it('freezes the output grant and layout for credentials confirmation and ignores later draft changes', async () => {
+    nativeOutput();
+    useCompressionPreferences.setState({ output: 'copy_beside' });
+    current = credentialsSnapshot();
+    await mount();
+    await choose();
+    fireEvent.click(screen.getByRole('checkbox', { name: '保留输入目录结构' }));
+    fireEvent.click(screen.getByRole('button', { name: '需要确认的图片 (2)' }));
+    const submit = await screen.findByRole('button', { name: '移除内容凭据后压缩 (2)' });
+    expect(screen.queryByRole('radio', { name: '覆盖原图' })).not.toBeInTheDocument();
+    await act(async () =>
+      useCompressionPreferences.setState({ output: 'overwrite', preserveStructure: false }),
+    );
+    await act(async () =>
+      controller.confirmContentCredentials('20', [7], {
+        copy_to: { directoryId: '999', preserveStructure: true },
+      }),
+    );
+    expect(writes()).toHaveLength(0);
+    fireEvent.click(submit);
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(writes()[0]).toMatchObject({
+      request: {
+        operation: {
+          kind: 'confirm_content_credentials',
+          jobIds: [7, 8],
+          output: { copy_to: { directoryId: '91', preserveStructure: true } },
+        },
+      },
+    });
   });
 });
 
@@ -707,11 +911,7 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
       'true',
     );
     expect(screen.getByText('原文件夹')).toBeVisible();
-    expect(
-      screen
-        .getAllByRole('button', { name: '选择目录' })
-        .filter((button) => button.hasAttribute('disabled')),
-    ).toHaveLength(1);
+    expect(screen.getByRole('button', { name: '选择输出目录' })).toBeEnabled();
     expect(screen.queryByRole('checkbox', { name: '覆盖前备份原图' })).not.toBeInTheDocument();
     expect(screen.getByText(/副本使用 _compressed.png/)).toBeVisible();
     expect(controller.getSnapshot().pending).toBe(false);

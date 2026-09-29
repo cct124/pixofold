@@ -6,6 +6,106 @@ fn root() -> PathBuf {
 }
 
 #[test]
+fn output_directory_is_reusable_but_session_bound_and_does_not_occupy_input_slot() {
+    use pixofold_core::model::OutputDirectory;
+    let imports = Arc::new(NativeImports::default());
+    let session = DecimalU64(1);
+    let dir = tempfile::tempdir().unwrap();
+    let selected = imports
+        .reserve(session)
+        .unwrap()
+        .complete_output(Some(OutputDirectory::open(dir.path()).unwrap()))
+        .unwrap()
+        .unwrap();
+    let retained = imports.output(session, selected.directory_id).unwrap();
+    assert!(imports.output(session, selected.directory_id).is_ok());
+    assert!(
+        imports
+            .output(DecimalU64(2), selected.directory_id)
+            .is_err()
+    );
+    assert!(imports.consume(session, selected.directory_id, Ok).is_err());
+    assert!(
+        imports
+            .reserve(session)
+            .unwrap()
+            .complete_output(None)
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        imports.output(session, selected.directory_id).is_ok(),
+        "取消保留原草稿"
+    );
+    let input = imports
+        .reserve(session)
+        .unwrap()
+        .complete(Some(vec![root()]))
+        .unwrap()
+        .unwrap();
+    assert!(imports.output(session, input.grant_id).is_err());
+    imports
+        .consume(session, input.grant_id, |_| Ok(()))
+        .unwrap();
+    imports
+        .release_output(DecimalU64(2), selected.directory_id)
+        .unwrap();
+    assert!(imports.output(session, selected.directory_id).is_ok());
+    let replacement = imports
+        .reserve(session)
+        .unwrap()
+        .complete_output(Some(OutputDirectory::open(dir.path()).unwrap()))
+        .unwrap()
+        .unwrap();
+    imports
+        .release_output(session, selected.directory_id)
+        .unwrap();
+    assert!(imports.output(session, replacement.directory_id).is_ok());
+    assert!(imports.output(session, selected.directory_id).is_err());
+    imports.revoke();
+    assert!(imports.output(session, replacement.directory_id).is_err());
+    assert_eq!(
+        retained.path(),
+        dir.path().canonicalize().unwrap(),
+        "任务克隆不随草稿撤销失效"
+    );
+}
+
+#[test]
+fn output_selection_revocation_close_and_late_disconnect_preserve_dialog_exclusivity() {
+    use pixofold_core::model::OutputDirectory;
+    let imports = Arc::new(NativeImports::default());
+    let dir = tempfile::tempdir().unwrap();
+    let first = DecimalU64(1);
+    let next = DecimalU64(2);
+    let dialog = imports.reserve(first).unwrap();
+    imports.revoke();
+    assert!(imports.reserve(next).is_err());
+    assert!(imports.begin_drag(next).is_err());
+    assert!(
+        dialog
+            .complete_output(Some(OutputDirectory::open(dir.path()).unwrap()))
+            .is_err()
+    );
+    let selected = imports
+        .reserve(next)
+        .unwrap()
+        .complete_output(Some(OutputDirectory::open(dir.path()).unwrap()))
+        .unwrap()
+        .unwrap();
+    imports.revoke_output_session(first);
+    assert!(imports.output(next, selected.directory_id).is_ok());
+    let pending = imports.reserve(next).unwrap();
+    imports.close();
+    assert!(
+        pending
+            .complete_output(Some(OutputDirectory::open(dir.path()).unwrap()))
+            .is_err()
+    );
+    assert!(imports.output(next, selected.directory_id).is_err());
+}
+
+#[test]
 fn native_drag_requires_one_matching_enter_and_is_bounded_until_consumed_or_released() {
     let imports = Arc::new(NativeImports::default());
     let session = DecimalU64(7);

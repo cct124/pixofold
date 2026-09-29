@@ -4,7 +4,7 @@ use super::{ContentCredentialsSource, PngMetadataPolicy, PngMode, PngProcessing}
 
 use std::{
     fmt, io,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -74,6 +74,32 @@ impl ResourceLimits {
     }
 }
 
+/// 已存在且非链接的输出根；克隆共享身份句柄，不复制授权或执行I/O。
+/// 数据所有权属于模型，打开和复查由output层实现，最后一个所有者释放时关闭。
+#[derive(Debug, Clone)]
+pub struct OutputDirectory(Arc<OutputDirectoryIdentity>);
+
+#[derive(Debug)]
+struct OutputDirectoryIdentity {
+    path: PathBuf,
+    handle: same_file::Handle,
+}
+
+impl OutputDirectory {
+    pub(crate) fn from_identity(path: PathBuf, handle: same_file::Handle) -> Self {
+        Self(Arc::new(OutputDirectoryIdentity { path, handle }))
+    }
+
+    /// 仅供Rust输出规划/显示名转换使用，不能直接序列化给页面。
+    pub fn path(&self) -> &Path {
+        &self.0.path
+    }
+
+    pub(crate) fn has_identity(&self, path: &Path, handle: &same_file::Handle) -> bool {
+        path == self.0.path && handle == &self.0.handle
+    }
+}
+
 /// 默认覆盖建立可恢复备份；仅显式选择可不备份。副本仅接受尚不存在的目标。
 #[derive(Debug, Clone, Default)]
 pub enum OutputPolicy {
@@ -88,6 +114,11 @@ pub enum OutputPolicy {
     /// 规划只读，output暂存时创建目录；取消/失败/无收益可能保留空目录，不自动删除。
     CopyTree {
         root: PathBuf,
+        relative: PathBuf,
+    },
+    /// 与CopyTree共享提交流程，但固定原生授权目录身份；替换/删除后拒绝写入。
+    CopyTreeAuthorized {
+        root: OutputDirectory,
         relative: PathBuf,
     },
 }

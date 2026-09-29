@@ -4,6 +4,7 @@ import { MAX_NATIVE_IMPORT_ROOTS, MAX_RETRY_JOBS } from './tasks.generated';
 import type { TaskSnapshotSubscription } from './task-subscription';
 import type {
   NativeImportGrant,
+  NativeOutputDirectory,
   NativeSelectionKind,
   TaskMutation,
   TaskMutationAccepted,
@@ -36,11 +37,46 @@ function grant(value: unknown): NativeImportGrant | null {
   return { grantId: positiveId(value.grantId), rootCount: value.rootCount };
 }
 
+function outputDirectory(value: unknown): NativeOutputDirectory | null {
+  if (value === null) return null;
+  if (!record(value) || !record(value.name)) throw new Error('Invalid output directory');
+  const name = value.name;
+  if (
+    typeof name.text !== 'string' ||
+    [...name.text].length > 240 ||
+    typeof name.truncated !== 'boolean' ||
+    typeof name.lossy !== 'boolean' ||
+    typeof name.sanitized !== 'boolean'
+  )
+    throw new Error('Invalid output label');
+  return {
+    directoryId: positiveId(value.directoryId),
+    name: {
+      text: name.text,
+      truncated: name.truncated,
+      lossy: name.lossy,
+      sanitized: name.sanitized,
+    },
+  };
+}
+
+function validateDirectoryTarget(value: unknown): void {
+  if (
+    !record(value) ||
+    Object.keys(value).length !== 1 ||
+    !record(value.copy_to) ||
+    Object.keys(value.copy_to).length !== 2 ||
+    typeof value.copy_to.preserveStructure !== 'boolean'
+  )
+    throw new Error('Invalid output directory target');
+  positiveId(value.copy_to.directoryId);
+}
+
 /**
  * 一个应用级操作适配器，复用已经connect的唯一任务观察器，不创建Channel或TaskRuntime。
  * 操作最多一个在途；响应只是接纳票据，进度/成功/失败始终由订阅快照提供。
  * 不自动重试写操作。传输失败可能已接纳，调用方应先恢复权威快照再让用户决定下一步。
- * 不暴露文件路径；选择/拖放共用单次授权，同目录副本/覆盖由Rust规划，自选目录尚未接入。
+ * 不暴露文件路径；输入授权单次消费，输出目录授权限当前会话复用，布局由Rust规划。
  */
 export class TaskActions {
   #busy = false;
@@ -57,6 +93,28 @@ export class TaskActions {
   /** 仅返回单次授权（5分钟有效）；取消选择返回null。选择本身不启动处理。 */
   select(kind: NativeSelectionKind): Promise<NativeImportGrant | null> {
     return this.#run((session) => this.#select(session, kind));
+  }
+
+  /** 仅选择输出目录，不导入或写文件；取消不改变现有目录。 */
+  selectOutputDirectory(): Promise<NativeOutputDirectory | null> {
+    return this.#run(async (session) => {
+      const result = await invoke<unknown>('select_output_directory', {
+        request: { subscriptionId: session },
+      });
+      this.#sameSession(session);
+      return outputDirectory(result);
+    });
+  }
+
+  releaseOutputDirectory(directoryId: string): Promise<void> {
+    positiveId(directoryId);
+    return this.#run(async (session) => {
+      const result = await invoke<unknown>('release_output_directory', {
+        request: { subscriptionId: session, directoryId },
+      });
+      this.#sameSession(session);
+      if (result !== null) throw new Error('Invalid output release response');
+    });
   }
 
   /** 点击时固定设置；等待原生选择期间改变草稿不影响本次。null只扫描不自动启动。 */
@@ -135,14 +193,22 @@ export class TaskActions {
       )
         throw new Error('Invalid retry selection');
     }
-    if (
-      operation.kind === 'confirm_content_credentials' &&
-      (operation.consent !== 'remove_content_credentials' ||
-        !['copy_beside', 'overwrite_with_backup', 'overwrite_without_backup'].includes(
-          operation.output,
-        ))
-    )
-      throw new Error('Explicit content credentials consent is required');
+    if (operation.kind === 'import' || operation.kind === 'start') {
+      const output = operation.settings?.output;
+      if (output !== undefined && typeof output !== 'string') validateDirectoryTarget(output);
+    }
+    if (operation.kind === 'confirm_content_credentials') {
+      if (operation.consent !== 'remove_content_credentials')
+        throw new Error('Explicit content credentials consent is required');
+      if (typeof operation.output === 'string') {
+        if (
+          !['copy_beside', 'overwrite_with_backup', 'overwrite_without_backup'].includes(
+            operation.output,
+          )
+        )
+          throw new Error('Invalid content credentials output');
+      } else validateDirectoryTarget(operation.output);
+    }
     this.#sameSession(session);
     const result = await invoke<unknown>('apply_task_mutation', {
       request: { subscriptionId: session, operation },

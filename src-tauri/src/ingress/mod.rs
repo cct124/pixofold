@@ -37,8 +37,14 @@ enum Slot {
 }
 struct State {
     slot: Option<Slot>,
+    output: Option<OutputGrant>,
     next_id: u64,
     closed: bool,
+}
+struct OutputGrant {
+    id: u64,
+    session: u64,
+    directory: pixofold_core::model::OutputDirectory,
 }
 pub(crate) struct NativeImports {
     state: Mutex<State>,
@@ -48,6 +54,7 @@ impl Default for NativeImports {
         Self {
             state: Mutex::new(State {
                 slot: None,
+                output: None,
                 next_id: 1,
                 closed: false,
             }),
@@ -55,6 +62,47 @@ impl Default for NativeImports {
     }
 }
 impl NativeImports {
+    /// 只撤销指定旧会话的目录；断开响应迟到时不能撤销新会话的选择。
+    pub(crate) fn revoke_output_session(&self, session: DecimalU64) {
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        if state
+            .output
+            .as_ref()
+            .is_some_and(|o| o.session == session.0)
+        {
+            state.output = None;
+        }
+    }
+    /// 只克隆当前会话目录，不在授权/订阅锁内执行I/O；实际写入前核心复查身份。
+    pub(crate) fn output(
+        &self,
+        session: DecimalU64,
+        id: DecimalU64,
+    ) -> Result<pixofold_core::model::OutputDirectory, MutationError> {
+        let state = self.state.lock().map_err(|_| MutationError::ServiceFault)?;
+        if state.closed {
+            return Err(MutationError::Closed);
+        }
+        state
+            .output
+            .as_ref()
+            .filter(|o| o.session == session.0 && o.id == id.0)
+            .map(|o| o.directory.clone())
+            .ok_or(MutationError::StaleOutputDirectory)
+    }
+
+    /// 幂等释放精确标识；迟到清除不影响后来选中的目录。已接纳任务持有自己的克隆。
+    pub(crate) fn release_output(
+        &self,
+        session: DecimalU64,
+        id: DecimalU64,
+    ) -> Result<(), MutationError> {
+        let mut state = self.state.lock().map_err(|_| MutationError::ServiceFault)?;
+        if matches!(&state.output, Some(o) if o.session == session.0 && o.id == id.0) {
+            state.output = None;
+        }
+        Ok(())
+    }
     /// 只保留一个物理对话框；即便旧WebView已重载，也必须等旧选择真正返回。
     pub(crate) fn reserve(
         self: &Arc<Self>,
@@ -210,6 +258,7 @@ impl NativeImports {
     /// 页面重载撤销授权；物理对话框仍占槽，直到permit完成或释放。
     pub(crate) fn revoke(&self) {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        state.output = None;
         if let Some(Slot::Dialog { revoked, .. }) = &mut state.slot {
             *revoked = true;
         } else {
@@ -219,6 +268,7 @@ impl NativeImports {
 
     pub(crate) fn close(&self) {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        state.output = None;
         state.closed = true;
         state.slot = None;
     }
@@ -231,6 +281,38 @@ pub(crate) struct SelectionPermit {
     session: u64,
 }
 impl SelectionPermit {
+    /// 目录已在锁外验证。与输入选择共享物理槽，但不占用单次导入授权。取消保留旧草稿。
+    pub(crate) fn complete_output(
+        self,
+        directory: Option<pixofold_core::model::OutputDirectory>,
+    ) -> Result<Option<crate::ipc::NativeOutputDirectory>, MutationError> {
+        let mut state = self
+            .owner
+            .state
+            .lock()
+            .map_err(|_| MutationError::ServiceFault)?;
+        if state.closed {
+            return Err(MutationError::Closed);
+        }
+        if !matches!(state.slot, Some(Slot::Dialog { id, session, revoked: false }) if id == self.id && session == self.session)
+        {
+            return Err(MutationError::StaleGrant);
+        }
+        state.slot = None;
+        let Some(directory) = directory else {
+            return Ok(None);
+        };
+        let response = crate::ipc::NativeOutputDirectory {
+            directory_id: DecimalU64(self.id),
+            name: crate::ipc::display_name(directory.path()),
+        };
+        state.output = Some(OutputGrant {
+            id: self.id,
+            session: self.session,
+            directory,
+        });
+        Ok(Some(response))
+    }
     pub(crate) fn complete(
         self,
         roots: Option<Vec<PathBuf>>,

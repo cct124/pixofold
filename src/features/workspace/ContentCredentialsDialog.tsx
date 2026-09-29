@@ -88,11 +88,13 @@ function SelectionForm({
   const [backup, setBackup] = useState(settings?.output === 'overwrite');
   const mode = settings?.mode;
   const output: CredentialsOutput =
-    settings?.output === 'copy_beside'
-      ? 'copy_beside'
-      : backup
-        ? 'overwrite_with_backup'
-        : 'overwrite_without_backup';
+    typeof settings?.output === 'object'
+      ? settings.output
+      : settings?.output === 'copy_beside'
+        ? 'copy_beside'
+        : backup
+          ? 'overwrite_with_backup'
+          : 'overwrite_without_backup';
   return (
     <>
       <p className={styles.mode}>
@@ -172,7 +174,7 @@ function SelectionForm({
           </tbody>
         </table>
       </div>
-      {settings && settings.output !== 'copy_beside' && (
+      {settings && typeof settings.output === 'string' && settings.output !== 'copy_beside' && (
         <fieldset className={styles.output} disabled={disabled}>
           <legend>{t('output')}</legend>
           <p>{t('credentialsOutputScope')}</p>

@@ -2,7 +2,7 @@
 
 基于 Tauri、React 和 Rust 的本地批量图片压缩工具，计划支持 PNG、JPEG、GIF 和 APNG，由 png-palettes 重构演进。
 
-当前已接通 **静态 PNG 真实工作台**：Tauri 2 + React 界面经受控原生选择/拖放、应用级任务协调和有界快照驱动独立 Rust 无损/有损核心，支持文件/目录导入、批量处理、备份覆盖/同目录副本、重试与清除记录。启动后不提供主动取消操作，退出时仍保留底层安全收尾。大小、状态和进度均来自实际任务。**仅支持静态 PNG；自选输出目录、缩略图及其他格式尚未接入。** compressionAvailable=true仅表示已有一种可用压缩格式，不表示全部plannedFormats已实现。含原生选择入口的584d1e9曾通过三平台CI；本轮拖放验证见[开发记录](docs/devlog/_plan/260922/png-batch-desktop.md)，不沿用旧GUI/CI作为新代码证据。
+当前已接通 **静态 PNG 真实工作台**：Tauri 2 + React 界面经受控原生选择/拖放、应用级任务协调和有界快照驱动独立 Rust 无损/有损核心，支持文件/目录导入、批量处理、可选备份覆盖、同目录或指定目录副本、重试与清除记录。指定目录可选保留输入目录结构，授权仅本次连接有效。启动后不提供主动取消操作，退出时仍保留底层安全收尾。大小、状态和进度均来自实际任务。**仅支持静态 PNG；缩略图及其他格式尚未接入。** compressionAvailable=true仅表示已有一种可用压缩格式，不表示全部plannedFormats已实现。含原生选择入口的584d1e9曾通过三平台CI；当前代码与P5验证见[开发记录](docs/devlog/_plan/260922/png-batch-desktop.md)，不沿用旧GUI/CI作为新代码证据。
 
 UI 设计与可交互 HTML 原型保留作为实现依据：质量采用 0–100 连续滑块和精细输入，默认 80；当前质量描述以纯文字显示在标题行右侧。
 
@@ -135,7 +135,7 @@ P1 新增的 19 项批量回归及 1 项编译型 doctest 在本轮 Windows 检�
 - 按内容识别静态 PNG，检查 chunk/CRC、头部资源上限并拒绝 APNG；JPEG/GIF/WebP 等明确反馈未支持。扫描候选不是完整解码成功的保证，坏像素数据仍可能在流水线失败；逐项错误不阻断其他条目。
 - 仅完整扫描且有候选时允许规划。取消或触及全局限制返回可展示的部分结果，**不得自动启动部分批次**；空输入不建立批次。参数/目标预检失败保留冻结清单，修正后可重新规划；冻结的是路径与归属，不锁定文件内容，实际处理仍重新校验。
 - `Overwrite` 保持覆盖备份契约；`CopyBeside` 输出到原目录；`CopyTo` 支持指定目录的扁平或 `PreserveRoots` 布局。副本统一为 `stem_compressed.png`，不沿用误导性扩展名；保留结构时为 `目标/导入根名/相对父目录/副本名`，单独文件直接放目标根。无名称的文件系统根使用 `_root`。不同根同名、扁平重名、输出与输入交叉均拒绝，不自动编号或覆盖。
-- 选定目标根必须已存在；`OutputPolicy::CopyTree { root, relative }` 只接受普通相对组件，规划不创建目录。只有 output 暂存阶段创建必要子目录，最终仍执行 noclobber；取消/失败/无收益可能保留空结构目录，避免并发任务误删共有目录。旧 `Copy` 契约不变；Rust 下游完整匹配 `OutputPolicy` 时需处理新增变体，IPC/TS 类型未变。
+- 选定目标根必须已存在；`OutputPolicy::CopyTree { root, relative }` 只接受普通相对组件，规划不创建目录。只有 output 暂存阶段创建必要子目录，最终仍执行 noclobber；取消/失败/无收益可能保留空结构目录，避免并发任务误删共有目录。P5增加`OutputDirectory`及`CopyToAuthorized`/`CopyTreeAuthorized`，共享身份句柄并在规划、暂存和提交前复查，目录被替换或删除后拒绝写入；这是路径级检查，不是文件系统CAS。旧`CopyTo`/`CopyTree`/`Copy`契约保留，Rust下游完整匹配需处理新变体；桌面DTO随协议v7更新。
 - 默认排除输出层保留名：`.pixofold-output-` + 六位ASCII字母数字 + `.tmp`，以及非空原名 + `-backup-` + 六位ASCII字母数字 + `.png`；旧`.pixofold-backup-XXXXXX.png`仍被识别，不自动重命名。Windows对该ASCII形状忽略大小写；非Unicode原名按OS原始名称匹配，不做有损转换。可用`include_artifacts`显式包含。命名匹配不是来源证明，合法用户文件恰好使用保留名也会收到排除反馈；普通隐藏图、`_compressed`及近似但不符合完整形状的名称不排除。目标在输入树内时，必须先扫描结束，再开始写产物。
 
 P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix 符号链接用例的适用平台测试已随 `11c55fa` 的三平台 CI 通过。
@@ -183,9 +183,9 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 
 - select_native_import只接受files/folder与subscriptionId，通过Rust侧tauri-plugin-dialog 2.7.3打开主窗口所属原生对话框。最多一个物理对话框；等待由有界占位后的后台任务承担，不持服务锁或阻塞UI。取消/空选择返回null，不建任务；SDK也可能把系统对话框失败表示为null，不能解读为成功处理。插件未提供显式关闭对话框API，重载不释放物理占位；应用退出先撤销接纳/授权，晚到结果不启动任务，原生退出行为待GUI验收。
 - 路径只留Rust，前端仅得到grantId/rootCount（不是扫描数量、展示名或路径凭据）。授权绑定订阅会话，最多1000根、原生路径编码长度总和不超过1 MiB，5分钟惰性过期；新选择替换旧授权，成功导入消费一次，忙状态拒绝不消费。根数和重试行数上限随Rust DTO生成；路径身份、内容及输出安全继续由核心复查。
-- apply_task_mutation接收可辨识操作联合。import使用授权及固定settings；settings=null只扫描，非null完整扫描后自动启动。start仅用于Ready清单修正。模式复用严格PngMode；协议v6的输出为overwrite（保留旧含义：备份覆盖）/overwrite_without_backup/copy_beside，桌面默认发送overwrite_without_backup。不允许任意路径、输出目录或资源预算字符串/覆盖；旧前后端握手版本不一致时须更新重载。
+- apply_task_mutation接收可辨识操作联合。import使用授权及固定settings；settings=null只扫描，非null完整扫描后自动启动。start仅用于Ready清单修正。模式复用严格PngMode；协议v7保留overwrite（备份覆盖）/overwrite_without_backup/copy_beside字符串，并增加`{ copy_to: { directoryId, preserveStructure } }`，只接受同会话的原生输出目录授权。桌面默认发送overwrite_without_backup；不接受任意路径或资源预算覆盖。旧前后端握手版本不一致时须更新重载。
 - clear/start携带当前selectionId；retry额外要求expectedBatchRevision和最多1000个唯一失败/取消行ID（不是数组/页码索引），沿用Rust原行输出目标，仅修改模式，成功/无收益项不重跑。clear只清非活动记录，不删除原图、结果或备份；UI须先展示需保留的恢复信息。
-- 自协议v4引入的confirm_content_credentials携带selectionId、expectedBatchRevision、显式行ID、模式/质量、remove_content_credentials同意和确认专用输出枚举copy_beside/overwrite_with_backup/overwrite_without_backup。确认按钮即同意，不另设勾选框；拒绝旧v3的overwriteConfirmed字段和含糊的overwrite值。来源路径/属性/SHA256仍由Rust保管并在执行前复查。协议v6普通retry沿用原行输出位置与备份策略，但不继承移除许可。成功报告contentCredentialsRemoved明确标记实际移除；无收益保留源文件且标记false。旧版前后端混用须更新并重载。
+- 自协议v4引入的confirm_content_credentials携带selectionId、expectedBatchRevision、显式行ID、模式/质量、remove_content_credentials同意和确认专用输出枚举copy_beside/overwrite_with_backup/overwrite_without_backup；v7增加上述copy_to对象。确认按钮即同意，不另设勾选框；拒绝旧v3的overwriteConfirmed字段和含糊的overwrite值。来源路径/属性/SHA256仍由Rust保管并在执行前复查。普通retry沿用原行输出位置与备份策略，但不继承移除许可。成功报告contentCredentialsRemoved明确标记实际移除；无收益保留源文件且标记false。旧版前后端混用须更新并重载。
 - 确认UI不分页：通过唯一分页查询器顺序获取每段最多100项的同revision数据，完整加载后一次呈现全部列表（受桌面当前批次1000项上限约束），默认全选且可取消个别选择；不拼接不同revision。关闭、重载或版本变动废弃在途旧数据，分段失败不允许提交部分清单，重试只读加载。
 - UI不提供扫描/准备/压缩期间的主动取消入口。内部取消状态/计数和核心取消API保留，用于安全退出与异常收尾，不等于重新开放用户取消功能。
 - 首次查询/ACK握手完成后才能操作。后端在订阅锁内原子校验会话并短时接纳，锁序为订阅→授权槽→任务，无文件I/O/await；旧会话、旧授权、旧selection/revision不影响新任务。命令返回selectionId仅表示接纳，后台成功/失败仍经任务快照查询。
@@ -210,7 +210,16 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 - jobs/candidates/issues每页50项；状态更新时回到首屏，额外分页最多一个在途查询。过期页不拼接，按最新revision恢复。未知大小显示“—”，精确字节按bigint计算；进度为processed/total，取消不冒充100%成功。
 - 重试只接纳当前同revision可见页内失败/取消行的稳定ID，使用草稿模式但保留原输出位置；清除需确认，仅清记录，不删除文件。结果展示实际回退原因、输出/备份名及失败恢复信息；展示名不是可访问路径，截断或替换明确标注。
 - main页面Started生命周期在同一订阅锁域撤销会话与授权，不清除或重跑任务；尚未关闭的物理对话框仍占槽，晚到结果拒绝后才释放。非main或Finished事件不撤销新会话，不依赖unload必达。
-- 浏览器仅预览，不读取图片或模拟业务。桌面拖放接入上述受控入口；未开放自选输出目录、缩略图、高级编码参数、新格式和通用fs/dialog/event权限。原生GUI覆盖范围按开发记录独立验收。
+- 浏览器仅预览，不读取图片或模拟业务。桌面拖放接入上述受控入口；未开放缩略图、高级编码参数、新格式和通用fs/dialog/event权限。自选输出目录使用下节的窄命令，原生GUI覆盖范围按开发记录独立验收。
+
+## 指定输出目录（P5，协议v7）
+
+- “另存副本”下可选择输出目录、恢复原文件夹；指定目录时才展示“保留输入目录结构”，默认关闭。取消选择不改变现有设置、不导入或写文件。覆盖模式隐藏这些控件并忽略副本设置，在当前连接切回副本仍保留选择。
+- `select_output_directory`仅接收已握手的subscriptionId，使用与输入选择相同的物理对话框互斥。Rust在后台打开既存非链接目录并固定身份；页面只得到directoryId和安全名称，不得到路径。Ready阶段允许修正目录，运行中选择只改草稿；明确的目录不可用响应提示重选，未知响应仍要求恢复。
+- 单个输出草稿限当前会话复用，不占单次输入授权槽；输入/输出ID不可混用。替换、精确ID释放、页面重载或断开撤销草稿，旧响应不能撤销新目录。已接纳任务持有独立共享句柄，不随草稿撤销而改目标；句柄在最后一个任务/草稿所有者释放时关闭。
+- 持久化仅包含指定目录意图与布局布尔值，不保存路径、句柄或授权ID。重启/重连后必须重新选择，缺少授权时新导入只扫描，修正后同一Ready清单启动，不静默退回覆盖/原文件夹。普通重试仅要求合法模式/质量，继续使用原任务目标，无须重新授权新草稿目录。
+- caBX弹窗固定打开时的目录/布局，只给选中行授权移除；使用Rust保存的导入来源和同一个`ImportOutput::outputs_for`规划目标，不把所有普通成功项搬到新目录。指定目录副本同样不显示备份模块，目标存在则拒绝覆盖。
+- 默认扁平输出；保留结构时映射为`目标/导入根名/相对父目录/stem_compressed.png`，单独选择的文件放目标根。首版不自动编号或覆盖已有副本；无收益不生成副本，失败/无收益可能留下空结构目录。输出位于输入树内时只在完整扫描后写入；历史_compressed文件仍是普通候选，不一律排除。
 
 ## 本地诊断日志
 

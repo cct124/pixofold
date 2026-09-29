@@ -8,6 +8,7 @@ mod mutation_dto;
 mod tests;
 
 use crate::tasks::TaskControl;
+pub(crate) use convert::name as display_name;
 pub(crate) use convert::task_error;
 pub(crate) use dto::{
     DecimalU64, SubscriptionError, TASK_PROTOCOL_VERSION, TaskChangeAck, TaskChangeNotice,

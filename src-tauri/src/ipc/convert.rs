@@ -13,7 +13,7 @@ fn count(value: usize) -> Result<u32> {
 fn bytes(value: Option<ByteCount>) -> Option<DecimalU64> {
     value.map(|n| DecimalU64(n.0))
 }
-fn name(path: &Path) -> DisplayName {
+pub(crate) fn name(path: &Path) -> DisplayName {
     // 根目录也不能回退到完整路径；非UTF-8与截断必须显式说明，名称不用于身份比较。
     let Some(part) = path.file_name() else {
         return DisplayName {

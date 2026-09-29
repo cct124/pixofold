@@ -60,7 +60,8 @@ pub enum TaskPhase {
     Closed,
 }
 
-/// 最新权威视图。Arc保留只读清单和批次，不持有文件句柄；不是持久化/崩溃恢复。
+/// 最新权威视图。Arc保留只读清单和批次；自选输出策略可持有目录身份句柄（无源文件句柄）。
+/// 不是持久化/崩溃恢复；清除/换批后按所有者释放。
 /// revision覆盖整个应用会话；批次内部revision及attempt仍由核心维护。
 #[derive(Debug, Clone)]
 pub struct TaskSnapshot {

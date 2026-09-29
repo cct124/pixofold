@@ -6,6 +6,8 @@ pub(crate) use native_drop::handle_native_drop;
 #[cfg(test)]
 mod drop_tests;
 #[cfg(test)]
+mod output_tests;
+#[cfg(test)]
 mod tests;
 
 use crate::ipc::{
@@ -35,6 +37,8 @@ pub(crate) fn register<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::
             acknowledge_task_changes,
             unsubscribe_task_changes,
             select_native_import,
+            select_output_directory,
+            release_output_directory,
             release_native_drop,
             apply_task_mutation
         ])
@@ -81,6 +85,67 @@ pub(crate) async fn select_native_import<R: tauri::Runtime>(
     })
     .await
     .map_err(|_| MutationError::NativeDialogFailed)?
+}
+
+/// 输出选择仅改变草稿，Ready可修正、运行中选择也不会改变已有任务。
+#[tauri::command]
+pub(crate) async fn select_output_directory<R: tauri::Runtime>(
+    window: tauri::WebviewWindow<R>,
+    tasks: tauri::State<'_, DesktopTasks>,
+    request: TaskSubscriptionRequest,
+) -> Result<Option<ipc::NativeOutputDirectory>, MutationError> {
+    let permit = tasks
+        .subscriptions
+        .with_ready(request.subscription_id, || {
+            if matches!(
+                tasks.control.snapshot().phase,
+                crate::tasks::TaskPhase::Closing | crate::tasks::TaskPhase::Closed
+            ) {
+                return Err(MutationError::Closed);
+            }
+            tasks.imports.reserve(request.subscription_id)
+        })
+        .map_err(|error| MutationError::Subscription { error })??;
+    let subscriptions = tasks.subscriptions.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let selected = window
+            .dialog()
+            .file()
+            .set_parent(&window)
+            .blocking_pick_folder();
+        // 目录规范化/身份句柄在原生选择线程创建，不持订阅或授权锁。
+        let directory = selected
+            .map(|path| match path {
+                FilePath::Path(path) if path.is_absolute() => {
+                    pixofold_core::model::OutputDirectory::open(&path)
+                        .map_err(|_| MutationError::InvalidOutputDirectory)
+                }
+                _ => Err(MutationError::InvalidOutputDirectory),
+            })
+            .transpose()?;
+        subscriptions
+            .with_ready(request.subscription_id, || {
+                permit.complete_output(directory)
+            })
+            .map_err(|error| MutationError::Subscription { error })?
+    })
+    .await
+    .map_err(|_| MutationError::NativeDialogFailed)?
+}
+
+#[tauri::command]
+pub(crate) fn release_output_directory(
+    tasks: tauri::State<'_, DesktopTasks>,
+    request: ipc::ReleaseOutputDirectory,
+) -> Result<(), MutationError> {
+    tasks
+        .subscriptions
+        .with_ready(request.subscription_id, || {
+            tasks
+                .imports
+                .release_output(request.subscription_id, request.directory_id)
+        })
+        .map_err(|error| MutationError::Subscription { error })?
 }
 
 /// 接纳结果不等于处理完成；最终结果继续经有界快照/通知恢复。
@@ -164,5 +229,7 @@ pub(crate) fn unsubscribe_task_changes(
     tasks: tauri::State<'_, DesktopTasks>,
     request: TaskSubscriptionRequest,
 ) -> Result<bool, SubscriptionError> {
-    tasks.subscriptions.unsubscribe(request.subscription_id)
+    let removed = tasks.subscriptions.unsubscribe(request.subscription_id)?;
+    tasks.imports.revoke_output_session(request.subscription_id);
+    Ok(removed)
 }

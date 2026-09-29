@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-release-output-directory"
+description = "Enables the release_output_directory command without any pre-configured scope."
+commands.allow = ["release_output_directory"]
+
+[[permission]]
+identifier = "deny-release-output-directory"
+description = "Denies the release_output_directory command without any pre-configured scope."
+commands.deny = ["release_output_directory"]

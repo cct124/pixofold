@@ -170,5 +170,9 @@ pub(crate) fn copy_destination(
             *root = directory(root)?;
             tree_path(root, relative, false).map(Some)
         }
+        OutputPolicy::CopyTreeAuthorized { root, relative } => {
+            root.verify()?;
+            tree_path(root.path(), relative, false).map(Some)
+        }
     }
 }

@@ -10,6 +10,7 @@ import type {
   ConfirmationDto,
   CredentialsOutput,
   NativeSelectionKind,
+  NativeOutputDirectory,
   NativeDropNotice,
   NativeDropPosition,
   TaskCollection,
@@ -20,6 +21,7 @@ import type {
 
 export const WORKSPACE_PAGE_SIZE = 50;
 export interface WorkspaceView {
+  outputDirectory: NativeOutputDirectory | null;
   dropNotice: 'dropOutside' | 'dropInvalid' | 'dropUnavailable' | null;
   connection: TaskConnectionState;
   snapshot: TaskSnapshotDto | null;
@@ -28,7 +30,7 @@ export interface WorkspaceView {
   offset: number;
   pageLoading: boolean;
   pending: boolean;
-  error: 'connection' | 'operation' | 'page' | null;
+  error: 'connection' | 'operation' | 'page' | 'invalidOutputDirectory' | null;
   needsRecovery: boolean;
   confirmationOpen: boolean;
   confirmationSettings: TaskSettingsDto | null;
@@ -36,6 +38,7 @@ export interface WorkspaceView {
   confirmationRevision: string | null;
 }
 const initialView: WorkspaceView = {
+  outputDirectory: null,
   dropNotice: null,
   connection: 'idle',
   snapshot: null,
@@ -72,6 +75,7 @@ export class WorkspaceController {
   #opening: Promise<void> | null = null;
   #closing: Promise<void> | null = null;
   #settings: TaskSettingsDto | null = null;
+  #retryMode: TaskSettingsDto['mode'] | null = null;
   #settingsVersion = 0;
   #autoSelection: string | null = null;
   #attempt: { selection: string; version: number; revision: string } | null = null;
@@ -179,7 +183,9 @@ export class WorkspaceController {
     this.#pageKey = '';
     this.#autoSelection = null;
     this.#confirmationBaseline = null;
+    if (typeof this.#settings?.output === 'object') this.#settings = null;
     this.#publish({
+      outputDirectory: null,
       connection: 'disconnecting',
       pageLoading: false,
       confirmationOpen: false,
@@ -209,7 +215,12 @@ export class WorkspaceController {
     await this.connect();
   }
 
-  setSettings(settings: TaskSettingsDto | null, userChange = true): void {
+  setSettings(
+    settings: TaskSettingsDto | null,
+    userChange = true,
+    retryMode: TaskSettingsDto['mode'] | null = settings?.mode ?? null,
+  ): void {
+    this.#retryMode = structuredClone(retryMode);
     if (JSON.stringify(settings) === JSON.stringify(this.#settings)) return;
     this.#settings = structuredClone(settings);
     ++this.#settingsVersion;
@@ -239,6 +250,44 @@ export class WorkspaceController {
       this.#stream.mutationSession !== null && !this.#view.pending && !this.#view.needsRecovery
     );
   }
+
+  /** 目录选择仅更新草稿；回调在发布前同步更新“指定目录”意图，避免Ready误用旧设置。 */
+  async selectOutputDirectory(selected: () => void): Promise<void> {
+    if (!this.canChange || this.#view.confirmationOpen) return;
+    await this.#perform(async () => {
+      let directory: NativeOutputDirectory | null;
+      try {
+        directory = await this.#actions.selectOutputDirectory();
+      } catch (error) {
+        // 明确拒绝选择不涉及写入，也不撤销上一个有效草稿；未知响应仍走恢复流程。
+        if (
+          typeof error === 'object' &&
+          error !== null &&
+          'code' in error &&
+          error.code === 'invalid_output_directory'
+        ) {
+          this.#publish({ error: 'invalidOutputDirectory' });
+          return;
+        }
+        throw error;
+      }
+      if (!directory) return;
+      this.#settings = null;
+      selected();
+      this.#publish({ outputDirectory: directory });
+    });
+  }
+
+  async useOriginalFolder(selected: () => void): Promise<void> {
+    if (!this.canChange || this.#view.confirmationOpen) return;
+    await this.#perform(async () => {
+      const directory = this.#view.outputDirectory;
+      if (directory) await this.#actions.releaseOutputDirectory(directory.directoryId);
+      this.#settings = null;
+      selected();
+      this.#publish({ outputDirectory: null });
+    });
+  }
   get canImport(): boolean {
     const phase = this.#view.snapshot?.phase;
     return phase !== undefined && ['idle', 'finished', 'cancelled', 'rejected'].includes(phase);
@@ -255,7 +304,7 @@ export class WorkspaceController {
     const { snapshot, page } = this.#view;
     if (
       !this.canChange ||
-      !this.#settings ||
+      !this.#retryMode ||
       !snapshot?.selectionId ||
       !snapshot.batch ||
       snapshot.phase !== 'finished' ||
@@ -272,7 +321,7 @@ export class WorkspaceController {
       selectionId: snapshot.selectionId,
       expectedBatchRevision: snapshot.batch.revision,
       jobIds,
-      mode: this.#settings.mode,
+      mode: this.#retryMode,
     });
   }
 
@@ -417,6 +466,16 @@ export class WorkspaceController {
     output: CredentialsOutput,
   ): Promise<void> {
     const { snapshot, confirmationRows, confirmationRevision, confirmationSettings } = this.#view;
+    const fixedOutput = confirmationSettings?.output;
+    const matchesOutput =
+      typeof fixedOutput === 'object'
+        ? typeof output === 'object' &&
+          fixedOutput.copy_to.directoryId === output.copy_to.directoryId &&
+          fixedOutput.copy_to.preserveStructure === output.copy_to.preserveStructure
+        : fixedOutput === 'copy_beside'
+          ? output === 'copy_beside'
+          : typeof output === 'string' &&
+            ['overwrite_with_backup', 'overwrite_without_backup'].includes(output);
     if (
       !this.canChange ||
       !this.#view.confirmationOpen ||
@@ -429,9 +488,7 @@ export class WorkspaceController {
       confirmationRevision !== snapshot.revision ||
       revision !== snapshot.revision ||
       confirmationRows.length !== snapshot.batch.confirmationCount ||
-      (confirmationSettings.output === 'copy_beside'
-        ? output !== 'copy_beside'
-        : !['overwrite_with_backup', 'overwrite_without_backup'].includes(output)) ||
+      !matchesOutput ||
       !jobIds.length ||
       new Set(jobIds).size !== jobIds.length
     )

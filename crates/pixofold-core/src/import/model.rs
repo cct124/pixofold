@@ -139,6 +139,11 @@ pub enum ImportOutput {
         directory: PathBuf,
         layout: CopyLayout,
     },
+    /// 固定已选择的目录身份；布局和冲突规则与CopyTo一致。
+    CopyToAuthorized {
+        directory: crate::model::OutputDirectory,
+        layout: CopyLayout,
+    },
 }
 
 #[derive(Debug)]

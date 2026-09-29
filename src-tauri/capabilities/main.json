@@ -12,6 +12,8 @@
     "allow-acknowledge-task-changes",
     "allow-unsubscribe-task-changes",
     "allow-select-native-import",
+    "allow-select-output-directory",
+    "allow-release-output-directory",
     "allow-release-native-drop",
     "allow-apply-task-mutation",
     "core:window:allow-minimize",
