@@ -285,6 +285,7 @@ pub struct BatchSnapshot {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// 整批路径错误分类；旧版输出变体保留兼容，当前输出冲突使用单项TargetConflict。
 pub enum PathConflictKind {
     DuplicateSource,
     DuplicateOutput,

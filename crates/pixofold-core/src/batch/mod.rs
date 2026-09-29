@@ -295,9 +295,9 @@ impl BatchService {
     }
 
     /// 同步只读预检文件列表后入队并返回ID；编码在后台，参数与输出路径已克隆固定。
-    /// 单项缺失/权限/目标占用记录失败并继续其他行；跨任务路径冲突整批拒绝，不写文件。
+    /// 单项缺失/权限/副本目标冲突记录失败并继续其他行；重复源身份整批拒绝。
     /// # Errors
-    /// 空列表、队列上限、非法参数、服务忙/关闭、跨任务冲突均在启动前返回。
+    /// 空列表、队列上限、非法参数、服务忙/关闭、重复源均在启动前返回。
     pub fn start(&self, request: BatchRequest) -> Result<BatchId, BatchError> {
         self.start_with_cancel(request, CancellationToken::default())
     }
@@ -423,7 +423,8 @@ impl BatchService {
     /// 显式选择失败/取消行，以当前参数和目标重新启动；成功/无收益行原样保留。
     /// 整批路径重新预检，包含保留行，避免重试输出覆盖既有结果或别的输入。
     /// # Errors
-    /// 运行/取消中拒绝重试；重复、无效或不可重试行、路径冲突均不改变原快照。
+    /// 运行/取消中拒绝重试；重复、无效或不可重试行不改变原快照。
+    /// 副本目标冲突计为该行的新一次失败，未选择行仍保留原结果。
     pub fn retry(&self, id: BatchId, request: RetryRequest) -> Result<(), BatchError> {
         self.retry_with_cancel(id, request, CancellationToken::default())
     }

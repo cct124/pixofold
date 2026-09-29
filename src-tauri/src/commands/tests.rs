@@ -233,6 +233,33 @@ pub(super) fn phase(
     }
     view
 }
+pub(super) fn output_grant(
+    app: &tauri::App<MockRuntime>,
+    session: crate::ipc::DecimalU64,
+    path: &std::path::Path,
+) -> Value {
+    let directory = pixofold_core::model::OutputDirectory::open(path).unwrap();
+    serde_json::to_value(
+        app.state::<DesktopTasks>()
+            .imports
+            .reserve(session)
+            .unwrap()
+            .complete_output(Some(directory))
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap()
+}
+
+pub(super) fn copy_to(
+    app: &tauri::App<MockRuntime>,
+    session: crate::ipc::DecimalU64,
+    path: &std::path::Path,
+) -> Value {
+    let grant = output_grant(app, session, path);
+    json!({"copy_to": {"directoryId": grant["directoryId"], "preserveStructure": false}})
+}
+
 pub(super) fn native_grant(
     app: &tauri::App<MockRuntime>,
     session: crate::ipc::DecimalU64,
@@ -436,7 +463,9 @@ fn authorized_scan_start_clear_and_reimport_share_one_task_owner() {
         mutate(&main, session, json!({"kind":"clear", "selectionId":id})).unwrap_err(),
         json!({"code":"task", "error":{"code":"stale_selection"}})
     );
-    let start = json!({"kind":"start", "selectionId":accepted["selectionId"], "settings":{"mode":{"kind":"lossless"}, "output":"copy_beside"}});
+    let out = tempfile::tempdir().unwrap();
+    let output = copy_to(&app, session, out.path());
+    let start = json!({"kind":"start", "selectionId":accepted["selectionId"], "settings":{"mode":{"kind":"lossless"}, "output":output}});
     mutate(&main, session, start.clone()).unwrap();
     assert_eq!(
         mutate(&main, session, start).unwrap_err(),
@@ -445,19 +474,25 @@ fn authorized_scan_start_clear_and_reimport_share_one_task_owner() {
     let finished = phase(&tasks.control, TaskPhase::Finished);
     assert_eq!(finished.batch.unwrap().summary.failed, 0);
     assert_eq!(std::fs::read(source).unwrap(), original);
-    assert!(dir.path().join("image_compressed.png").exists());
+    assert!(out.path().join("image.png").exists());
 }
 
 #[test]
 fn import_and_start_honor_backup_policy_and_retry_keeps_it() {
     use crate::tasks::TaskPhase;
     use pixofold_core::{batch::JobState, model::ProcessingOutcome};
-    for output in ["overwrite_without_backup", "overwrite", "copy_beside"] {
+    for output in ["overwrite_without_backup", "overwrite", "copy_to"] {
         for scan_only in [false, true] {
             let app = app(super::super::app_context());
             let main = window(&app, "main");
             let session = connected(&app);
             let dir = tempfile::tempdir().unwrap();
+            let out = tempfile::tempdir().unwrap();
+            let output_value = if output == "copy_to" {
+                copy_to(&app, session, out.path())
+            } else {
+                json!(output)
+            };
             let fixture =
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/png");
             let names = [
@@ -479,7 +514,7 @@ fn import_and_start_honor_backup_policy_and_retry_keeps_it() {
                 .map(|path| std::fs::read(path).unwrap())
                 .collect();
             let grant = native_grant(&app, session, sources.clone());
-            let settings = json!({"mode":{"kind":"lossless"}, "output":output});
+            let settings = json!({"mode":{"kind":"lossless"}, "output":output_value});
             let accepted = mutate(
                 &main,
                 session,
@@ -516,7 +551,7 @@ fn import_and_start_honor_backup_policy_and_retry_keeps_it() {
             } else {
                 assert!(backup.is_none());
             }
-            if output == "copy_beside" {
+            if output == "copy_to" {
                 assert_eq!(std::fs::read(&sources[0]).unwrap(), originals[0]);
             } else {
                 assert!(std::fs::metadata(&sources[0]).unwrap().len() < originals[0].len() as u64);
@@ -525,7 +560,11 @@ fn import_and_start_honor_backup_policy_and_retry_keeps_it() {
                 assert_eq!(std::fs::read(&sources[index]).unwrap(), originals[index]);
             }
             assert!(first.jobs[3].content_credentials_source().is_some());
-            let extra = usize::from(output != "overwrite_without_backup");
+            let extra = usize::from(output == "overwrite");
+            assert_eq!(
+                std::fs::read_dir(out.path()).unwrap().count(),
+                usize::from(output == "copy_to")
+            );
             assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 4 + extra);
             // 修复损坏的测试源后重试；不得改变原行输出位置或悄悄开启备份。
             std::fs::copy(fixture.join("rgba8.png"), &sources[1]).unwrap();
@@ -548,6 +587,10 @@ fn import_and_start_honor_backup_policy_and_retry_keeps_it() {
             assert_eq!(
                 std::fs::read_dir(dir.path()).unwrap().count(),
                 4 + 2 * extra
+            );
+            assert_eq!(
+                std::fs::read_dir(out.path()).unwrap().count(),
+                2 * usize::from(output == "copy_to")
             );
             assert_eq!(std::fs::read(&sources[2]).unwrap(), originals[2]);
             assert_eq!(std::fs::read(&sources[3]).unwrap(), originals[3]);
@@ -636,7 +679,7 @@ fn mutation_retry_preserves_success_backups_and_checks_batch_revision_and_row_se
 }
 
 #[test]
-fn corrected_settings_reuse_frozen_scan_and_old_session_cannot_consume_new_grant() {
+fn scan_only_import_reuses_frozen_scan_and_old_session_cannot_consume_new_grant() {
     use crate::tasks::TaskPhase;
     let app = app(super::super::app_context());
     let main = window(&app, "main");
@@ -662,10 +705,15 @@ fn corrected_settings_reuse_frozen_scan_and_old_session_cannot_consume_new_grant
         json!({"code":"stale_grant"})
     );
     let grant = native_grant(&app, current, vec![source.clone()]);
-    let accepted = mutate(&main, current, json!({"kind":"import", "grantId":grant["grantId"], "settings":{"mode":{"kind":"lossless"}, "output":"copy_beside"}})).unwrap();
+    let accepted = mutate(
+        &main,
+        current,
+        json!({"kind":"import", "grantId":grant["grantId"], "settings":null}),
+    )
+    .unwrap();
     let tasks = app.state::<DesktopTasks>();
     let ready = phase(&tasks.control, TaskPhase::Ready);
-    assert!(ready.error.is_some());
+    assert!(ready.error.is_none());
     assert!(ready.batch.is_none());
     assert_eq!(std::fs::read(&source).unwrap(), original);
     mutate(&main, current, json!({"kind":"start", "selectionId":accepted["selectionId"], "settings":{"mode":{"kind":"lossless"}, "output":"overwrite"}})).unwrap();
@@ -686,7 +734,7 @@ fn credentials_confirmation_is_explicit_versioned_and_keeps_complete_backups() {
     use crate::tasks::TaskPhase;
     use pixofold_core::{batch::JobState, model::ProcessingOutcome};
     for output in [
-        "copy_beside",
+        "copy_to",
         "overwrite_with_backup",
         "overwrite_without_backup",
     ] {
@@ -694,6 +742,12 @@ fn credentials_confirmation_is_explicit_versioned_and_keeps_complete_backups() {
         let main = window(&app, "main");
         let session = connected(&app);
         let dir = tempfile::tempdir().unwrap();
+        let out = tempfile::tempdir().unwrap();
+        let output_value = if output == "copy_to" {
+            copy_to(&app, session, out.path())
+        } else {
+            json!(output)
+        };
         let fixture =
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/png");
         let source = dir.path().join("凭据.png");
@@ -721,9 +775,9 @@ fn credentials_confirmation_is_explicit_versioned_and_keeps_complete_backups() {
             .unwrap()
             .id
             .get();
-        let confirm = json!({"kind":"confirm_content_credentials", "selectionId":accepted["selectionId"],
+        let mut confirm = json!({"kind":"confirm_content_credentials", "selectionId":accepted["selectionId"],
             "expectedBatchRevision":first.revision.to_string(), "jobIds":[id], "mode":{"kind":"lossless"},
-            "output":output, "consent":"remove_content_credentials"});
+            "output":output_value, "consent":"remove_content_credentials"});
         for ids in [
             json!([]),
             json!([0]),
@@ -766,6 +820,9 @@ fn credentials_confirmation_is_explicit_versioned_and_keeps_complete_backups() {
         // 重载后旧会话不能确认；新会话需重新握手。
         let fresh = connected(&app);
         assert!(mutate(&main, session, confirm.clone()).is_err());
+        if output == "copy_to" {
+            confirm["output"] = copy_to(&app, fresh, out.path());
+        }
         mutate(&main, fresh, confirm.clone()).unwrap();
         assert!(mutate(&main, fresh, confirm.clone()).is_err());
         let next = phase(&tasks.control, TaskPhase::Finished).batch.unwrap();
@@ -781,7 +838,7 @@ fn credentials_confirmation_is_explicit_versioned_and_keeps_complete_backups() {
             assert_eq!(std::fs::read(backup.as_ref().unwrap()).unwrap(), original);
         } else {
             assert!(backup.is_none());
-            if output == "copy_beside" {
+            if output == "copy_to" {
                 assert_eq!(std::fs::read(&source).unwrap(), original);
             } else {
                 assert_ne!(std::fs::read(&source).unwrap(), original);
@@ -798,11 +855,15 @@ fn credentials_confirmation_is_explicit_versioned_and_keeps_complete_backups() {
         );
         assert_eq!(
             std::fs::read_dir(dir.path()).unwrap().count(),
-            if output == "overwrite_without_backup" {
-                2
-            } else {
+            if output == "overwrite_with_backup" {
                 3
+            } else {
+                2
             }
+        );
+        assert_eq!(
+            std::fs::read_dir(out.path()).unwrap().count(),
+            usize::from(output == "copy_to")
         );
         assert!(mutate(&main, fresh, confirm).is_err());
     }
@@ -813,14 +874,20 @@ fn credentials_retry_rechecks_source_and_ordinary_retry_does_not_reuse_consent()
     use crate::tasks::TaskPhase;
     use pixofold_core::batch::JobErrorCode;
     for (change_source, output) in [
-        (true, "copy_beside"),
+        (true, "copy_to"),
         (true, "overwrite_without_backup"),
-        (false, "copy_beside"),
+        (false, "copy_to"),
     ] {
         let app = app(super::super::app_context());
         let main = window(&app, "main");
         let session = connected(&app);
         let dir = tempfile::tempdir().unwrap();
+        let out = tempfile::tempdir().unwrap();
+        let output_value = if output == "copy_to" {
+            copy_to(&app, session, out.path())
+        } else {
+            json!(output)
+        };
         let source = dir.path().join("source.png");
         std::fs::copy(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -839,14 +906,14 @@ fn credentials_retry_rechecks_source_and_ordinary_retry_does_not_reuse_consent()
             changed[41] ^= 1;
             std::fs::write(&source, changed).unwrap();
         } else {
-            std::fs::write(dir.path().join("source_compressed.png"), b"existing target").unwrap();
+            std::fs::write(out.path().join("source.png"), b"existing target").unwrap();
         }
         mutate(
             &main,
             session,
             json!({"kind":"confirm_content_credentials", "selectionId":accepted["selectionId"],
             "expectedBatchRevision":first.revision.to_string(), "jobIds":[first.jobs[0].id.get()],
-            "mode":{"kind":"lossless"},"output":output,"consent":"remove_content_credentials"}),
+            "mode":{"kind":"lossless"},"output":output_value,"consent":"remove_content_credentials"}),
         )
         .unwrap();
         let failed = phase(&tasks.control, TaskPhase::Finished).batch.unwrap();
@@ -861,7 +928,11 @@ fn credentials_retry_rechecks_source_and_ordinary_retry_does_not_reuse_consent()
         assert!(failed.jobs[0].content_credentials_source().is_none());
         std::fs::write(&source, &original).unwrap();
         if !change_source {
-            std::fs::remove_file(dir.path().join("source_compressed.png")).unwrap();
+            assert_eq!(
+                std::fs::read(out.path().join("source.png")).unwrap(),
+                b"existing target"
+            );
+            std::fs::remove_file(out.path().join("source.png")).unwrap();
         }
         mutate(&main, session, json!({"kind":"retry","selectionId":accepted["selectionId"],"expectedBatchRevision":failed.revision.to_string(),
             "jobIds":[failed.jobs[0].id.get()],"mode":{"kind":"lossless"}})).unwrap();
@@ -875,6 +946,7 @@ fn credentials_retry_rechecks_source_and_ordinary_retry_does_not_reuse_consent()
         }
         assert_eq!(std::fs::read(&source).unwrap(), original);
         assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+        assert_eq!(std::fs::read_dir(out.path()).unwrap().count(), 0);
     }
 }
 

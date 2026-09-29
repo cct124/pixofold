@@ -1,10 +1,7 @@
 //! 只读导入、输出规划与真实批量闭环；所有写入隔离临时目录，取消由回调确定时序。
 
 use pixofold_core::{
-    batch::{
-        BatchConfig, BatchError, BatchParameters, BatchService, JobErrorCode, JobState,
-        PathConflictKind,
-    },
+    batch::{BatchConfig, BatchError, BatchParameters, BatchService, JobErrorCode, JobState},
     import::*,
     model::{
         ByteCount, CancellationToken, OutputPolicy, PngMode, PngRequest, ProcessingError,
@@ -47,7 +44,7 @@ fn authorized_tree_shares_layout_safety_and_rejects_replaced_directory_before_wr
     let old = dir.path().join("old-out");
     fs::rename(&out, &old).unwrap();
     fs::create_dir(&out).unwrap();
-    assert!(found.plan(&strategy, BatchParameters::default()).is_err());
+    assert_eq!(run(&found, strategy).summary.failed, 1);
     assert!(optimize_png(&png, &CancellationToken::default(), |_| {}).is_err());
     assert_eq!(fs::read_dir(&out).unwrap().count(), 0);
     assert_eq!(fs::read_dir(&old).unwrap().count(), 0);
@@ -57,7 +54,7 @@ fn authorized_tree_shares_layout_safety_and_rejects_replaced_directory_before_wr
         layout: CopyLayout::PreserveRoots,
     };
     assert_eq!(run(&found, valid).summary.succeeded, 1);
-    assert!(out.join("images/sub/photo_compressed.png").exists());
+    assert!(out.join("images/sub/photo.png").exists());
 }
 
 #[test]
@@ -78,15 +75,12 @@ fn authorized_tree_no_gain_and_late_conflict_never_overwrite_or_leave_candidate_
         png.output = request.items[0].output.clone();
         let result = optimize_png(&png, &CancellationToken::default(), |stage| {
             if late_conflict && stage == ProcessingStage::BeforeCommit {
-                fs::write(out.join("input_compressed.png"), b"keep existing").unwrap();
+                fs::write(out.join("input.png"), b"keep existing").unwrap();
             }
         });
         if late_conflict {
             assert!(result.is_err());
-            assert_eq!(
-                fs::read(out.join("input_compressed.png")).unwrap(),
-                b"keep existing"
-            );
+            assert_eq!(fs::read(out.join("input.png")).unwrap(), b"keep existing");
         } else {
             assert!(matches!(result.unwrap().outcome, ProcessingOutcome::NoGain));
         }
@@ -204,8 +198,9 @@ fn classification_uses_content_and_rejects_animation_and_bad_structure() {
     let OutputPolicy::Copy { destination } = &request.items[0].output else {
         panic!("应为副本");
     };
-    assert_eq!(destination.file_name().unwrap(), "good_compressed.png");
-    assert!(!destination.exists());
+    assert_eq!(destination.file_name().unwrap(), "good.jpeg");
+    assert!(destination.exists());
+    assert_eq!(run(&found, ImportOutput::CopyBeside).summary.failed, 1);
 }
 
 #[test]
@@ -441,12 +436,21 @@ fn parameter_and_destination_errors_preserve_the_frozen_selection() {
         found.plan(&ImportOutput::Overwrite, parameters),
         Err(ImportError::Batch(BatchError::InvalidParameters(_)))
     ));
-    let target = dir.path().join("a_compressed.png");
+    let out = dir.path().join("out");
+    fs::create_dir(&out).unwrap();
+    let target = out.join("a.png");
     fs::write(&target, b"keep existing").unwrap();
-    assert!(matches!(
-        found.plan(&ImportOutput::CopyBeside, BatchParameters::default()),
-        Err(ImportError::File { .. })
-    ));
+    let done = run(
+        &found,
+        ImportOutput::CopyTo {
+            directory: out,
+            layout: CopyLayout::Flat,
+        },
+    );
+    assert_eq!(done.summary.failed, 1);
+    assert!(
+        matches!(&done.jobs[0].state, JobState::Failed(f) if f.code == JobErrorCode::TargetConflict)
+    );
     assert_eq!(fs::read(target).unwrap(), b"keep existing");
     assert_eq!(found.files().len(), 1);
     parameters = BatchParameters {
@@ -466,72 +470,118 @@ fn parameter_and_destination_errors_preserve_the_frozen_selection() {
 }
 
 #[test]
-fn flat_collisions_root_collisions_and_output_input_overlap_reject_before_writes() {
+fn flat_and_same_named_roots_isolate_only_actual_file_collisions() {
     let dir = tempfile::tempdir().unwrap();
     let a = sample(dir.path(), "left/photos/same.png", "rgb8.png");
-    let b = sample(dir.path(), "right/photos/same.jpg", "rgba8.png");
-    let out = dir.path().join("out");
-    fs::create_dir(&out).unwrap();
+    let b = sample(dir.path(), "right/photos/same.png", "rgba8.png");
+    let unique = sample(dir.path(), "left/photos/中文 image.PNG", "rgb8.png");
+    let extension = sample(dir.path(), "right/photos/same.jpg", "rgba8.png");
+    let third = sample(dir.path(), "third/photos/same.png", "rgb8.png");
     let found = collect(&[
         a.parent().unwrap().to_owned(),
         b.parent().unwrap().to_owned(),
+        third.parent().unwrap().to_owned(),
     ]);
-    for layout in [CopyLayout::Flat, CopyLayout::PreserveRoots] {
-        let result = found.plan(
-            &ImportOutput::CopyTo {
+    for (i, layout) in [CopyLayout::Flat, CopyLayout::PreserveRoots]
+        .into_iter()
+        .enumerate()
+    {
+        let out = dir.path().join(format!("out-{i}"));
+        fs::create_dir(&out).unwrap();
+        let done = run(
+            &found,
+            ImportOutput::CopyTo {
                 directory: out.clone(),
                 layout,
             },
-            BatchParameters::default(),
         );
-        if layout == CopyLayout::Flat {
-            assert!(matches!(
-                result,
-                Err(ImportError::Batch(BatchError::PathConflict {
-                    kind: PathConflictKind::DuplicateOutput,
-                    ..
-                }))
-            ));
-        } else {
-            assert!(matches!(result, Err(ImportError::RootNameConflict { .. })));
+        assert_eq!((done.summary.failed, done.summary.succeeded), (3, 2));
+        for job in &done.jobs {
+            if job.request.source.file_name().unwrap() == "same.png" {
+                assert!(
+                    matches!(&job.state, JobState::Failed(f) if f.code == JobErrorCode::TargetConflict)
+                );
+            }
         }
-        assert_eq!(fs::read_dir(&out).unwrap().count(), 0);
+        let parent = if layout == CopyLayout::PreserveRoots {
+            out.join("photos")
+        } else {
+            out
+        };
+        assert!(!parent.join("same.png").exists());
+        assert!(parent.join("中文 image.PNG").exists());
+        assert!(parent.join("same.jpg").exists());
+        assert_eq!(fs::read_dir(parent).unwrap().count(), 2);
     }
-    let already = sample(dir.path(), "left/photos/same_compressed.png", "rgba8.png");
-    let found = collect(&[a.clone(), already.clone()]);
-    assert!(matches!(
-        found.plan(&ImportOutput::CopyBeside, BatchParameters::default()),
-        Err(ImportError::Batch(BatchError::PathConflict {
-            kind: PathConflictKind::OutputIsInput,
-            ..
-        }))
-    ));
+    let same_directory = run(&found, ImportOutput::CopyBeside);
+    assert_eq!(same_directory.summary.failed, 5);
     assert_eq!(fs::read(a).unwrap(), fixture("rgb8.png"));
-    assert_eq!(fs::read(already).unwrap(), fixture("rgba8.png"));
+    assert_eq!(fs::read(b).unwrap(), fixture("rgba8.png"));
+    assert_eq!(fs::read(unique).unwrap(), fixture("rgb8.png"));
+    assert_eq!(fs::read(extension).unwrap(), fixture("rgba8.png"));
+    assert_eq!(fs::read(third).unwrap(), fixture("rgb8.png"));
+}
+
+#[cfg(any(unix, windows))]
+#[test]
+fn copies_keep_non_unicode_os_names_without_lossy_conversion() {
+    #[cfg(windows)]
+    let name = {
+        use std::os::windows::ffi::OsStringExt;
+        std::ffi::OsString::from_wide(&[0x0078, 0xd800, 0x002e, 0x0050, 0x004e, 0x0047])
+    };
+    #[cfg(unix)]
+    let name = {
+        use std::os::unix::ffi::OsStringExt;
+        std::ffi::OsString::from_vec(b"x\xff.PNG".to_vec())
+    };
+    assert!(name.to_str().is_none());
+    let dir = tempfile::tempdir().unwrap();
+    let out = tempfile::tempdir().unwrap();
+    let source = dir.path().join(&name);
+    fs::write(&source, fixture("rgb8.png")).unwrap();
+    let found = collect(std::slice::from_ref(&source));
+    let done = run(
+        &found,
+        ImportOutput::CopyToAuthorized {
+            directory: pixofold_core::model::OutputDirectory::open(out.path()).unwrap(),
+            layout: CopyLayout::Flat,
+        },
+    );
+    assert_eq!(done.summary.succeeded, 1);
+    assert_eq!(
+        fs::read_dir(out.path())
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .file_name(),
+        name
+    );
+    assert!(out.path().join(&name).is_file());
+    assert_eq!(fs::read(source).unwrap(), fixture("rgb8.png"));
 }
 
 #[test]
 fn planned_output_file_cannot_also_be_another_output_parent() {
     let dir = tempfile::tempdir().unwrap();
     let loose = sample(dir.path(), "photos.png", "rgb8.png");
-    let nested = sample(dir.path(), "photos_compressed.png/child.png", "rgba8.png");
+    let nested = sample(dir.path(), "nested/photos.png/child.png", "rgba8.png");
+    let unique = sample(dir.path(), "free.png", "rgb8.png");
     let out = dir.path().join("out");
     fs::create_dir(&out).unwrap();
-    let found = collect(&[loose, nested.parent().unwrap().to_owned()]);
-    assert!(matches!(
-        found.plan(
-            &ImportOutput::CopyTo {
-                directory: out.clone(),
-                layout: CopyLayout::PreserveRoots
-            },
-            BatchParameters::default()
-        ),
-        Err(ImportError::Batch(BatchError::PathConflict {
-            kind: PathConflictKind::OutputHierarchy,
-            ..
-        }))
-    ));
-    assert_eq!(fs::read_dir(out).unwrap().count(), 0);
+    let found = collect(&[loose, nested.parent().unwrap().to_owned(), unique]);
+    let done = run(
+        &found,
+        ImportOutput::CopyTo {
+            directory: out.clone(),
+            layout: CopyLayout::PreserveRoots,
+        },
+    );
+    assert_eq!((done.summary.failed, done.summary.succeeded), (2, 1));
+    assert!(!out.join("photos.png").exists());
+    assert!(out.join("free.png").exists());
+    assert_eq!(fs::read_dir(out).unwrap().count(), 1);
 }
 
 #[test]
@@ -550,7 +600,7 @@ fn chosen_directory_inside_input_tree_is_only_written_after_scan_finishes() {
     assert_eq!(fs::read_dir(&out).unwrap().count(), 0, "规划必须只读");
     let done = run(&found, strategy);
     assert_eq!(done.summary.succeeded, 1);
-    assert!(out.join("pictures/sub/photo_compressed.png").exists());
+    assert!(out.join("pictures/sub/photo.data").exists());
     assert_eq!(found.files().len(), 1, "清单不会捕获本批新产物");
     assert_eq!(fs::read(source).unwrap(), fixture("rgb8.png"));
 }
@@ -816,8 +866,8 @@ fn multiple_real_workers_share_new_output_directories_without_clobbering() {
         },
     );
     assert_eq!(done.summary.succeeded, 2);
-    assert!(out.join("input/one_compressed.png").exists());
-    assert!(out.join("input/two_compressed.png").exists());
+    assert!(out.join("input/one.png").exists());
+    assert!(out.join("input/two.png").exists());
     assert_eq!(fs::read(one).unwrap(), fixture("rgb8.png"));
     assert_eq!(fs::read(two).unwrap(), fixture("rgba8.png"));
     assert_eq!(fs::read_dir(out.join("input")).unwrap().count(), 2);

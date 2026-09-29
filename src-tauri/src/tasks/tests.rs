@@ -28,6 +28,15 @@ fn copy_settings() -> TaskSettings {
         output: ImportOutput::CopyBeside,
     }
 }
+fn copy_settings_to(directory: &Path) -> TaskSettings {
+    TaskSettings {
+        output: ImportOutput::CopyTo {
+            directory: directory.to_owned(),
+            layout: pixofold_core::import::CopyLayout::Flat,
+        },
+        ..copy_settings()
+    }
+}
 fn phase(control: &TaskControl, target: TaskPhase) -> TaskSnapshot {
     let deadline = Instant::now() + WAIT;
     let mut snapshot = control.snapshot();
@@ -147,10 +156,11 @@ impl Drop for Paused {
 #[test]
 fn real_auto_import_freezes_settings_and_does_not_need_a_window() {
     let dir = tempfile::tempdir().unwrap();
+    let out = tempfile::tempdir().unwrap();
     let source = sample(dir.path(), "source.wrong", "rgb8.png");
     let mut runtime = TaskRuntime::new(TaskConfig::default()).unwrap();
     let control = runtime.control();
-    let mut settings = copy_settings();
+    let mut settings = copy_settings_to(out.path());
     let id = control
         .import(vec![source.clone()], Some(settings.clone()))
         .unwrap();
@@ -160,7 +170,7 @@ fn real_auto_import_freezes_settings_and_does_not_need_a_window() {
     let batch = finished.batch.unwrap();
     assert_eq!(batch.summary.succeeded, 1);
     assert_eq!(batch.jobs[0].request.mode, PngMode::Lossless);
-    assert!(dir.path().join("source_compressed.png").exists());
+    assert!(out.path().join("source.wrong").exists());
     assert_eq!(fs::read(source).unwrap(), fixture("rgb8.png"));
     assert!(matches!(
         control.start(id, settings),
@@ -173,6 +183,7 @@ fn real_auto_import_freezes_settings_and_does_not_need_a_window() {
 #[test]
 fn settings_errors_retain_identical_frozen_scan_and_allow_one_corrected_start() {
     let dir = tempfile::tempdir().unwrap();
+    let out = tempfile::tempdir().unwrap();
     let source = sample(dir.path(), "photo.png", "rgb8.png");
     let paused = Paused::new(Point::Plan);
     let control = paused.runtime.control();
@@ -194,8 +205,8 @@ fn settings_errors_retain_identical_frozen_scan_and_allow_one_corrected_start() 
         ready.import.as_ref().unwrap(),
         failed.import.as_ref().unwrap()
     ));
-    assert!(!dir.path().join("photo_compressed.png").exists());
-    control.start(id, copy_settings()).unwrap();
+    assert_eq!(fs::read_dir(out.path()).unwrap().count(), 0);
+    control.start(id, copy_settings_to(out.path())).unwrap();
     assert_eq!(
         phase(&control, TaskPhase::Finished)
             .batch
@@ -207,24 +218,45 @@ fn settings_errors_retain_identical_frozen_scan_and_allow_one_corrected_start() 
 }
 
 #[test]
-fn output_conflict_can_be_corrected_without_rescanning() {
+fn output_conflict_is_a_finished_row_and_can_be_retried_without_rescanning() {
     let dir = tempfile::tempdir().unwrap();
+    let out = tempfile::tempdir().unwrap();
     let source = sample(dir.path(), "photo.png", "rgb8.png");
-    let occupied = dir.path().join("photo_compressed.png");
+    let occupied = out.path().join("photo.png");
     fs::write(&occupied, b"keep").unwrap();
     let runtime = TaskRuntime::new(TaskConfig::default()).unwrap();
     let control = runtime.control();
-    let id = control.import(vec![source], Some(copy_settings())).unwrap();
-    let ready = phase(&control, TaskPhase::Ready);
-    assert!(ready.error.is_some());
+    let id = control
+        .import(vec![source.clone()], Some(copy_settings_to(out.path())))
+        .unwrap();
+    let failed = phase(&control, TaskPhase::Finished);
+    assert!(failed.error.is_none());
+    let batch = failed.batch.as_ref().unwrap();
+    assert_eq!(batch.summary.failed, 1);
+    assert_eq!(fs::read(&occupied).unwrap(), b"keep");
     fs::remove_file(&occupied).unwrap();
-    control.start(id, copy_settings()).unwrap();
+    control
+        .retry(
+            id,
+            batch.revision,
+            RetryRequest {
+                parameters: BatchParameters::default(),
+                jobs: vec![RetryJob {
+                    id: batch.jobs[0].id,
+                    metadata: Default::default(),
+                    output: batch.jobs[0].request.output.clone(),
+                }],
+            },
+        )
+        .unwrap();
     let finished = phase(&control, TaskPhase::Finished);
     assert!(Arc::ptr_eq(
-        ready.import.as_ref().unwrap(),
+        failed.import.as_ref().unwrap(),
         finished.import.as_ref().unwrap()
     ));
     assert!(finished.error.is_none());
+    assert_eq!(finished.batch.unwrap().summary.succeeded, 1);
+    assert_eq!(fs::read(source).unwrap(), fixture("rgb8.png"));
 }
 
 #[test]
@@ -412,10 +444,13 @@ fn real_retry_preserves_success_backups_and_rejects_stale_batch_revision() {
 #[test]
 fn invalid_retry_does_not_change_attempt_or_discard_results() {
     let dir = tempfile::tempdir().unwrap();
+    let out = tempfile::tempdir().unwrap();
     let source = sample(dir.path(), "photo.png", "rgb8.png");
     let runtime = TaskRuntime::new(TaskConfig::default()).unwrap();
     let control = runtime.control();
-    let id = control.import(vec![source], Some(copy_settings())).unwrap();
+    let id = control
+        .import(vec![source], Some(copy_settings_to(out.path())))
+        .unwrap();
     let first = phase(&control, TaskPhase::Finished).batch.unwrap();
     control
         .retry(

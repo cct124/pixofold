@@ -52,6 +52,8 @@ fn completed() -> (tempfile::TempDir, TaskRuntime, TaskSnapshot) {
     let good = sample(dir.path(), "good.png", "rgb8.png");
     let bad = sample(dir.path(), "bad.png", "bad-deflate.png");
     let small = sample(dir.path(), "small.png", "already-optimized.png");
+    let out = dir.path().join("out");
+    fs::create_dir(&out).unwrap();
     let runtime = TaskRuntime::new(TaskConfig::default()).unwrap();
     let control = runtime.control();
     control
@@ -59,7 +61,10 @@ fn completed() -> (tempfile::TempDir, TaskRuntime, TaskSnapshot) {
             vec![good, bad, small],
             Some(TaskSettings {
                 parameters: BatchParameters::default(),
-                output: ImportOutput::CopyBeside,
+                output: ImportOutput::CopyTo {
+                    directory: out,
+                    layout: CopyLayout::Flat,
+                },
             }),
         )
         .unwrap();
@@ -169,7 +174,7 @@ fn real_batch_serializes_success_no_gain_failure_and_exact_totals_without_paths(
     assert_eq!(successful["state"]["kind"], "succeeded");
     assert_eq!(
         successful["state"]["report"]["outputName"]["text"],
-        "good_compressed.png"
+        "good.png"
     );
     assert_eq!(successful["mode"]["kind"], "lossless");
     let failed = rows

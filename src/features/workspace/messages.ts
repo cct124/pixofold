@@ -115,8 +115,12 @@ const copy = {
     'Overwrite directly without backups. Keep originals when there is no gain.',
   ],
   copyHint: [
-    '副本使用 _compressed.png 名称，目标已存在则拒绝覆盖。',
-    'Copies use _compressed.png names and never overwrite existing targets.',
+    '副本保留原文件名；目标冲突不覆盖，仅该图片失败，其余继续。',
+    'Copies keep original filenames. Existing or conflicting targets are never overwritten; other images continue.',
+  ],
+  copyOriginalHint: [
+    '同目录会与原图重名，请选择其他输出目录。',
+    'The original folder would conflict with the originals. Choose another output folder.',
   ],
   frozen: [
     '设置不改变运行中的任务。输出与备份设置用于下次导入；普通重试沿用原输出与备份策略。',
@@ -134,8 +138,8 @@ const copy = {
   useOriginalFolder: ['恢复原文件夹', 'Use original folder'],
   outputRequired: ['请选择输出目录', 'Select an output folder'],
   outputRequiredHint: [
-    '请重新选择输出目录，或恢复原文件夹；当前导入只扫描，不开始压缩。',
-    'Select an output folder again or use the original folder. Imports will only scan until then.',
+    '请重新选择输出目录；当前导入只扫描，不开始压缩。',
+    'Select an output folder again. Imports will only scan until then.',
   ],
   preserveStructure: ['保留输入目录结构', 'Keep input folder structure'],
   jobs: ['处理任务', 'Jobs'],

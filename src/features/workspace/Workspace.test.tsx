@@ -340,6 +340,41 @@ describe('session-bound custom output folders', () => {
     await waitFor(() => expect(controller.getSnapshot().pending).toBe(false));
   }
 
+  it.each([
+    [
+      'zh-CN',
+      '选择输出目录',
+      '副本保留原文件名；目标冲突不覆盖，仅该图片失败，其余继续。',
+      '同目录会与原图重名，请选择其他输出目录。',
+    ],
+    [
+      'en',
+      'Choose output folder',
+      'Copies keep original filenames. Existing or conflicting targets are never overwritten; other images continue.',
+      'The original folder would conflict with the originals. Choose another output folder.',
+    ],
+  ] as const)(
+    'explains original-name copies and same-folder conflicts in %s',
+    async (language, button, hint, warning) => {
+      nativeOutput();
+      useCompressionPreferences.setState({ output: 'copy_beside' });
+      const ui = await mount();
+      ui.rerender(
+        <StrictMode>
+          <Workspace language={language} controller={controller} />
+        </StrictMode>,
+      );
+      expect(screen.getByText(hint)).toBeVisible();
+      expect(screen.getByText(warning)).toBeVisible();
+      expect(screen.queryByText(/_compressed/)).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: button }));
+      await waitFor(() => expect(screen.getByText('导出目录')).toBeVisible());
+      expect(screen.getByText(hint)).toBeVisible();
+      expect(screen.queryByText(warning)).not.toBeInTheDocument();
+      expect(writes()).toHaveLength(0);
+    },
+  );
+
   it('selects without importing, preserves toggles and cancellation, and restores original folder', async () => {
     nativeOutput();
     await mount();
@@ -913,7 +948,8 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
     expect(screen.getByText('原文件夹')).toBeVisible();
     expect(screen.getByRole('button', { name: '选择输出目录' })).toBeEnabled();
     expect(screen.queryByRole('checkbox', { name: '覆盖前备份原图' })).not.toBeInTheDocument();
-    expect(screen.getByText(/副本使用 _compressed.png/)).toBeVisible();
+    expect(screen.getByText(/副本保留原文件名；目标冲突不覆盖/)).toBeVisible();
+    expect(screen.getByText('同目录会与原图重名，请选择其他输出目录。')).toBeVisible();
     expect(controller.getSnapshot().pending).toBe(false);
     fireEvent.click(screen.getByRole('button', { name: '原图覆盖' }));
     expect(screen.getByRole('checkbox', { name: '覆盖前备份原图' })).toBeChecked();

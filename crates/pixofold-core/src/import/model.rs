@@ -133,6 +133,7 @@ pub enum ImportOutput {
     Overwrite,
     /// 不保留原图备份，仍执行完整验证和安全替换。
     OverwriteWithoutBackup,
+    /// 保留原名的同目录副本：目标为原图，按单项冲突拒绝，不能转为覆盖。
     CopyBeside,
     /// directory须已存在；保留结构时目录根映射为root_name/相对路径，单独文件置于根。
     CopyTo {
@@ -152,7 +153,7 @@ pub enum ImportError {
     TooManyRoots,
     IncompleteScan,
     NoFiles,
-    /// 不将不同导入根悄悄合并到同名目标文件夹，即使当前子文件名尚未重叠。
+    /// 旧版整批同名根错误，保留兼容；当前允许合并根，实际文件冲突逐项失败。
     RootNameConflict {
         first: PathBuf,
         second: PathBuf,

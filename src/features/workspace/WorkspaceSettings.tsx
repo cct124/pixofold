@@ -229,6 +229,9 @@ export function WorkspaceSettings({
                     : 'overwriteHint',
               )}
             </p>
+            {output === 'copy_beside' && !customOutput && (
+              <p className="hint">{t('copyOriginalHint')}</p>
+            )}
             <p>{t('frozen')}</p>
           </div>
         </section>

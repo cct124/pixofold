@@ -204,44 +204,76 @@ fn duplicate_sources_and_hardlink_aliases_reject_whole_batch_without_writes() {
 }
 
 #[test]
-fn overlapping_outputs_and_output_into_other_input_are_rejected() {
+fn overlapping_outputs_and_output_into_other_input_fail_only_affected_copies() {
     let dir = tempfile::tempdir().unwrap();
     let (a, original_a) = source(dir.path(), "a.png", "rgb8.png");
     let (b, original_b) = source(dir.path(), "b.png", "rgba8.png");
     let sub = dir.path().join("sub");
     fs::create_dir(&sub).unwrap();
     let target = dir.path().join("output.png");
-    let service = BatchService::new(BatchConfig::default()).unwrap();
     let same = sub.join("..").join("output.png");
-    let result = service.start(request(vec![item(&a, &target), item(&b, &same)]));
-    assert!(matches!(
-        result,
-        Err(BatchError::PathConflict {
-            kind: PathConflictKind::DuplicateOutput,
-            ..
-        })
-    ));
-    let result = service.start(request(vec![item(&a, &b), item(&b, &target)]));
-    assert!(matches!(
-        result,
-        Err(BatchError::PathConflict {
-            kind: PathConflictKind::OutputIsInput,
-            ..
-        })
-    ));
     let alias = dir.path().join("alias.png");
     fs::hard_link(&b, &alias).unwrap();
-    let result = service.start(request(vec![item(&a, &alias), item(&b, &target)]));
-    assert!(matches!(
-        result,
-        Err(BatchError::PathConflict {
-            kind: PathConflictKind::OutputIsInput,
-            ..
+    let (c, original_c) = source(dir.path(), "c.png", "rgb8.png");
+    for (i, first_target) in [&target, &b, &alias].into_iter().enumerate() {
+        let service = BatchService::new(BatchConfig {
+            workers: 3,
+            ..BatchConfig::default()
         })
-    ));
+        .unwrap();
+        let free = dir.path().join(format!("free-{i}.png"));
+        let id = service
+            .start(request(vec![
+                item(&a, first_target),
+                item(&b, &same),
+                item(&c, &free),
+            ]))
+            .unwrap();
+        let done = service.wait(id, WAIT).unwrap();
+        let expected_failed = if i == 0 { 2 } else { 1 };
+        assert_eq!(
+            (done.summary.failed, done.summary.succeeded),
+            (expected_failed, 3 - expected_failed)
+        );
+        for job in &done.jobs[..expected_failed] {
+            assert!(
+                matches!(&job.state, JobState::Failed(f) if f.code == JobErrorCode::TargetConflict)
+            );
+        }
+        assert!(free.is_file());
+        if i != 0 {
+            fs::remove_file(&target).unwrap();
+        }
+    }
     assert_eq!(fs::read(a).unwrap(), original_a);
     assert_eq!(fs::read(b).unwrap(), original_b);
+    assert_eq!(fs::read(c).unwrap(), original_c);
     assert!(!target.exists());
+}
+
+#[test]
+fn blocked_copy_does_not_reject_a_legitimate_overwrite_of_its_destination() {
+    let dir = tempfile::tempdir().unwrap();
+    let (a, original_a) = source(dir.path(), "a.png", "rgb8.png");
+    let (b, original_b) = source(dir.path(), "b.png", "rgba8.png");
+    let service = BatchService::new(BatchConfig::default()).unwrap();
+    let id = service
+        .start(request(vec![
+            item(&a, &b),
+            BatchItem {
+                source: b.clone(),
+                output: OutputPolicy::OverwriteWithoutBackup,
+            },
+        ]))
+        .unwrap();
+    let done = service.wait(id, WAIT).unwrap();
+    assert_eq!((done.summary.failed, done.summary.succeeded), (1, 1));
+    assert!(
+        matches!(&done.jobs[0].state, JobState::Failed(f) if f.code == JobErrorCode::TargetConflict)
+    );
+    assert_eq!(fs::read(a).unwrap(), original_a);
+    assert_ne!(fs::read(b).unwrap(), original_b);
+    assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 2);
 }
 
 #[cfg(windows)]
@@ -251,18 +283,18 @@ fn windows_unicode_case_aliases_are_conservatively_rejected() {
     let (a, _) = source(dir.path(), "a.png", "rgb8.png");
     let (b, _) = source(dir.path(), "b.png", "rgba8.png");
     let service = BatchService::new(BatchConfig::default()).unwrap();
-    let result = service.start(request(vec![
-        item(&a, &dir.path().join("résultat.png")),
-        item(&b, &dir.path().join("RÉSULTAT.PNG")),
-    ]));
-    assert!(matches!(
-        result,
-        Err(BatchError::PathConflict {
-            kind: PathConflictKind::DuplicateOutput,
-            ..
-        })
+    let id = service
+        .start(request(vec![
+            item(&a, &dir.path().join("résultat.png")),
+            item(&b, &dir.path().join("RÉSULTAT.PNG")),
+        ]))
+        .unwrap();
+    let done = service.wait(id, WAIT).unwrap();
+    assert_eq!(done.summary.failed, 2);
+    assert!(done.jobs.iter().all(
+        |job| matches!(&job.state, JobState::Failed(f) if f.code == JobErrorCode::TargetConflict)
     ));
-    assert!(service.snapshot().is_none());
+    assert!(!dir.path().join("résultat.png").exists());
 }
 
 #[test]
@@ -302,11 +334,17 @@ fn retry_rechecks_paths_retains_success_and_applies_current_quality_and_target()
             },
         }],
     };
-    assert!(matches!(
-        service.retry(id, retry.clone()),
-        Err(BatchError::PathConflict { .. })
-    ));
-    assert_eq!(service.snapshot().unwrap().revision, first.revision);
+    service.retry(id, retry.clone()).unwrap();
+    let conflict_retry = service.wait(id, WAIT).unwrap();
+    assert_eq!(
+        (
+            conflict_retry.summary.succeeded,
+            conflict_retry.summary.failed
+        ),
+        (1, 1)
+    );
+    assert_eq!(conflict_retry.jobs[1].attempt, 2);
+    assert_eq!(fs::read(&first_output).unwrap(), before);
     retry.jobs.push(retry.jobs[0].clone());
     assert!(matches!(
         service.retry(id, retry.clone()),
@@ -320,7 +358,7 @@ fn retry_rechecks_paths_retains_success_and_applies_current_quality_and_target()
     service.retry(id, retry).unwrap();
     let finished = service.wait(id, WAIT).unwrap();
     assert_eq!(finished.summary.succeeded, 2);
-    assert_eq!((finished.jobs[0].attempt, finished.jobs[1].attempt), (1, 2));
+    assert_eq!((finished.jobs[0].attempt, finished.jobs[1].attempt), (1, 3));
     assert_eq!(finished.jobs[0].request.mode, PngMode::Lossless);
     let JobState::Succeeded(report) = &finished.jobs[1].state else {
         panic!("重试应成功");

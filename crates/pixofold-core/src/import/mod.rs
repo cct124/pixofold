@@ -4,13 +4,15 @@
 //!
 //! ```no_run
 //! use pixofold_core::{batch::{BatchConfig, BatchParameters, BatchService},
-//!     import::{scan, ImportOutput, ScanOptions}, model::CancellationToken};
+//!     import::{scan, CopyLayout, ImportOutput, ScanOptions}, model::CancellationToken};
 //! use std::{path::PathBuf, time::Duration};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let found = scan(&[PathBuf::from("images")], ScanOptions::default(),
 //!     &CancellationToken::default(), |_| {})?;
-//! // 无候选、取消、达到全局上限或目标冲突时返回错误；found仍可用于展示/重新规划。
-//! let request = found.plan(&ImportOutput::CopyBeside, BatchParameters::default())?;
+//! // 无候选、取消或达到全局上限时拒绝；副本目标冲突仅该行失败，不拒绝其他行。
+//! // output须是已存在的目录，副本保留原文件名。
+//! let output = ImportOutput::CopyTo { directory: PathBuf::from("output"), layout: CopyLayout::Flat };
+//! let request = found.plan(&output, BatchParameters::default())?;
 //! let mut service = BatchService::new(BatchConfig::default())?;
 //! let id = service.start(request)?;
 //! let result = service.wait(id, Duration::from_secs(60));

@@ -1,6 +1,6 @@
 //! 从生产注册的窗口分发函数进入真实接纳/扫描/压缩；mock不覆盖OS事件投递。
 use super::super::handle_window_event;
-use super::tests::{app, invoke, mutate, phase, window};
+use super::tests::{app, copy_to, invoke, mutate, phase, window};
 use crate::{
     ipc::{DecimalU64, MutationError, TaskChangeAck},
     lifecycle::DesktopTasks,
@@ -122,6 +122,8 @@ fn native_drop_uses_one_pathless_grant_and_the_real_mixed_directory_pipeline() {
     let (session, recv) = connect(&app, true);
     let tasks = app.state::<DesktopTasks>();
     let dir = tempfile::tempdir().unwrap();
+    let out = tempfile::tempdir().unwrap();
+    let output = copy_to(&app, session, out.path());
     let nested = dir.path().join("中文子目录");
     std::fs::create_dir(&nested).unwrap();
     let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/png");
@@ -154,7 +156,7 @@ fn native_drop_uses_one_pathless_grant_and_the_real_mixed_directory_pipeline() {
     enter(&app, "main");
     drop_files(&app, vec![dir.path().into()]);
     assert!(recv.try_recv().is_err());
-    let import = json!({"kind":"import", "grantId":offer["offer"]["grant"]["grantId"], "settings":{"mode":{"kind":"lossless"},"output":"copy_beside"}});
+    let import = json!({"kind":"import", "grantId":offer["offer"]["grant"]["grantId"], "settings":{"mode":{"kind":"lossless"},"output":output}});
     mutate(&main, session, import.clone()).unwrap();
     assert_eq!(
         mutate(&main, session, import).unwrap_err()["code"],
@@ -177,9 +179,10 @@ fn native_drop_uses_one_pathless_grant_and_the_real_mixed_directory_pipeline() {
     for (path, bytes) in sources {
         assert_eq!(std::fs::read(path).unwrap(), bytes);
     }
-    assert!(nested.join("rgb8_compressed.png").exists());
-    assert!(nested.join("rgba8_compressed.png").exists());
-    assert_eq!(std::fs::read_dir(&nested).unwrap().count(), 6);
+    assert!(out.path().join("rgb8.png").exists());
+    assert!(out.path().join("rgba8.png").exists());
+    assert_eq!(std::fs::read_dir(&nested).unwrap().count(), 4);
+    assert_eq!(std::fs::read_dir(out.path()).unwrap().count(), 2);
     assert_eq!(
         invoke(
             &main,

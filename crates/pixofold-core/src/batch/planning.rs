@@ -1,4 +1,4 @@
-//! 整批只读准入：复用输出层路径边界，检查跨任务冲突，不持有源句柄进入编码。
+//! 整批只读准入：重复源拒绝批次，输出冲突隔离到相关副本行，不持有源句柄进入编码。
 
 use std::{collections::HashMap, ffi::OsString, fs};
 
@@ -145,7 +145,7 @@ pub(super) fn prepare(
     // 身份句柄全部在函数返回前释放，避免Windows覆盖被本服务自己的预检句柄阻止。
     let mut sources = HashMap::new();
     let mut identities = HashMap::new();
-    let mut targets = HashMap::new();
+    let mut targets: HashMap<OsString, Vec<usize>> = HashMap::new();
     let conflict = |a: usize, b: usize, kind| BatchError::PathConflict {
         first: JobId(a + 1),
         second: JobId(b + 1),
@@ -162,18 +162,32 @@ pub(super) fn prepare(
         {
             return Err(conflict(first, i, PathConflictKind::DuplicateSource));
         }
-        if let Some(target) = &path.target
-            && let Some(first) = targets.insert(target.clone(), i)
-        {
-            return Err(conflict(first, i, PathConflictKind::DuplicateOutput));
+        if let Some(target) = &path.target {
+            targets.entry(target.clone()).or_default().push(i);
+        }
+    }
+    let mut fail_copy = |i: usize| {
+        // 指向已授权覆盖行的副本失败，不能连带阻止合法覆盖；不掩盖已有输入错误。
+        if paths[i].copy && matches!(jobs[i].view.state, JobState::Queued) {
+            jobs[i].view.state =
+                JobState::Failed(JobFailure::processing(ProcessingError::TargetConflict));
+        }
+    };
+    for indices in targets.values().filter(|indices| indices.len() > 1) {
+        // 同批同目标的全部副本失败，不能让worker调度先后决定哪张图写入。
+        for &i in indices {
+            fail_copy(i);
         }
     }
     for (i, path) in paths.iter().enumerate().filter(|(_, p)| p.copy) {
         // CopyTree尚不存在的目录也可能是另一项的最终文件，不能等worker争抢创建才发现。
         if let Some(target) = &path.target {
             for ancestor in std::path::Path::new(target).ancestors().skip(1) {
-                if let Some(first) = targets.get(ancestor.as_os_str()) {
-                    return Err(conflict(*first, i, PathConflictKind::OutputHierarchy));
+                if let Some(parents) = targets.get(ancestor.as_os_str()) {
+                    fail_copy(i);
+                    for &parent in parents {
+                        fail_copy(parent);
+                    }
                 }
             }
         }
@@ -188,8 +202,8 @@ pub(super) fn prepare(
                     .and_then(|p| identities.get(p))
                     .copied()
             });
-        if let Some(first) = first {
-            return Err(conflict(first, i, PathConflictKind::OutputIsInput));
+        if first.is_some() {
+            fail_copy(i);
         }
     }
     Ok(jobs)

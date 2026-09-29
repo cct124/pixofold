@@ -2,12 +2,10 @@
 
 use super::model::*;
 use crate::{
-    batch::{self, BatchItem, BatchParameters, BatchRequest, JobFailure, JobState},
+    batch::{self, BatchItem, BatchParameters, BatchRequest, JobFailure},
     model::{OutputPolicy, PngRequest, ProcessingError},
-    output::paths,
 };
 use std::{
-    collections::HashMap,
     ffi::OsStr,
     path::{Path, PathBuf},
 };
@@ -17,15 +15,14 @@ fn root_name(root: &Path) -> &OsStr {
 }
 
 fn copy_name(source: &Path) -> Result<PathBuf, ProcessingError> {
-    let mut stem = source
-        .file_stem()
-        .ok_or(ProcessingError::InvalidPath)?
-        .to_os_string();
-    stem.push("_compressed.png");
-    Ok(PathBuf::from(stem))
+    source
+        .file_name()
+        .map(PathBuf::from)
+        .ok_or(ProcessingError::InvalidPath)
 }
 
 /// 生成同目录副本策略，不读写文件；目标存在/别名冲突仍由批次和输出层检查。
+/// 副本保留原名，同目录会与原图冲突；不能回退为覆盖或自动改名。
 /// # Errors
 /// 源没有有效文件名时返回InvalidPath。
 pub fn copy_beside(source: &Path) -> Result<OutputPolicy, ProcessingError> {
@@ -38,31 +35,9 @@ impl ImportOutput {
     /// 由Rust保存的导入来源规划目标，不执行I/O；初次导入和选中行确认共用布局规则。
     /// 调用方仍须交给BatchService进行完整冲突检查，不能直接提交输出。
     /// # Errors
-    /// 无有效文件名或不同目录根同名时拒绝，返回输入切片中的候选索引。
+    /// 无有效文件名时拒绝，返回输入切片中的候选索引。
     pub fn outputs_for(&self, files: &[&ImportedFile]) -> Result<Vec<OutputPolicy>, ImportError> {
-        if matches!(
-            self,
-            ImportOutput::CopyTo {
-                layout: CopyLayout::PreserveRoots,
-                ..
-            } | ImportOutput::CopyToAuthorized {
-                layout: CopyLayout::PreserveRoots,
-                ..
-            }
-        ) {
-            let mut names = HashMap::new();
-            for file in files.iter().filter(|f| f.root_is_directory) {
-                if let Some(first) =
-                    names.insert(paths::key(Path::new(root_name(&file.root))), &file.root)
-                    && paths::key(first) != paths::key(&file.root)
-                {
-                    return Err(ImportError::RootNameConflict {
-                        first: first.clone(),
-                        second: file.root.clone(),
-                    });
-                }
-            }
-        }
+        // 同名目录根可合并布局，实际文件冲突由批次逐项标记，不能连带拒绝无冲突图片。
         let mut outputs = Vec::with_capacity(files.len());
         for (index, file) in files.iter().enumerate() {
             let policy = (|| -> Result<OutputPolicy, ProcessingError> {
@@ -113,7 +88,8 @@ impl ImportScan {
     /// 冻结当前设置并只读预检全部目标，不启动任务或创建目录。失败时清单不变。
     /// 返回请求仍须交给BatchService::start进行准入复查。
     /// # Errors
-    /// 未完整扫描、无候选、无效参数、冲突或文件系统错误均拒绝。
+    /// 未完整扫描、无候选、无效参数或重复源等整批准入错误拒绝。
+    /// 单项文件/目标错误保留在请求中，由BatchService启动时复查并记录该行失败。
     pub fn plan(
         &self,
         output: &ImportOutput,
@@ -139,10 +115,7 @@ impl ImportScan {
         }
         let jobs = batch::preview(requests).map_err(ImportError::Batch)?;
         let mut items = Vec::with_capacity(jobs.len());
-        for (index, job) in jobs.into_iter().enumerate() {
-            if let JobState::Failed(failure) = job.state {
-                return Err(ImportError::File { index, failure });
-            }
+        for job in jobs {
             items.push(BatchItem {
                 source: job.request.source,
                 output: job.request.output,

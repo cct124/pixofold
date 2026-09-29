@@ -270,7 +270,7 @@ impl fmt::Display for ProcessingError {
             Self::Decode(_) => f.write_str("PNG 解码失败"),
             Self::Encode(_) => f.write_str("PNG 编码失败"),
             Self::ValidationFailed(reason) => write!(f, "PNG 产物验证失败：{reason}"),
-            Self::TargetConflict => f.write_str("副本目标已存在，未覆盖"),
+            Self::TargetConflict => f.write_str("副本目标已存在或冲突，未覆盖"),
             Self::SourceChanged => f.write_str("源文件在处理期间发生变化，未提交"),
             Self::Cancelled => f.write_str("处理已取消，未提交"),
             Self::Io { operation, .. } => write!(f, "文件操作失败：{operation}"),

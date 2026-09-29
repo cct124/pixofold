@@ -1,25 +1,12 @@
 //! 真实任务/输出经生产IPC路由；原生选择结果用Rust注入，不冒充OS对话框验收。
-use super::tests::{app, connected, invoke, mutate, native_grant, phase, window};
-use crate::{ipc::DecimalU64, lifecycle::DesktopTasks, tasks::TaskPhase};
-use pixofold_core::model::OutputDirectory;
+use super::tests::{
+    app, connected, invoke, mutate, native_grant, output_grant as choose, phase, window,
+};
+use crate::{lifecycle::DesktopTasks, tasks::TaskPhase};
+use pixofold_core::batch::{JobErrorCode, JobState};
 use serde_json::{Value, json};
 use std::{fs, path::Path};
-use tauri::{Manager, test::MockRuntime};
-
-fn choose(app: &tauri::App<MockRuntime>, session: DecimalU64, path: &Path) -> Value {
-    let directory = OutputDirectory::open(path).unwrap();
-    let tasks = app.state::<DesktopTasks>();
-    serde_json::to_value(
-        tasks
-            .imports
-            .reserve(session)
-            .unwrap()
-            .complete_output(Some(directory))
-            .unwrap()
-            .unwrap(),
-    )
-    .unwrap()
-}
+use tauri::Manager;
 fn target(grant: &Value, preserve: bool) -> Value {
     json!({"copy_to":{"directoryId":grant["directoryId"],"preserveStructure":preserve}})
 }
@@ -62,12 +49,12 @@ fn chosen_directory_credentials_and_ordinary_retry_use_their_frozen_targets() {
         assert_eq!(first.summary.succeeded, 1);
         assert_eq!(first.summary.failed, 2);
         let a_output = out.join(if preserve {
-            "中文 photos/a_compressed.png"
+            "中文 photos/a.png"
         } else {
-            "a_compressed.png"
+            "a.png"
         });
         assert!(a_output.is_file());
-        assert!(!photos.join("a_compressed.png").exists());
+        assert_eq!(fs::read_dir(&photos).unwrap().count(), 3);
         let id = first
             .jobs
             .iter()
@@ -91,13 +78,13 @@ fn chosen_directory_credentials_and_ordinary_retry_use_their_frozen_targets() {
         assert!(
             other
                 .join(if preserve {
-                    "中文 photos/sub/credential_compressed.png"
+                    "中文 photos/sub/credential.png"
                 } else {
-                    "credential_compressed.png"
+                    "credential.png"
                 })
                 .exists()
         );
-        assert!(!out.join("credential_compressed.png").exists());
+        assert!(!out.join("credential.png").exists());
         assert_eq!(fs::read(&credential).unwrap(), original);
         assert_eq!(fs::read(&a).unwrap(), fixture("rgb8.png"));
         invoke(&main,"release_output_directory",json!({"request":{"subscriptionId":session,"directoryId":selected_other["directoryId"]}})).unwrap();
@@ -109,67 +96,141 @@ fn chosen_directory_credentials_and_ordinary_retry_use_their_frozen_targets() {
         assert_eq!(last.summary.succeeded, 3);
         assert!(
             out.join(if preserve {
-                "中文 photos/bad_compressed.png"
+                "中文 photos/bad.png"
             } else {
-                "bad_compressed.png"
+                "bad.png"
             })
             .exists()
         );
-        assert!(!other.join("bad_compressed.png").exists());
+        assert!(!other.join("bad.png").exists());
     }
 }
 
 #[test]
-fn ready_can_correct_directory_conflicts_without_rescan_or_consuming_another_grant() {
+fn existing_targets_fail_per_image_in_import_confirmation_and_retry() {
     let app = app(super::super::app_context());
     let main = window(&app, "main");
     let session = connected(&app);
     let dir = tempfile::tempdir().unwrap();
-    let source = dir.path().join("source.png");
-    fs::write(&source, fixture("rgb8.png")).unwrap();
+    let names = ["a.png", "b.png", "c.png", "d.png"];
+    let sources: Vec<_> = names.iter().map(|name| dir.path().join(name)).collect();
+    for (i, source) in sources.iter().enumerate() {
+        fs::write(
+            source,
+            fixture(if i < 2 {
+                "rgb8.png"
+            } else {
+                "content-credentials.png"
+            }),
+        )
+        .unwrap();
+    }
     let out = dir.path().join("out");
     fs::create_dir(&out).unwrap();
-    fs::write(out.join("source_compressed.png"), b"never overwrite").unwrap();
-    let import = native_grant(&app, session, vec![source.clone()]);
+    fs::write(out.join("a.png"), b"never overwrite").unwrap();
+    let selected = choose(&app, session, &out);
+    let import = native_grant(&app, session, sources.clone());
     let accepted = mutate(
         &main,
         session,
-        json!({"kind":"import","grantId":import["grantId"],"settings":null}),
+        json!({"kind":"import","grantId":import["grantId"],"settings":{"mode":{"kind":"lossless"},"output":target(&selected,false)}}),
     )
     .unwrap();
     let tasks = app.state::<DesktopTasks>();
-    let scan = phase(&tasks.control, TaskPhase::Ready).import.unwrap();
-    let selected = choose(&app, session, &out);
-    let start = |grant: &Value| json!({"kind":"start","selectionId":accepted["selectionId"],"settings":{"mode":{"kind":"lossless"},"output":target(grant,false)}});
-    mutate(&main, session, start(&selected)).unwrap();
-    let failed = phase(&tasks.control, TaskPhase::Ready);
-    assert!(failed.error.is_some());
-    assert!(std::sync::Arc::ptr_eq(
-        &scan,
-        failed.import.as_ref().unwrap()
-    ));
-    assert_eq!(
-        fs::read(out.join("source_compressed.png")).unwrap(),
-        b"never overwrite"
+    let first = phase(&tasks.control, TaskPhase::Finished).batch.unwrap();
+    assert_eq!((first.summary.failed, first.summary.succeeded), (3, 1));
+    assert!(
+        matches!(&first.jobs[0].state, JobState::Failed(f) if f.code == JobErrorCode::TargetConflict)
     );
-    let other = dir.path().join("other");
-    fs::create_dir(&other).unwrap();
-    let selected_other = choose(&app, session, &other);
-    assert_eq!(
-        mutate(&main, session, start(&selected)).unwrap_err(),
-        json!({"code":"stale_output_directory"})
+    assert_eq!(fs::read(out.join("a.png")).unwrap(), b"never overwrite");
+    let b_output = fs::read(out.join("b.png")).unwrap();
+    assert!(
+        first.jobs[2..]
+            .iter()
+            .all(|job| job.content_credentials_source().is_some())
     );
-    mutate(&main, session, start(&selected_other)).unwrap();
-    assert_eq!(
-        phase(&tasks.control, TaskPhase::Finished)
-            .batch
-            .unwrap()
-            .summary
-            .succeeded,
-        1
+    let confirm = |revision: u64, ids: Vec<usize>| json!({"kind":"confirm_content_credentials","selectionId":accepted["selectionId"],"expectedBatchRevision":revision.to_string(),"jobIds":ids,"mode":{"kind":"lossless"},"output":target(&selected,false),"consent":"remove_content_credentials"});
+    // 弹窗打开后目标出现：仅c失败，d仍可按确认处理。
+    fs::write(out.join("c.png"), b"late target").unwrap();
+    mutate(
+        &main,
+        session,
+        confirm(
+            first.revision,
+            vec![first.jobs[2].id.get(), first.jobs[3].id.get()],
+        ),
+    )
+    .unwrap();
+    let second = phase(&tasks.control, TaskPhase::Finished).batch.unwrap();
+    assert_eq!((second.summary.failed, second.summary.succeeded), (2, 2));
+    assert!(
+        matches!(&second.jobs[2].state, JobState::Failed(f) if f.code == JobErrorCode::TargetConflict)
     );
-    assert!(other.join("source_compressed.png").exists());
-    assert_eq!(fs::read(source).unwrap(), fixture("rgb8.png"));
+    assert_eq!(fs::read(out.join("c.png")).unwrap(), b"late target");
+    let d_output = fs::read(out.join("d.png")).unwrap();
+    fs::remove_file(out.join("a.png")).unwrap();
+    fs::remove_file(out.join("c.png")).unwrap();
+    mutate(&main, session, json!({"kind":"retry","selectionId":accepted["selectionId"],"expectedBatchRevision":second.revision.to_string(),"jobIds":[second.jobs[0].id.get(),second.jobs[2].id.get()],"mode":{"kind":"lossless"}})).unwrap();
+    let third = phase(&tasks.control, TaskPhase::Finished).batch.unwrap();
+    assert_eq!((third.summary.failed, third.summary.succeeded), (1, 3));
+    assert!(
+        third.jobs[2].content_credentials_source().is_some(),
+        "普通重试不继承移除许可"
+    );
+    mutate(
+        &main,
+        session,
+        confirm(third.revision, vec![third.jobs[2].id.get()]),
+    )
+    .unwrap();
+    let last = phase(&tasks.control, TaskPhase::Finished).batch.unwrap();
+    assert_eq!(last.summary.succeeded, 4);
+    assert_eq!((last.jobs[1].attempt, last.jobs[3].attempt), (1, 2));
+    assert_eq!(fs::read(out.join("b.png")).unwrap(), b_output);
+    assert_eq!(fs::read(out.join("d.png")).unwrap(), d_output);
+    assert_eq!(fs::read_dir(out).unwrap().count(), 4);
+    for (i, source) in sources.iter().enumerate() {
+        assert_eq!(
+            fs::read(source).unwrap(),
+            fixture(if i < 2 {
+                "rgb8.png"
+            } else {
+                "content-credentials.png"
+            })
+        );
+    }
+}
+
+#[test]
+fn original_folder_copies_fail_without_overwriting_even_after_credentials_consent() {
+    for credentials in [false, true] {
+        let app = app(super::super::app_context());
+        let main = window(&app, "main");
+        let session = connected(&app);
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("source.png");
+        let original = fixture(if credentials {
+            "content-credentials.png"
+        } else {
+            "rgb8.png"
+        });
+        fs::write(&source, &original).unwrap();
+        let grant = native_grant(&app, session, vec![source.clone()]);
+        let accepted = mutate(&main, session, json!({"kind":"import","grantId":grant["grantId"],"settings":{"mode":{"kind":"lossless"},"output":if credentials { "overwrite" } else { "copy_beside" }}})).unwrap();
+        let tasks = app.state::<DesktopTasks>();
+        let mut done = phase(&tasks.control, TaskPhase::Finished).batch.unwrap();
+        if credentials {
+            assert!(done.jobs[0].content_credentials_source().is_some());
+            mutate(&main, session, json!({"kind":"confirm_content_credentials","selectionId":accepted["selectionId"],"expectedBatchRevision":done.revision.to_string(),"jobIds":[done.jobs[0].id.get()],"mode":{"kind":"lossless"},"output":"copy_beside","consent":"remove_content_credentials"})).unwrap();
+            done = phase(&tasks.control, TaskPhase::Finished).batch.unwrap();
+        }
+        assert_eq!(done.summary.failed, 1);
+        assert!(
+            matches!(&done.jobs[0].state, JobState::Failed(f) if f.code == JobErrorCode::TargetConflict)
+        );
+        assert_eq!(fs::read(source).unwrap(), original);
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
 }
 
 #[test]
