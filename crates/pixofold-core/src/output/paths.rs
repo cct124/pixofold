@@ -176,3 +176,38 @@ pub(crate) fn copy_destination(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn non_unicode_backup_names_preserve_the_stem_and_match_only_the_reserved_shape() {
+        #[cfg(windows)]
+        let stem = {
+            use std::os::windows::ffi::OsStringExt;
+            OsString::from_wide(&[0x0078, 0xd800])
+        };
+        #[cfg(unix)]
+        let stem = {
+            use std::os::unix::ffi::OsStringExt;
+            OsString::from_vec(b"x\xff".to_vec())
+        };
+        assert!(stem.to_str().is_none());
+        let mut source = stem.clone();
+        source.push(".png");
+        let prefix = backup_prefix(Path::new(&source)).unwrap();
+        let mut expected = stem;
+        expected.push("-backup-");
+        assert_eq!(prefix, expected);
+        let mut valid = prefix.clone();
+        valid.push("Ab12xY.png");
+        assert!(is_artifact(Path::new(&valid)));
+        assert!(!is_artifact(Path::new(&source)));
+        for suffix in ["Ab12x.png", "Ab12x!.png", "Ab12xY.png.extra"] {
+            let mut invalid = prefix.clone();
+            invalid.push(suffix);
+            assert!(!is_artifact(Path::new(&invalid)));
+        }
+    }
+}

@@ -124,3 +124,30 @@ impl ImportScan {
         Ok(BatchRequest { items, parameters })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn copy_planning_preserves_non_unicode_name_without_filesystem_access() {
+        #[cfg(windows)]
+        let name = {
+            use std::{ffi::OsString, os::windows::ffi::OsStringExt};
+            OsString::from_wide(&[0x0078, 0xd800, 0x002e, 0x0050, 0x004e, 0x0047])
+        };
+        #[cfg(unix)]
+        let name = {
+            use std::{ffi::OsString, os::unix::ffi::OsStringExt};
+            OsString::from_vec(b"x\xff.PNG".to_vec())
+        };
+        assert!(name.to_str().is_none());
+        let source = Path::new("input").join(&name);
+        assert_eq!(copy_name(&source).unwrap().as_os_str(), name);
+        let OutputPolicy::Copy { destination } = copy_beside(&source).unwrap() else {
+            panic!("同目录副本必须保留显式副本策略");
+        };
+        assert_eq!(destination, source);
+        assert_eq!(destination.file_name().unwrap(), name);
+    }
+}

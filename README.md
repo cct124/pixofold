@@ -73,11 +73,15 @@ pnpm desktop:dev
 | `pnpm desktop:build` | 构建当前平台的应用和安装包 |
 | `cargo test -p pixofold-core --locked` | 独立测试核心，不需要 GUI |
 | `pnpm fixtures:check` | 只读重生成并核对 PNG 语料与 SHA256 清单 |
+| `pnpm jpeg:lab:build` | 下载并校验固定 MozJPEG 源码，独立构建开发实验工具；需要 CMake 和 C 编译器 |
+| `pnpm jpeg:lab:check` | 用自生成语料检查 JPEG 系数无损、有损重编码、元数据和错误/资源边界 |
 | `cargo run -p pixofold-core --release --locked --example png_baseline` | 在隔离目录测量静态 PNG 体积与耗时基线 |
 | `cargo run -p pixofold-core --release --locked --example png_quality_baseline` | q 锚点、实际回退、库评分及黑白背景误差基线 |
 | `cargo run -p pixofold-core --release --locked --example batch_profile -- SOURCE WORKERS COPIES [--confirm-credentials]` | 临时副本上测量整图并发；有损68，采样RSS/活动数；可显式移除测试副本凭据 |
 
 Windows 可执行文件位于 `target/release/pixofold.exe`，安装包位于 `target/release/bundle/`。安装包工具可能需要首次联网下载；签名、自动更新与正式发行尚未配置。
+
+JPEG 开发实验的版本、构建参数和限制见 [实验入口说明](tools/jpeg-lab/README.md)，实际结果与后续接入门槛见 [JPEG实验记录](docs/devlog/_plan/260930/jpeg-engine-lab.md)。实验工具留在 `.tools/`，语料与报告留在独立的 `target/jpeg-lab-*/`；当前产品仍只开放静态 PNG。CI 的三平台实验配置须以实际运行结果验收。
 
 ## 静态 PNG 核心开发入口
 

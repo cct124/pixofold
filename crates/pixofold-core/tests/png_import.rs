@@ -1,5 +1,8 @@
 //! 只读导入、输出规划与真实批量闭环；所有写入隔离临时目录，取消由回调确定时序。
 
+#[path = "support/native_names.rs"]
+mod native_names;
+
 use pixofold_core::{
     batch::{BatchConfig, BatchError, BatchParameters, BatchService, JobErrorCode, JobState},
     import::*,
@@ -524,22 +527,11 @@ fn flat_and_same_named_roots_isolate_only_actual_file_collisions() {
 
 #[cfg(any(unix, windows))]
 #[test]
-fn copies_keep_non_unicode_os_names_without_lossy_conversion() {
-    #[cfg(windows)]
-    let name = {
-        use std::os::windows::ffi::OsStringExt;
-        std::ffi::OsString::from_wide(&[0x0078, 0xd800, 0x002e, 0x0050, 0x004e, 0x0047])
-    };
-    #[cfg(unix)]
-    let name = {
-        use std::os::unix::ffi::OsStringExt;
-        std::ffi::OsString::from_vec(b"x\xff.PNG".to_vec())
-    };
-    assert!(name.to_str().is_none());
+fn copies_keep_native_os_names_without_lossy_conversion() {
     let dir = tempfile::tempdir().unwrap();
     let out = tempfile::tempdir().unwrap();
-    let source = dir.path().join(&name);
-    fs::write(&source, fixture("rgb8.png")).unwrap();
+    let source = native_names::write_native_name(dir.path(), ".PNG", &fixture("rgb8.png"));
+    let name = source.file_name().unwrap().to_os_string();
     let found = collect(std::slice::from_ref(&source));
     let done = run(
         &found,

@@ -23,6 +23,8 @@
     "format:check": "prettier --check src tools tests/fixtures/generate.mjs *.json *.ts .github .oxlintrc.json && cargo fmt --all -- --check",
     "fixtures:generate": "node tests/fixtures/generate.mjs",
     "fixtures:check": "node tests/fixtures/generate.mjs --check",
+    "jpeg:lab:build": "node tools/jpeg-lab.mjs build",
+    "jpeg:lab:check": "node tools/jpeg-lab.mjs check",
     "test": "vitest run",
     "test:watch": "vitest",
     "types:generate": "node tools/generate-bindings.mjs",

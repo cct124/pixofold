@@ -1,0 +1,8 @@
+{
+  "name": "MozJPEG",
+  "tag": "v4.1.5",
+  "commit": "6c9f0897afa1c2738d7222a0a9ab49e8b536a267",
+  "archive": "https://codeload.github.com/mozilla/mozjpeg/tar.gz/6c9f0897afa1c2738d7222a0a9ab49e8b536a267",
+  "sha256": "a577564110eb81045a9bea24aa3253d605dbc7bc304d683ffb2c40c67427ca75",
+  "simd": false
+}

@@ -1,5 +1,8 @@
 //! 原名备份的真实输出与扫描契约；不碰用户原图，随机冲突由tempfile独占创建处理。
 
+#[path = "support/native_names.rs"]
+mod native_names;
+
 use pixofold_core::{
     batch::{BatchConfig, BatchParameters, BatchService, JobState},
     import::{ImportOutput, ScanOptions, scan},
@@ -8,7 +11,6 @@ use pixofold_core::{
 };
 use std::{
     collections::HashSet,
-    ffi::OsString,
     fs,
     path::{Path, PathBuf},
     time::Duration,
@@ -167,30 +169,11 @@ fn parallel_sources_with_the_same_stem_keep_distinct_backups() {
 }
 
 #[test]
-fn non_unicode_stem_is_preserved_and_its_backup_is_excluded() {
-    #[cfg(windows)]
-    let name = {
-        use std::os::windows::ffi::OsStringExt;
-        OsString::from_wide(&[
-            b'x' as u16,
-            0xd800,
-            b'.' as u16,
-            b'p' as u16,
-            b'n' as u16,
-            b'g' as u16,
-        ])
-    };
-    #[cfg(unix)]
-    let name = {
-        use std::os::unix::ffi::OsStringExt;
-        OsString::from_vec(b"x\xff.png".to_vec())
-    };
+fn native_stem_is_preserved_and_its_backup_is_excluded() {
     let directory = tempfile::tempdir().unwrap();
-    let source = directory.path().join(name);
     let original = fixture("rgb8.png");
-    fs::write(&source, &original).unwrap();
+    let source = native_names::write_native_name(directory.path(), ".png", &original);
     let backup = overwrite(&source);
-    assert!(backup.file_name().unwrap().to_str().is_none());
     assert_eq!(fs::read(backup).unwrap(), original);
     assert_scan_excludes_backups(directory.path(), 1);
 }

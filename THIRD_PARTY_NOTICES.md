@@ -6,6 +6,7 @@ PixoFold 自有代码采用 GPL-3.0-or-later；第三方组件适用其自身许
 | --- | --- | --- |
 | Tauri、tauri-build、Tauri JS API / CLI | 桌面运行时、IPC、构建工具 | MIT OR Apache-2.0 |
 | tauri-plugin-dialog 2.7.3 | Rust侧原生文件/目录选择；显式gtk3特性，不启用xdg-portal或JS插件包 | MIT OR Apache-2.0 |
+| tauri-plugin-opener 2.5.4 | Rust侧任务绑定结果/备份定位和批次目录打开；关闭默认特性，不安装JS插件或授予通用opener权限（2026-09-29引入） | MIT OR Apache-2.0 |
 | tauri-plugin-fs 2.5.2、tauri-plugin 2.6.3（间接） | dialog的路径类型与插件构建；未注册fs插件或授予fs权限 | MIT OR Apache-2.0 |
 | rfd 0.16.0（间接） | 原生对话框后端；Windows Common Controls v6、Linux GTK、macOS AppKit | MIT |
 | windows-sys 0.60.2 / windows-targets 0.53.5 / 对应0.53.1架构包（间接） | rfd Windows绑定与链接支持 | MIT OR Apache-2.0 |
@@ -34,4 +35,6 @@ PixoFold 自有代码采用 GPL-3.0-or-later；第三方组件适用其自身许
 
 imagequant 来自 [ImageOptim/libimagequant](https://github.com/ImageOptim/libimagequant)，以锁定的 crates.io 源码依赖使用，未复制或修改其实现。其 COPYRIGHT 记载 Kornel Lesiński 的 GPLv3+ 改动及 Jef Poskanzer、Greg Roelofs 的原始许可/版权；分发时需保留完整 COPYRIGHT 和相应源码，不只保留本表。
 
-当前未引入 MozJPEG、Gifsicle 等其他格式压缩引擎。准备正式发行时，应根据实际平台构建产物收集全部第三方版权与许可正文、必要通知和对应源码资料；本表不是完整发行许可清单。
+JPEG开发实验使用MozJPEG v4.1.5（提交`6c9f0897afa1c2738d7222a0a9ab49e8b536a267`），源码位置与SHA256固定于`tools/jpeg-lab/engine.json`。仅在`.tools/jpeg-lab/`构建cjpeg/djpeg/jpegtran与系数验证工具，未进入Cargo依赖或桌面分发。上游`LICENSE.md`、`README.ijg`和各文件通知包含IJG、BSD-3-Clause、Zlib及Mozilla贡献的许可/版权；实验不修改或移除这些源码通知。后续实际随包配置须据此保留完整正文、IJG致谢及对应源码，不能以本表替代许可材料。
+
+当前产品尚未接入MozJPEG或Gifsicle等其他格式压缩引擎。准备正式发行时，应根据实际平台构建产物收集全部第三方版权与许可正文、必要通知和对应源码资料；本表不是完整发行许可清单。
