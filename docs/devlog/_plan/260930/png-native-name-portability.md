@@ -1,7 +1,7 @@
 # 原生文件名测试跨平台修复与交接小修
 
 - 创建日期：2026-09-30（Asia/Shanghai）。
-- 状态：实现与Windows自动验证完成，已随d5b3445推送origin/dev；A0新SHA三平台检查和构建已触发、结果待完成。用户授权按[下一阶段计划](next-development-plan.md)推进。
+- 状态：名称修复已随d5b3445推送，HEAD7925c48的macOS/Ubuntu通过、Windows失败；本轮已复现修复Windows检出行尾缺陷，本机统一检查/正式构建通过。新增修复尚未提交推送，远端新SHA三平台验收待执行，详见末节。
 - 基准：`dev/317c6d6`；开工保留前轮未提交的交接索引和阶段计划。实施阶段未提交推送，2026-09-30用户已明确授权本轮提交推送，实际结果续记末节。
 
 ## 目标与验收
@@ -34,3 +34,17 @@
 - 本次一并提交A0/J0实现、所属设计说明与持续记录；复用本轮已完成的统一检查、定向回归、JPEG实验和Windows正式构建证据，不重复构建或启动GUI。文档链接/空白检查与待提交diff另作复核，缓存/引擎源码/图片产物不进入提交。
 - 2026-09-30 16:11:44（Asia/Shanghai）形成业务提交`d5b3445cfa9c4e30f1a8da82a448fedd66308097`，23份文件、1095行新增/46行删除；提交前`git diff --cached --check`通过。`git push origin dev`成功，实际同步范围`317c6d6..d5b3445`，未改写历史。
 - 16:12:07触发[CI run36688238456](https://github.com/cct124/pixofold/actions/runs/36688238456)，查询时in_progress；仅确认新SHA启动，未取得macOS/Linux完成结果。提交/推送事实通过后续交接文档提交入库；最终验收以该文档提交后的HEAD运行结果为准。
+
+## 2026-09-30 当前HEAD平台复验与Windows待办
+
+- 只读查询当前HEAD7925c48的[CI run36688753527](https://github.com/cct124/pixofold/actions/runs/36688753527)：Check(macOS/Ubuntu)均success，旧macOS名称夹具失败已不阻断全套检查与构建；Windows在统一检查步骤失败，构建skipped。JPEG实验三平台独立通过不替代Windows应用基线。
+- 日志REST接口403、公开页面要求登录，注释仅exit code 1，尚不能确认实际失败行。已用固定Node26.9.0内存复现新tools/jpeg-lab/README.md的LF/CRLF Prettier差异（true/false），并确认该受检Markdown无eol属性；作为首要排查线索而非已证实CI根因。
+- 下一步读取失败日志或干净Windows检出复现，最小修复行尾/格式契约并复验，不能通过跳过文件或关闭规则恢复绿灯。本轮未改业务/attributes或重跑远端CI；A0继续活动，不归档。
+
+## 2026-09-30 授权后Windows行尾修复
+
+- 使用git -c core.autocrlf=true checkout-index将受检实验README检出到隔离target/windows-eol-before，实际字节含CRLF，Prettier API检查为false。直接Prettier CLI会因target在ignore中而忽略，故不将其“通过”计作验证。
+- 增加Markdown的LF属性，不跳过文件或放松格式；同时固定JPEG原生工具C源/CMake文本的LF，避免源码身份哈希因平台检出换行不同而漂移。
+- 这是确实复现并修复的Windows检出缺陷；远端实际失败日志仍未取得，不能承诺是唯一CI根因。后续以本机统一检查及授权推送后的新SHA三平台结果验收。
+
+- 同样checkout-index检出修正后的实验README为LF，Prettier API为true；本机`pnpm check`及最终Windows正式构建通过，实际结果和EXE标识见[J1a交接](jpeg-lossless-core.md)。这恢复的是本机检出行尾契约与检查，不冒充未执行的新SHA远端Windows结果。待用户明确授权提交推送后以三平台CI验收，A0继续活动。

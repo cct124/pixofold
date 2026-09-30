@@ -9,6 +9,7 @@
 ```powershell
 pnpm jpeg:lab:build
 pnpm jpeg:lab:check
+pnpm jpeg:core:check
 # CMake不在PATH时可显式传入已有工具位置：
 pnpm jpeg:lab:build --cmake 'C:/path/to/cmake.exe'
 ```
@@ -25,4 +26,6 @@ pnpm jpeg:lab:build --cmake 'C:/path/to/cmake.exe'
 - 损坏、截断、单边/总像素、12-bit不支持、progressive扫描次数、引擎内存上限分别检查正常拒绝退出码；原生崩溃、启动失败、超时、输出超限单独判为实验失败。子进程30秒超时与64MiB输出限制是实验约束，不能代替产品资源预约与执行预算。
 - 系数工具允许最多8Mi像素、单边16,384、64扫描、32MiB libjpeg内存参数。只处理脚本生成的实验输入；标准libjpeg错误终结子进程，不是安全的产品FFI。内存参数实际语义由实验和上游源码核对，不声明RSS硬上限。
 
-正式JPEG接入前，须完成新代码的平台基线与实验验收，确定受控系数接口/子进程所有权、内容凭据默认保护、颜色回退、元数据验证及单池资源模型。核心再复用现有原图复查、临时验证、取消、备份和noclobber提交，不能直接调用本实验脚本处理用户图片。持续决策及实际结果记录于[开发日志](../../docs/devlog/_plan/260930/jpeg-engine-lab.md)。
+J0实验已归档，持续证据见[开发日志](../../docs/devlog/_fin/260930/jpeg-engine-lab.md)。J1a新增单独的`pixofold-jpeg-helper`目标及Rust单文件核心，构建时记录helper源码/二进制SHA256；`core-check`使用上述共享自生成语料调用真实核心，并独立比对系数、像素和元数据。工具缺失或身份变化必须失败，不能静默跳过；三平台JPEG job已增加此入口，实际结果另记。
+
+J1a并非直接把本实验脚本用于用户图片。正式核心的生命周期、默认保护、严格Exif子集和安全输出边界见[JPEG核心说明](../../native/jpeg/README.md)，剩余有损/单池预算/桌面随包属于J1b/J2。产品当前仍只开放静态PNG。

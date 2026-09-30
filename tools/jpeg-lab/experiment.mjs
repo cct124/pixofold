@@ -113,7 +113,7 @@ function markers(jpeg) {
   throw new Error('JPEG缺少结束标记');
 }
 
-const extraMarkers = (jpeg) =>
+export const extraMarkers = (jpeg) =>
   markers(jpeg)
     .filter(({ marker }) => marker === 0xfe || (marker >= 0xe0 && marker <= 0xef))
     .map(({ marker, data }) => marker.toString(16) + ':' + data.toString('hex'));
@@ -128,9 +128,7 @@ function dimensions(jpeg) {
   };
 }
 
-export function runExperiment({ root, engine, buildIdentity, tools }) {
-  mkdirSync(path.join(root, 'target'), { recursive: true });
-  const directory = mkdtempSync(path.join(root, 'target', 'jpeg-lab-'));
+export function createSamples({ root, tools, directory }) {
   const input = path.join(directory, 'original.ppm');
   writeFileSync(input, ppm(192, 128), { flag: 'wx' });
   const base = success(tools.cjpeg, [
@@ -197,6 +195,13 @@ export function runExperiment({ root, engine, buildIdentity, tools }) {
   for (let orientation = 1; orientation <= 8; orientation++) {
     samples.push(['exif-' + orientation, annotatedJfif(base, exif(orientation))]);
   }
+  return { samples, base, progressive, profile };
+}
+
+export function runExperiment({ root, engine, buildIdentity, tools }) {
+  mkdirSync(path.join(root, 'target'), { recursive: true });
+  const directory = mkdtempSync(path.join(root, 'target', 'jpeg-lab-'));
+  const { samples, base, progressive, profile } = createSamples({ root, tools, directory });
   const report = {
     engine,
     buildIdentity,

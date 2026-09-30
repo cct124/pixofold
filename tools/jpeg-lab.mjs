@@ -40,13 +40,15 @@ const buildIdentity = {
   featureFlags,
   validatorSha256: sourceHash('coeffdump.c'),
   validatorCmakeSha256: sourceHash('CMakeLists.txt'),
+  coreHelperSha256: sourceHash('../../native/jpeg/helper.c'),
 };
 const [command, ...args] = process.argv.slice(2);
 let cmake = 'cmake';
 if (args.length === 2 && args[0] === '--cmake') cmake = args[1];
 else if (args.length !== 0) throw new Error('参数：build [--cmake PATH] 或 check');
-if (command !== 'build' && command !== 'check') throw new Error('参数：build 或 check');
-if (command === 'check' && args.length !== 0) throw new Error('check无需CMake参数');
+if (!['build', 'check', 'core-check'].includes(command))
+  throw new Error('参数：build、check或core-check');
+if (command !== 'build' && args.length !== 0) throw new Error('检查无需CMake参数');
 
 function native(program, arguments_) {
   const result = spawnSync(program, arguments_, {
@@ -73,6 +75,7 @@ function binaries() {
     djpeg: resolve(engineBuild, 'djpeg-static'),
     jpegtran: resolve(engineBuild, 'jpegtran-static'),
     coefficients: resolve(build, 'pixofold-coeffdump'),
+    helper: resolve(build, 'pixofold-jpeg-helper'),
   };
 }
 
@@ -127,13 +130,30 @@ if (command === 'build') {
     '-DMOZJPEG_BUILD=' + engineBuild,
     '-DCMAKE_BUILD_TYPE=Release',
   ]);
-  native(cmake, ['--build', build, '--config', 'Release', '--target', 'pixofold-coeffdump']);
+  native(cmake, [
+    '--build',
+    build,
+    '--config',
+    'Release',
+    '--target',
+    'pixofold-coeffdump',
+    'pixofold-jpeg-helper',
+  ]);
   writeFileSync(path.join(build, 'engine.json'), JSON.stringify(buildIdentity, null, 2) + '\n');
-  binaries();
+  const helper = binaries().helper;
+  writeFileSync(
+    path.join(build, 'helper.sha256'),
+    createHash('sha256').update(readFileSync(helper)).digest('hex') + '\n',
+  );
   console.log('JPEG实验工具构建完成：' + engine.tag + ' / ' + engine.commit);
 } else {
   const built = JSON.parse(readFileSync(path.join(build, 'engine.json'), 'utf8'));
   if (JSON.stringify(built) !== JSON.stringify(buildIdentity))
     throw new Error('工具版本、构建配置或验证器源码已变化；请重新构建实验工具');
-  runExperiment({ root, engine, buildIdentity, tools: binaries() });
+  const tools = binaries();
+  if (command === 'check') runExperiment({ root, engine, buildIdentity, tools });
+  else {
+    const { runCoreChecks } = await import('./jpeg-lab/core-check.mjs');
+    runCoreChecks({ root, build, tools });
+  }
 }

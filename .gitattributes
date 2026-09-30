@@ -3,6 +3,9 @@
 *.ts text eol=lf
 *.tsx text eol=lf
 *.mjs text eol=lf
+*.md text eol=lf
+*.c text eol=lf
+CMakeLists.txt text eol=lf
 *.css text eol=lf
 *.json text eol=lf
 *.toml text eol=lf

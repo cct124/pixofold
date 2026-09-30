@@ -20,6 +20,18 @@ pub(super) fn backup_prefix(source: &Path) -> Result<OsString, ProcessingError> 
     Ok(prefix)
 }
 
+/// JPEG保持原始ASCII扩展名大小写；PNG既有备份命名保持.png不变。
+pub(super) fn backup_suffix(source: &Path) -> OsString {
+    if let Some(extension) = source.extension().and_then(OsStr::to_str)
+        && (extension.eq_ignore_ascii_case("jpg") || extension.eq_ignore_ascii_case("jpeg"))
+    {
+        let mut suffix = OsString::from(".");
+        suffix.push(extension);
+        return suffix;
+    }
+    OsString::from(".png")
+}
+
 pub(crate) fn key(path: &Path) -> OsString {
     // Windows只为保守比较折叠；非Unicode及大小写敏感目录可能过度拒绝，绝不用于I/O。
     #[cfg(windows)]
@@ -101,7 +113,16 @@ pub(crate) fn is_artifact(path: &Path) -> bool {
     {
         return true;
     }
-    let Some(stem) = name.strip_suffix(b".png") else {
+    let jpeg_suffix = [b".jpg".as_slice(), b".jpeg".as_slice()]
+        .into_iter()
+        .find(|suffix| {
+            name.len() >= suffix.len()
+                && name[name.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
+        });
+    let Some(stem) = name
+        .strip_suffix(b".png")
+        .or_else(|| jpeg_suffix.map(|s| &name[..name.len() - s.len()]))
+    else {
         return false;
     };
     let Some(split) = stem.len().checked_sub(RANDOM_LEN) else {
@@ -199,6 +220,9 @@ mod tests {
         let prefix = backup_prefix(Path::new(&source)).unwrap();
         let mut expected = stem;
         expected.push("-backup-");
+        let mut jpeg = source.clone();
+        jpeg.push(".JpEg");
+        assert_eq!(backup_suffix(Path::new(&jpeg)), OsString::from(".JpEg"));
         assert_eq!(prefix, expected);
         let mut valid = prefix.clone();
         valid.push("Ab12xY.png");

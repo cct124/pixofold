@@ -25,6 +25,7 @@
     "fixtures:check": "node tests/fixtures/generate.mjs --check",
     "jpeg:lab:build": "node tools/jpeg-lab.mjs build",
     "jpeg:lab:check": "node tools/jpeg-lab.mjs check",
+    "jpeg:core:check": "node tools/jpeg-lab.mjs core-check",
     "test": "vitest run",
     "test:watch": "vitest",
     "types:generate": "node tools/generate-bindings.mjs",

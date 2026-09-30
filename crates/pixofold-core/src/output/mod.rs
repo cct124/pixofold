@@ -6,7 +6,7 @@ mod directory;
 pub(crate) mod paths;
 
 use std::{
-    ffi::OsStr,
+    ffi::{OsStr, OsString},
     fs::{self, File, Metadata},
     io::{self, Read, Write},
     path::{Path, PathBuf},
@@ -49,6 +49,7 @@ pub(crate) struct Source {
     metadata: Metadata,
     fingerprint: Fingerprint,
     identity: same_file::Handle,
+    backup_suffix: OsString,
 }
 
 impl Source {
@@ -106,7 +107,13 @@ impl Source {
             metadata,
             fingerprint,
             identity,
+            backup_suffix: OsString::from(".png"),
         })
+    }
+
+    /// 仅JPEG入口选用；候选仍须验证真实格式，不改变误扩展名PNG的.png备份规则。
+    pub(crate) fn use_jpeg_backup_suffix(&mut self) {
+        self.backup_suffix = paths::backup_suffix(&self.path);
     }
 
     pub fn verify_unchanged(&self, limits: ResourceLimits) -> Result<(), ProcessingError> {
@@ -269,7 +276,7 @@ pub(crate) fn commit(
             let mut file = new_temp(
                 parent(&source.path)?,
                 paths::backup_prefix(&source.path)?,
-                ".png",
+                &source.backup_suffix,
             )?;
             if let Err(error) = write_candidate(&mut file, &source.bytes, &source) {
                 return Err(discard(file, error));
@@ -407,11 +414,11 @@ pub(crate) fn discard_no_gain(temp: NamedTempFile) -> Result<(), ProcessingError
 fn new_temp(
     directory: &Path,
     prefix: impl AsRef<OsStr>,
-    suffix: &str,
+    suffix: impl AsRef<OsStr>,
 ) -> Result<NamedTempFile, ProcessingError> {
     Builder::new()
         .prefix(&prefix)
-        .suffix(suffix)
+        .suffix(&suffix)
         .rand_bytes(paths::RANDOM_LEN)
         .tempfile_in(directory)
         .map_err(|e| ProcessingError::io("创建独占临时文件", e))

@@ -80,6 +80,7 @@ fn backup_uses_exact_stem_and_keeps_original_bytes_for_supported_names() {
         "山水🌄.png",
         "image",
         "image.data",
+        "png-content.jpg",
         ".hidden.png",
         ".hidden",
     ] {

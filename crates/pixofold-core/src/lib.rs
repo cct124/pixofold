@@ -4,6 +4,7 @@
 pub mod batch;
 mod codecs;
 pub mod import;
+pub mod jpeg;
 pub mod model;
 mod output;
 pub mod pipeline;
