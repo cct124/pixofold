@@ -1,8 +1,8 @@
 # JPEG 受控单文件无损核心（J1a）
 
 - 创建日期：2026-09-30（Asia/Shanghai）。
-- 状态：J1a本地实现及Windows验证完成；新SHA三平台CI待用户授权提交推送后验收，继续保留活动记录。桌面JPEG/J1b/J2未开始。
-- 分支与代码基准：dev/7925c48；保留前轮计划、索引、A0记录及J0归档/链接变更，未提交推送。
+- 状态：J1a本地实现及Windows验证完成，已提交ff0a837并推送origin/dev（7925c48..ff0a837）；新SHA三平台CI结果待取得，继续保留活动记录。桌面JPEG/J1b/J2未开始。
+- 分支与代码基准：dev/7925c48；本轮在保留前轮计划、索引、A0记录及J0归档/链接变更的基础上完成实现，已提交ff0a837（见末节）。
 - 关联：[阶段计划](next-development-plan.md)、[Windows基线](png-native-name-portability.md)、[已完成J0](../../_fin/260930/jpeg-engine-lab.md)。
 
 ## 目标与验收
@@ -45,8 +45,13 @@
 - 因共享了语料生成函数，重新执行 `pnpm jpeg:lab:check`，21项无损、4个质量锚点、9项灰度/方向重编码及拒绝边界通过；报告 `target/jpeg-lab-6ccj5m/report.json`。这是脚本回归，不是重复引擎选型或扩大J0结论。
 - 最终 `pnpm tauri build --no-bundle --ci`通过，未启动GUI/安装器。Windows EXE：2026-09-30 17:45:54（Asia/Shanghai），10,633,728 bytes，SHA256 `37699917D60769B55C540C8F1B5822C4EEB646C00486A56C7787188E06F5CC74`。桌面仍只支持静态PNG，helper未随此EXE分发。
 - 文档本地链接、diff空白检查通过；额外对不在仓库format:check范围内的根README/第三方说明尝试Prettier，旧HEAD和当前均为false，确认是已有整篇样式，未扩大本轮全篇重排。受检tools文档与新增native说明检查通过，不能将额外检查写成全通过。
-- J0归档及前序计划改动保留。业务涉及 `crates/pixofold-core/src/jpeg/`、`native/jpeg/`、共享输出最小适配、JPEG回归入口/CI/命令及对应说明；详细文件以工作区diff为准，暂存区为空。未提交、推送、修改用户图片或png-palettes；参考仓库工作区保持干净。
+- J0归档及前序计划改动保留。业务涉及 `crates/pixofold-core/src/jpeg/`、`native/jpeg/`、共享输出最小适配、JPEG回归入口/CI/命令及对应说明；详细文件以本轮提交diff为准。未修改用户图片或png-palettes；参考仓库工作区保持干净。
 
+## 2026-09-30 编写提交信息、提交与推送
+
+- 用户要求根据工作区内容编写提交信息、提交并推送，无需执行其它任务。复核范围：26份文件（含J0记录从_plan迁至_fin、新增jpeg-lossless-core计划、core/src/jpeg四份、native/jpeg两份、core-check脚本与示例入口；另有.gitattributes/CI/依赖脚本/README/第三方说明与共享输出最小适配），无未暂存改动与未跟踪残留，git diff --check通过。
+- 提交ff0a837「feat: 实现受控JPEG单文件无损核心并修复Windows检出格式」（26 files changed、2018 insertions、28 deletions；含jpeg-engine-lab.md从_plan到_fin的重命名）。沙箱内.git只读，add/commit/push按规则提升同一条命令执行，未绕开沙箱约束；7925c48..ff0a837  dev -> dev已同步origin/dev，本地与远端一致。
+- 沿用本轮已完成验证（pnpm check：155项前端、Rust全套含105项桌面与2项doctest、34份语料与生成类型一致性；jpeg:core:check 20项语料/14项有收益与helper哈希`4f7848d38e4b1ed03f8d77656c28ef81b84cc5e3afd08f0586597f2f7e331cb9`、jpeg:lab:check 21项无损及锚点、17:45:54正式无安装包构建）；本次未改业务代码，不重复构建或测试。推送按push触发CI，三平台Check/桌面构建与JPEG job的新结果须以最终HEAD取得，不把本次推送写成已通过。
 ## 下一步与未完成项
 
 1. 用户明确授权提交推送后，由新SHA验收三平台应用Check/桌面构建与JPEG实验/核心job。当前只能声明Windows本机通过，不把旧SHA的Windows红灯改写成已远端修复；A0/J1a因新平台验收待办继续活动。
