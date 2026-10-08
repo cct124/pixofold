@@ -1,4 +1,4 @@
-/* PixoFold JPEG字节工具，协议PFJC1。固定静态MozJPEG，仅stdin/stdout，不接收路径。
+/* PixoFold JPEG字节工具，系数PFJC1/像素PFJP1。固定静态MozJPEG，仅stdin/stdout，不接收路径。
  * 所有警告均失败；退出码不含输入内容。父进程负责管道预算、超时与kill/wait。
  * 原生库max_memory_to_use限制虚拟数组，另预检系数预算；不是RSS硬上限。
  */
@@ -59,10 +59,66 @@ static void coefficients(struct jpeg_decompress_struct *d, jvirt_barray_ptr *arr
   }
 }
 
+static void read_pixels(struct jpeg_decompress_struct *d) {
+  d->out_color_space = d->num_components == 1 ? JCS_GRAYSCALE : JCS_RGB;
+  d->dct_method = JDCT_ISLOW;
+  if (!jpeg_start_decompress(d)) exit(2);
+  if (fwrite("PFJP1", 1, 5, stdout) != 5) exit(5);
+  u32(d->output_width); u32(d->output_height);
+  u32((uint32_t)d->output_components); u32((uint32_t)d->jpeg_color_space);
+  JDIMENSION width = d->output_width * (unsigned int)d->output_components;
+  JSAMPARRAY row = (*d->mem->alloc_sarray)((j_common_ptr)d, JPOOL_IMAGE, width, 1);
+  while (d->output_scanline < d->output_height) {
+    if (jpeg_read_scanlines(d, row, 1) != 1 || fwrite(row[0], 1, width, stdout) != width) exit(5);
+  }
+}
+
+static void reencode(struct jpeg_decompress_struct *d, struct jpeg_compress_struct *e,
+                     unsigned int quality, uint64_t memory) {
+  /* 在原颜色空间解码/编码，不把YCbCr绕经RGB，也不改变原采样或Exif方向。 */
+  d->out_color_space = d->jpeg_color_space;
+  d->dct_method = JDCT_ISLOW;
+  if (!jpeg_start_decompress(d)) exit(2);
+  jpeg_create_compress(e);
+  e->mem->max_memory_to_use = (long)(memory / 2);
+  e->image_width = d->output_width; e->image_height = d->output_height;
+  e->input_components = d->output_components; e->in_color_space = d->out_color_space;
+  jpeg_c_set_int_param(e, JINT_COMPRESS_PROFILE, JCP_FASTEST);
+  jpeg_set_defaults(e);
+  jpeg_set_colorspace(e, d->jpeg_color_space);
+  jpeg_set_quality(e, (int)quality, TRUE);
+  e->dct_method = JDCT_ISLOW;
+  e->optimize_coding = TRUE;
+  for (int c = 0; c < d->num_components; ++c) {
+    e->comp_info[c].component_id = d->comp_info[c].component_id;
+    e->comp_info[c].h_samp_factor = d->comp_info[c].h_samp_factor;
+    e->comp_info[c].v_samp_factor = d->comp_info[c].v_samp_factor;
+  }
+  e->scan_info = NULL; e->num_scans = 0;
+  if (d->progressive_mode) jpeg_simple_progression(e);
+  e->write_JFIF_header = FALSE; e->write_Adobe_marker = FALSE;
+  jpeg_stdio_dest(e, stdout);
+  jpeg_start_compress(e, TRUE);
+  for (jpeg_saved_marker_ptr m = d->marker_list; m; m = m->next)
+    jpeg_write_marker(e, m->marker, m->data, m->data_length);
+  JDIMENSION width = d->output_width * (unsigned int)d->output_components;
+  JSAMPARRAY row = (*d->mem->alloc_sarray)((j_common_ptr)d, JPOOL_IMAGE, width, 1);
+  while (d->output_scanline < d->output_height) {
+    if (jpeg_read_scanlines(d, row, 1) != 1 || jpeg_write_scanlines(e, row, 1) != 1) exit(2);
+  }
+  jpeg_finish_compress(e);
+  jpeg_destroy_compress(e);
+}
+
 int main(int argc, char **argv) {
-  if (argc != 6) return 4;
+  if (argc != 6 && argc != 7) return 4;
   int optimize = strcmp(argv[1], "optimize") == 0;
-  if (!optimize && strcmp(argv[1], "coefficients") != 0) return 4;
+  int lossy = strcmp(argv[1], "lossy") == 0;
+  int pixels_out = strcmp(argv[1], "pixels") == 0;
+  if (!optimize && !lossy && !pixels_out && strcmp(argv[1], "coefficients") != 0) return 4;
+  if ((lossy && argc != 7) || (!lossy && argc != 6)) return 4;
+  uint64_t quality = lossy ? number(argv[6]) : 1;
+  if (quality > 100) return 4;
   uint64_t dimension = number(argv[2]), pixels = number(argv[3]);
   uint64_t memory = number(argv[4]), scans = number(argv[5]);
   if (dimension > 65535 || pixels > 16777216 || memory > 536870912 ||
@@ -105,6 +161,21 @@ int main(int argc, char **argv) {
     blocks += w * h;
   }
   if (blocks * DCTSIZE2 * sizeof(JCOEF) * 2 + 1048576 > memory) return 3;
+  if (lossy || pixels_out) {
+    if (d.jpeg_color_space != JCS_GRAYSCALE && d.jpeg_color_space != JCS_RGB &&
+        d.jpeg_color_space != JCS_YCbCr) return 2;
+    uint64_t raw = (uint64_t)d.image_width * d.image_height * (unsigned int)d.num_components;
+    if (blocks * DCTSIZE2 * sizeof(JCOEF) * 2 + raw * 2 + 1048576 > memory) return 3;
+    memory -= raw * 2;
+    d.mem->max_memory_to_use = (long)(memory / 2);
+    if (lossy) {
+      e.err = jpeg_std_error(&ee); ee.error_exit = failed; ee.emit_message = message;
+      reencode(&d, &e, (unsigned int)quality, memory);
+    } else read_pixels(&d);
+    if (!jpeg_finish_decompress(&d)) return 2;
+    jpeg_destroy_decompress(&d);
+    return fflush(stdout) == 0 ? 0 : 5;
+  }
   jvirt_barray_ptr *arrays = jpeg_read_coefficients(&d);
   if (!arrays) return 2;
   if (optimize) {

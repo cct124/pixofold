@@ -154,6 +154,6 @@ if (command === 'build') {
   if (command === 'check') runExperiment({ root, engine, buildIdentity, tools });
   else {
     const { runCoreChecks } = await import('./jpeg-lab/core-check.mjs');
-    runCoreChecks({ root, build, tools });
+    runCoreChecks({ root, build, tools, source });
   }
 }

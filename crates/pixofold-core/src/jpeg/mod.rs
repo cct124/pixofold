@@ -1,11 +1,13 @@
-//! JPEG单文件无损核心（J1a），尚未接入桌面或批次。
+//! JPEG单文件无损/保守有损核心，尚未接入桌面或批次。
 //! 固定可信原生工具只接收字节，输出层独占文件提交；不复用PNG凭据许可。
 
 mod engine;
 mod format;
 mod process;
+mod quality;
 
 pub use engine::JpegEngine;
+pub use quality::{JpegLossyFallbackReason, JpegMode, JpegProcessing, JpegQualityMapping};
 
 use crate::{
     model::{
@@ -21,7 +23,7 @@ use std::{
 };
 
 /// JPEG执行预算；调用者仍需限制同时处理图片数及总工作集。
-/// max_decoded_bytes同时收紧原生系数分配，不是RSS硬限制；最多16M像素/64次扫描。
+/// max_decoded_bytes约束系数/像素工作集并收紧原生分配，不是RSS硬限制；最多16M像素/64次扫描。
 #[derive(Debug, Clone, Copy)]
 pub struct JpegLimits {
     pub resources: ResourceLimits,
@@ -59,11 +61,12 @@ impl JpegLimits {
     }
 }
 
-/// 仅无损，没有质量参数、凭据移除开关或自动回退有损路径。
+/// JPEG专属请求；默认无损，有损只在已验证的颜色/元数据范围执行，无凭据移除开关。
 #[derive(Debug, Clone)]
 pub struct JpegRequest {
     pub source: PathBuf,
     pub output: OutputPolicy,
+    pub mode: JpegMode,
     pub limits: JpegLimits,
 }
 
@@ -73,6 +76,7 @@ impl JpegRequest {
         Self {
             source: source.into(),
             output: OutputPolicy::Overwrite,
+            mode: JpegMode::Lossless,
             limits: JpegLimits::default(),
         }
     }
@@ -89,6 +93,7 @@ pub struct JpegInfo {
 #[derive(Debug)]
 pub struct JpegReport {
     pub image: JpegInfo,
+    pub processing: JpegProcessing,
     pub input_bytes: ByteCount,
     pub output_bytes: ByteCount,
     pub elapsed: Duration,
@@ -146,7 +151,7 @@ impl fmt::Display for JpegError {
             Self::ToolExit(_) => f.write_str("JPEG工具拒绝输入或异常退出"),
             Self::Timeout => f.write_str("JPEG处理超时，未提交"),
             Self::Cancelled => f.write_str("JPEG处理已中止，未提交"),
-            Self::ValidationFailed => f.write_str("JPEG无损或元数据验证失败，未提交"),
+            Self::ValidationFailed => f.write_str("JPEG候选或元数据验证失败，未提交"),
             Self::File(ProcessingError::ValidationFailed(_)) => {
                 f.write_str("JPEG文件验证失败，未提交")
             }
@@ -169,7 +174,13 @@ fn io_error(operation: &'static str, source: io::Error) -> JpegError {
     JpegError::ToolIo { operation, source }
 }
 
-/// 单文件系数无损优化。只输出更小且验证通过的结果；无收益不生成备份/副本。
+enum CandidateValidation {
+    Coefficients([u8; 32]),
+    Color(engine::DecodedColor),
+}
+
+/// 单文件优化。无损核对系数；有损完整解码并保持颜色解释/元数据，报告实际路径及回退。
+/// 只输出更小且验证通过的结果；无收益不生成备份/副本。
 /// 同步调用应放入调用方有界worker；阶段回调须快速返回且不panic。
 /// 取消/超时会终结并回收自有原生进程，提交临界区继续沿用输出层取消契约。
 ///
@@ -201,8 +212,37 @@ pub fn optimize_jpeg(
     let parsed = format::inspect(&source.bytes, request.limits)?;
     let destination = Destination::plan(&source, &request.output)?;
     on_stage(ProcessingStage::Optimizing);
-    let fingerprint = engine.fingerprint(&source.bytes, &parsed, request.limits, cancel)?;
-    let candidate = engine.optimize(&source.bytes, request.limits, cancel)?;
+    let processing = match request.mode {
+        JpegMode::Lossless => JpegProcessing::Lossless,
+        JpegMode::Lossy { quality } => {
+            let parameters = JpegQualityMapping::new(quality);
+            match parsed.lossy_fallback() {
+                Some(reason) => JpegProcessing::LosslessFallback { parameters, reason },
+                None => JpegProcessing::Lossy { parameters },
+            }
+        }
+    };
+    let (candidate, validation) = match processing {
+        JpegProcessing::Lossy { parameters } => {
+            let color = engine.decoded_color(&source.bytes, &parsed, request.limits, cancel)?;
+            (
+                engine.reencode(
+                    &source.bytes,
+                    parameters.native_quality,
+                    request.limits,
+                    cancel,
+                )?,
+                CandidateValidation::Color(color),
+            )
+        }
+        _ => {
+            let hash = engine.fingerprint(&source.bytes, &parsed, request.limits, cancel)?;
+            (
+                engine.optimize(&source.bytes, request.limits, cancel)?,
+                CandidateValidation::Coefficients(hash),
+            )
+        }
+    };
     cancel.check()?;
     let mut temp = destination.stage()?;
     let validated = (|| {
@@ -210,10 +250,23 @@ pub fn optimize_jpeg(
         on_stage(ProcessingStage::Validating);
         cancel.check()?;
         let stored = output::read_candidate(&temp, request.limits.resources)?;
+        // 有损无法用源像素相等约束候选；必须绑定刚生成的候选，拒绝落盘后替换为另一合法JPEG。
+        if stored != candidate {
+            return Err(JpegError::ValidationFailed);
+        }
         let output = format::inspect(&stored, request.limits)?;
-        if !parsed.same_image_and_metadata(&output)
-            || fingerprint != engine.fingerprint(&stored, &output, request.limits, cancel)?
-        {
+        if !parsed.same_image_and_metadata(&output) {
+            return Err(JpegError::ValidationFailed);
+        }
+        let matches = match validation {
+            CandidateValidation::Coefficients(expected) => {
+                expected == engine.fingerprint(&stored, &output, request.limits, cancel)?
+            }
+            CandidateValidation::Color(expected) => {
+                expected == engine.decoded_color(&stored, &output, request.limits, cancel)?
+            }
+        };
+        if !matches {
             return Err(JpegError::ValidationFailed);
         }
         source.verify_unchanged(request.limits.resources)?;
@@ -258,6 +311,7 @@ pub fn optimize_jpeg(
     };
     Ok(JpegReport {
         image,
+        processing,
         input_bytes,
         output_bytes,
         elapsed: started.elapsed(),

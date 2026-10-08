@@ -68,10 +68,10 @@ fn capture(mut reader: impl Read, limit: u64, keep: bool) -> Result<Capture, Jpe
         if result.length > limit {
             return Err(JpegError::ResourceLimit("进程输出管道"));
         }
-        if result.prefix.len() < 5 {
+        if result.prefix.len() < 21 {
             result
                 .prefix
-                .extend_from_slice(&block[..count.min(5 - result.prefix.len())]);
+                .extend_from_slice(&block[..count.min(21 - result.prefix.len())]);
         }
         hash.update(&block[..count]);
         if keep {

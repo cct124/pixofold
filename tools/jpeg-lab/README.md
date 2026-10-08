@@ -28,4 +28,6 @@ pnpm jpeg:lab:build --cmake 'C:/path/to/cmake.exe'
 
 J0实验已归档，持续证据见[开发日志](../../docs/devlog/_fin/260930/jpeg-engine-lab.md)。J1a新增单独的`pixofold-jpeg-helper`目标及Rust单文件核心，构建时记录helper源码/二进制SHA256；`core-check`使用上述共享自生成语料调用真实核心，并独立比对系数、像素和元数据。工具缺失或身份变化必须失败，不能静默跳过；三平台JPEG job已增加此入口，实际结果另记。
 
-J1a并非直接把本实验脚本用于用户图片。正式核心的生命周期、默认保护、严格Exif子集和安全输出边界见[JPEG核心说明](../../native/jpeg/README.md)，剩余有损/单池预算/桌面随包属于J1b/J2。产品当前仍只开放静态PNG。
+J1b第一段已新增单文件保守有损。core-check继续使用J1a无损回归，再运行jpeg_lossy_check及lossy-check.mjs：质量0/40/80/100、元数据/颜色回退、备份/副本/NoGain、源和合法候选被替换、冲突、取消与资源限制。独立djpeg/coeffdump验证已提交产物；lossy-report.json记录质量锚点误差/体积。另使用固定源码附带的testimages/testorig.jpg玫瑰照片，校验SHA256并在证据包保留原始README.ijg、LICENSE.md与来源说明。该227×149小照片仅用于最小真实内容观察，不代表完整照片集或色彩管理验收。
+
+正式核心的生命周期、默认保护、严格Exif子集和安全输出边界见[JPEG核心说明](../../native/jpeg/README.md)，剩余单池预算/共用模型与桌面随包属于J1b第二段/J2。产品当前仍只开放静态PNG。

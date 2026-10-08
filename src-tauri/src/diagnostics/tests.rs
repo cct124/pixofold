@@ -8,6 +8,21 @@ use pixofold_core::{
 };
 use std::fs;
 
+fn with_logger<T>(logger: Arc<Logger>, run: impl FnOnce() -> T) -> T {
+    // 生产在启动worker前安装全局订阅器。并行测试也保留一个不写盘的全局registry：
+    // tracing-core 0.1.36只有一个作用域订阅器时，其他线程首次触发调用点可缓存never。
+    // 空registry不接收本测试日志；各线程仍由自己的EventLayer隔离会话与任务字段。
+    static BASELINE: OnceLock<()> = OnceLock::new();
+    BASELINE.get_or_init(|| {
+        tracing::subscriber::set_global_default(tracing_subscriber::registry())
+            .expect("测试全局空订阅器只安装一次");
+    });
+    tracing::subscriber::with_default(
+        tracing_subscriber::registry().with(layer::EventLayer(logger)),
+        run,
+    )
+}
+
 fn records(path: &std::path::Path) -> Vec<Value> {
     let mut values = Vec::new();
     for entry in fs::read_dir(path).unwrap() {
@@ -31,20 +46,53 @@ fn fixture(name: &str) -> Vec<u8> {
 }
 
 #[test]
+fn unscoped_first_callsite_does_not_hide_later_scoped_events() {
+    fn emit() {
+        tracing::info!(target: "pixofold", event = "cold_callsite");
+    }
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("logs");
+    let logger = Logger::start(path.clone(), false);
+    with_logger(logger.clone(), || {
+        // 明确在没有本测试订阅器的线程先注册同一调用点，不靠调度概率或休眠。
+        thread::spawn(emit).join().unwrap();
+        let span = tracing::info_span!(target: "pixofold", "task", batch_id = 7);
+        let _entered = span.enter();
+        emit();
+        let dispatcher = tracing::dispatcher::get_default(Clone::clone);
+        thread::spawn(move || tracing::dispatcher::with_default(&dispatcher, emit))
+            .join()
+            .unwrap();
+    });
+    logger.shutdown();
+    let values = records(&path);
+    let events: Vec<_> = values
+        .iter()
+        .filter(|v| v["event"] == "cold_callsite")
+        .collect();
+    assert_eq!(
+        events.len(),
+        2,
+        "作用域外事件不可混入，作用域内事件不能丢失"
+    );
+    assert_eq!(events[0]["batch_id"], 7);
+    assert!(events[1].get("batch_id").is_none());
+    assert_eq!(logger.health.dropped.load(Ordering::Relaxed), 0);
+    assert_eq!(logger.health.failures.load(Ordering::Relaxed), 0);
+}
+
+#[test]
 fn structured_events_keep_task_context_but_exclude_paths_messages_and_third_party_data() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("logs");
     let logger = Logger::start(path.clone(), false);
-    tracing::subscriber::with_default(
-        tracing_subscriber::registry().with(layer::EventLayer(logger.clone())),
-        || {
-            let span = tracing::info_span!(target: "pixofold", "task", batch_id = 4, job_id = 2, attempt = 3, path = "PRIVATE_SOURCE", backup_name = "PRIVATE_SPAN-backup-Ab12xY.png");
-            let _entered = span.enter();
-            tracing::info!(target: "pixofold", event = "job_started", input_bytes = 123, path = "PRIVATE_SOURCE", backup_name = "PRIVATE_EVENT-backup-Ab12xY.png", error = ?"PRIVATE_ERROR", "PRIVATE_MESSAGE");
-            tracing::info!(target: "third_party", event = "PRIVATE_THIRD_PARTY");
-            tracing::info!(target: "pixofold", event = "bounded", stage = ?"长".repeat(20000));
-        },
-    );
+    with_logger(logger.clone(), || {
+        let span = tracing::info_span!(target: "pixofold", "task", batch_id = 4, job_id = 2, attempt = 3, path = "PRIVATE_SOURCE", backup_name = "PRIVATE_SPAN-backup-Ab12xY.png");
+        let _entered = span.enter();
+        tracing::info!(target: "pixofold", event = "job_started", input_bytes = 123, path = "PRIVATE_SOURCE", backup_name = "PRIVATE_EVENT-backup-Ab12xY.png", error = ?"PRIVATE_ERROR", "PRIVATE_MESSAGE");
+        tracing::info!(target: "third_party", event = "PRIVATE_THIRD_PARTY");
+        tracing::info!(target: "pixofold", event = "bounded", stage = ?"长".repeat(20000));
+    });
     logger.shutdown();
     let values = records(&path);
     assert_eq!(values[0]["event"], "session_started");
@@ -96,16 +144,13 @@ fn unavailable_logging_does_not_change_processing_and_shutdown_remains_safe() {
     let logger = Logger::start(path.clone(), false);
     let source = temp.path().join("private.png");
     fs::write(&source, fixture("gradient-rgb8.png")).unwrap();
-    tracing::subscriber::with_default(
-        tracing_subscriber::registry().with(layer::EventLayer(logger.clone())),
-        || {
-            let mut request = PngRequest::new(source);
-            request.output = OutputPolicy::Copy {
-                destination: temp.path().join("copy.png"),
-            };
-            assert!(optimize_png(&request, &CancellationToken::default(), |_| {}).is_ok());
-        },
-    );
+    with_logger(logger.clone(), || {
+        let mut request = PngRequest::new(source);
+        request.output = OutputPolicy::Copy {
+            destination: temp.path().join("copy.png"),
+        };
+        assert!(optimize_png(&request, &CancellationToken::default(), |_| {}).is_ok());
+    });
     logger.shutdown();
     logger.shutdown();
     assert_eq!(fs::read(path).unwrap(), b"preserve");
@@ -132,52 +177,63 @@ fn real_credentials_processing_logs_wait_then_only_the_chosen_backup_policy() {
         .concat();
         let source = temp.path().join("PRIVATE_IMAGE.png");
         fs::write(&source, &original).unwrap();
-        tracing::subscriber::with_default(
-            tracing_subscriber::registry().with(layer::EventLayer(logger.clone())),
-            || {
-                let span =
-                    tracing::info_span!(target: "pixofold", "task", batch_id = 1, job_id = 1);
-                let _entered = span.enter();
-                let mut request = PngRequest::new(source.clone());
-                request.output = match policy {
-                    0 => OutputPolicy::Overwrite,
-                    1 => OutputPolicy::OverwriteWithoutBackup,
-                    _ => OutputPolicy::Copy {
-                        destination: temp.path().join("copy.png"),
-                    },
-                };
-                let ProcessingError::ContentCredentialsRequireConsent(version) =
-                    optimize_png(&request, &CancellationToken::default(), |_| {}).unwrap_err()
-                else {
-                    panic!("expected consent");
-                };
+        with_logger(logger.clone(), || {
+            let span = tracing::info_span!(target: "pixofold", "task", batch_id = 1, job_id = 1);
+            let _entered = span.enter();
+            let mut request = PngRequest::new(source.clone());
+            request.output = match policy {
+                0 => OutputPolicy::Overwrite,
+                1 => OutputPolicy::OverwriteWithoutBackup,
+                _ => OutputPolicy::Copy {
+                    destination: temp.path().join("copy.png"),
+                },
+            };
+            let ProcessingError::ContentCredentialsRequireConsent(version) =
+                optimize_png(&request, &CancellationToken::default(), |_| {}).unwrap_err()
+            else {
+                panic!("expected consent");
+            };
+            assert_eq!(fs::read(&source).unwrap(), original);
+            assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 2); // 只有原图和logs目录
+            request.metadata = PngMetadataPolicy::RemoveContentCredentials(version);
+            let report = optimize_png(&request, &CancellationToken::default(), |_| {}).unwrap();
+            let ProcessingOutcome::Optimized { backup, .. } = report.outcome else {
+                panic!("expected gain");
+            };
+            assert_eq!(backup.is_some(), policy == 0);
+            if let Some(backup) = backup {
+                assert!(
+                    backup
+                        .file_name()
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
+                        .starts_with("PRIVATE_IMAGE-backup-")
+                );
+                assert_eq!(fs::read(backup).unwrap(), original);
+            }
+            if policy == 2 {
                 assert_eq!(fs::read(&source).unwrap(), original);
-                assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 2); // 只有原图和logs目录
-                request.metadata = PngMetadataPolicy::RemoveContentCredentials(version);
-                let report = optimize_png(&request, &CancellationToken::default(), |_| {}).unwrap();
-                let ProcessingOutcome::Optimized { backup, .. } = report.outcome else {
-                    panic!("expected gain");
-                };
-                assert_eq!(backup.is_some(), policy == 0);
-                if let Some(backup) = backup {
-                    assert!(
-                        backup
-                            .file_name()
-                            .unwrap()
-                            .to_str()
-                            .unwrap()
-                            .starts_with("PRIVATE_IMAGE-backup-")
-                    );
-                    assert_eq!(fs::read(backup).unwrap(), original);
-                }
-                if policy == 2 {
-                    assert_eq!(fs::read(&source).unwrap(), original);
-                }
-            },
-        );
+            }
+        });
         logger.shutdown();
         let values = records(&path);
         let events: Vec<_> = values.iter().filter_map(|v| v["event"].as_str()).collect();
+        assert_eq!(
+            logger.health.dropped.load(Ordering::Relaxed),
+            0,
+            "policy={policy}, events={events:?}"
+        );
+        assert_eq!(
+            logger.health.failures.load(Ordering::Relaxed),
+            0,
+            "policy={policy}, events={events:?}"
+        );
+        assert_eq!(
+            events.last(),
+            Some(&"session_finished"),
+            "policy={policy}, events={events:?}"
+        );
         let waiting = events
             .iter()
             .position(|e| *e == "credentials_waiting_for_consent")
@@ -189,7 +245,7 @@ fn real_credentials_processing_logs_wait_then_only_the_chosen_backup_policy() {
         let committed = events
             .iter()
             .position(|e| *e == "output_commit_succeeded")
-            .unwrap();
+            .unwrap_or_else(|| panic!("missing commit event: policy={policy}, events={events:?}"));
         assert!(waiting < removing && removing < committed);
         assert_eq!(events.contains(&"backup_creating"), policy == 0);
         assert_eq!(events.contains(&"backup_retained"), policy == 0);
@@ -233,38 +289,35 @@ fn real_worker_pool_logs_each_image_with_its_own_batch_job_and_attempt() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("logs");
     let logger = Logger::start(path.clone(), false);
-    tracing::subscriber::with_default(
-        tracing_subscriber::registry().with(layer::EventLayer(logger.clone())),
-        || {
-            let mut service = BatchService::new(BatchConfig {
-                workers: 2,
-                ..Default::default()
+    with_logger(logger.clone(), || {
+        let mut service = BatchService::new(BatchConfig {
+            workers: 2,
+            ..Default::default()
+        })
+        .unwrap();
+        let items = (0..4)
+            .map(|i| {
+                let source = temp.path().join(format!("PRIVATE_{i}.png"));
+                fs::write(&source, fixture("gradient-rgb8.png")).unwrap();
+                BatchItem {
+                    source,
+                    output: OutputPolicy::Copy {
+                        destination: temp.path().join(format!("copy_{i}.png")),
+                    },
+                }
+            })
+            .collect();
+        let id = service
+            .start(BatchRequest {
+                items,
+                parameters: Default::default(),
             })
             .unwrap();
-            let items = (0..4)
-                .map(|i| {
-                    let source = temp.path().join(format!("PRIVATE_{i}.png"));
-                    fs::write(&source, fixture("gradient-rgb8.png")).unwrap();
-                    BatchItem {
-                        source,
-                        output: OutputPolicy::Copy {
-                            destination: temp.path().join(format!("copy_{i}.png")),
-                        },
-                    }
-                })
-                .collect();
-            let id = service
-                .start(BatchRequest {
-                    items,
-                    parameters: Default::default(),
-                })
-                .unwrap();
-            let view = service.wait(id, Duration::from_secs(15)).unwrap();
-            assert_eq!(view.phase, BatchPhase::Finished);
-            assert_eq!(view.summary.succeeded, 4);
-            service.shutdown().unwrap();
-        },
-    );
+        let view = service.wait(id, Duration::from_secs(15)).unwrap();
+        assert_eq!(view.phase, BatchPhase::Finished);
+        assert_eq!(view.summary.succeeded, 4);
+        service.shutdown().unwrap();
+    });
     logger.shutdown();
     let values = records(&path);
     let finished: Vec<_> = values

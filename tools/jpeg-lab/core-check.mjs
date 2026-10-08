@@ -1,12 +1,13 @@
-// J1a实际核心回归入口；工具或构建身份缺失必须失败，不能静默跳过原生测试。
+// JPEG实际核心回归入口；工具或构建身份缺失必须失败，不能静默跳过原生测试。
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createSamples, extraMarkers } from './experiment.mjs';
+import { runLossyChecks } from './lossy-check.mjs';
 
-export function runCoreChecks({ root, build, tools }) {
+export function runCoreChecks({ root, build, tools, source }) {
   const hash = createHash('sha256').update(readFileSync(tools.helper)).digest('hex');
   assert.equal(hash, readFileSync(path.join(build, 'helper.sha256'), 'utf8').trim());
   mkdirSync(path.join(root, 'target'), { recursive: true });
@@ -62,6 +63,7 @@ export function runCoreChecks({ root, build, tools }) {
   );
   if (run.error) throw run.error;
   assert.equal(run.status, 0, 'JPEG核心真实引擎/安全输出检查失败');
+  runLossyChecks({ root, tools, directory, hash, source });
   writeFileSync(
     path.join(directory, 'core-report.json'),
     JSON.stringify(

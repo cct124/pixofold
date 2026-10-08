@@ -88,7 +88,7 @@ impl JpegEngine {
 
     fn execute(
         &self,
-        operation: &str,
+        operation: Operation,
         input: &[u8],
         limit: u64,
         keep: bool,
@@ -107,12 +107,15 @@ impl JpegEngine {
             }
         }
         command.args([
-            operation,
+            operation.name(),
             &limits.resources.max_dimension.to_string(),
             &limits.resources.max_pixels.to_string(),
             &limits.resources.max_decoded_bytes.0.to_string(),
             &limits.max_scans.to_string(),
         ]);
+        if let Operation::Lossy(quality) = operation {
+            command.arg(quality.to_string());
+        }
         process::run(
             &mut command,
             input,
@@ -131,7 +134,7 @@ impl JpegEngine {
     ) -> Result<Vec<u8>, JpegError> {
         Ok(self
             .execute(
-                "optimize",
+                Operation::Optimize,
                 input,
                 limits.resources.max_input_bytes.0,
                 true,
@@ -149,16 +152,96 @@ impl JpegEngine {
         cancel: &CancellationToken,
     ) -> Result<[u8; 32], JpegError> {
         let result = self.execute(
-            "coefficients",
+            Operation::Coefficients,
             input,
             parsed.coefficient_bytes,
             false,
             limits,
             cancel,
         )?;
-        if result.length != parsed.coefficient_bytes || result.prefix != b"PFJC1" {
+        if result.length != parsed.coefficient_bytes || result.prefix.get(..5) != Some(b"PFJC1") {
             return Err(JpegError::ValidationFailed);
         }
         Ok(result.digest)
+    }
+
+    pub(super) fn reencode(
+        &self,
+        input: &[u8],
+        quality: u8,
+        limits: JpegLimits,
+        cancel: &CancellationToken,
+    ) -> Result<Vec<u8>, JpegError> {
+        Ok(self
+            .execute(
+                Operation::Lossy(quality),
+                input,
+                limits.resources.max_input_bytes.0,
+                true,
+                limits,
+                cancel,
+            )?
+            .bytes)
+    }
+
+    pub(super) fn decoded_color(
+        &self,
+        input: &[u8],
+        parsed: &Parsed<'_>,
+        limits: JpegLimits,
+        cancel: &CancellationToken,
+    ) -> Result<DecodedColor, JpegError> {
+        parsed.check_pixel_budget(limits)?;
+        let info = &parsed.info;
+        let channels = if info.components == 1 { 1 } else { 3 };
+        let length = 21 + u64::from(info.width) * u64::from(info.height) * channels;
+        let result = self.execute(Operation::Pixels, input, length, false, limits, cancel)?;
+        if result.length != length || result.prefix.len() != 21 || &result.prefix[..5] != b"PFJP1" {
+            return Err(JpegError::ValidationFailed);
+        }
+        let field = |index: usize| {
+            let start = 5 + index * 4;
+            u32::from_le_bytes([
+                result.prefix[start],
+                result.prefix[start + 1],
+                result.prefix[start + 2],
+                result.prefix[start + 3],
+            ])
+        };
+        if field(0) != info.width || field(1) != info.height || u64::from(field(2)) != channels {
+            return Err(JpegError::ValidationFailed);
+        }
+        // 固定libjpeg ABI的J_COLOR_SPACE值；其他枚举不进入普通有损像素路径。
+        match (channels, field(3)) {
+            (1, 1) => Ok(DecodedColor::Gray),
+            (3, 2) => Ok(DecodedColor::Rgb),
+            (3, 3) => Ok(DecodedColor::Ycbcr),
+            _ => Err(JpegError::ValidationFailed),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum DecodedColor {
+    Gray,
+    Rgb,
+    Ycbcr,
+}
+
+#[derive(Clone, Copy)]
+enum Operation {
+    Optimize,
+    Coefficients,
+    Pixels,
+    Lossy(u8),
+}
+impl Operation {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Optimize => "optimize",
+            Self::Coefficients => "coefficients",
+            Self::Pixels => "pixels",
+            Self::Lossy(_) => "lossy",
+        }
     }
 }

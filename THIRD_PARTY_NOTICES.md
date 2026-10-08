@@ -38,3 +38,5 @@ imagequant 来自 [ImageOptim/libimagequant](https://github.com/ImageOptim/libim
 JPEG开发实验使用MozJPEG v4.1.5（提交`6c9f0897afa1c2738d7222a0a9ab49e8b536a267`），源码位置与SHA256固定于`tools/jpeg-lab/engine.json`。仅在`.tools/jpeg-lab/`构建cjpeg/djpeg/jpegtran与系数验证工具，未进入Cargo依赖或桌面分发。上游`LICENSE.md`、`README.ijg`和各文件通知包含IJG、BSD-3-Clause、Zlib及Mozilla贡献的许可/版权；实验不修改或移除这些源码通知。后续实际随包配置须据此保留完整正文、IJG致谢及对应源码，不能以本表替代许可材料。
 
 J1a新增`native/jpeg/helper.c`及独立Rust核心适配，helper链接同一固定MozJPEG静态库，开发构建另记录其源码和二进制身份；尚未随桌面分发，不调用实验工具处理产品图片。当前桌面尚未接入MozJPEG或Gifsicle等其他格式压缩引擎。准备正式发行时，应根据实际平台构建产物收集全部第三方版权与许可正文、必要通知和对应源码资料；本表不是完整发行许可清单。
+
+J1b保守有损延用相同helper/静态库，没有新增引擎依赖。核心回归另使用固定上游源码中的testimages/testorig.jpg（SHA256 acc6ec555d41d15b368320edaa3b20958ee6fa97cb6e4a18d1213d5ae8bec73b）；原图不进入本仓库，回归证据包保留上游README.ijg、LICENSE.md及来源/衍生输出说明。该夹具不等同本项目原创图片，保留其原有版权和许可。

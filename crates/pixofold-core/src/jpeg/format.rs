@@ -1,16 +1,66 @@
 //! 严格、无分配解码的JPEG结构预检。只接受能明确保留的元数据；原生验证仍不可省略。
 
-use super::{JpegError, JpegInfo, JpegLimits};
+use super::{JpegError, JpegInfo, JpegLimits, JpegLossyFallbackReason};
 
 pub(super) struct Parsed<'a> {
     pub info: JpegInfo,
     pub coefficient_bytes: u64,
+    sample_layout: Vec<[u8; 2]>,
+    working_bytes: u64,
     metadata: Vec<(u8, &'a [u8])>,
 }
 
 impl Parsed<'_> {
     pub fn same_image_and_metadata(&self, other: &Parsed<'_>) -> bool {
-        self.info == other.info && self.metadata == other.metadata
+        self.info == other.info
+            && self.sample_layout == other.sample_layout
+            && self.metadata == other.metadata
+    }
+
+    pub fn lossy_fallback(&self) -> Option<JpegLossyFallbackReason> {
+        if self.metadata.iter().any(|(marker, _)| *marker == 0xe2) {
+            return Some(JpegLossyFallbackReason::ColorProfile);
+        }
+        if self.info.components == 4 {
+            return Some(JpegLossyFallbackReason::FourComponentColor);
+        }
+        let jfif = self
+            .metadata
+            .iter()
+            .find(|(marker, _)| *marker == 0xe0)
+            .map(|(_, data)| *data);
+        if jfif.is_some_and(|data| data[12] != 0 || data[13] != 0) {
+            return Some(JpegLossyFallbackReason::EmbeddedThumbnail);
+        }
+        let adobe = self
+            .metadata
+            .iter()
+            .find(|(marker, _)| *marker == 0xee)
+            .map(|(_, data)| data[11]);
+        let ids: Vec<_> = self
+            .sample_layout
+            .iter()
+            .map(|component| component[0])
+            .collect();
+        if self.info.components == 3
+            && (adobe == Some(2)
+                || (jfif.is_some() && adobe == Some(0))
+                || (jfif.is_none() && adobe.is_none() && ids != [1, 2, 3] && ids != b"RGB"))
+        {
+            return Some(JpegLossyFallbackReason::AmbiguousColor);
+        }
+        None
+    }
+
+    pub fn check_pixel_budget(&self, limits: JpegLimits) -> Result<(), JpegError> {
+        // 原生系数上限之外保守计入两份全尺寸扫描线/颜色工作区；原生读取实际头后同样复查。
+        let raw = u64::from(self.info.width)
+            * u64::from(self.info.height)
+            * u64::from(self.info.components);
+        if self.working_bytes + raw * 2 > limits.resources.max_decoded_bytes.0 {
+            return Err(JpegError::ResourceLimit("JPEG有损解码与编码工作集"));
+        }
+        Ok(())
     }
 }
 
@@ -33,6 +83,7 @@ pub(super) fn inspect(bytes: &[u8], limits: JpegLimits) -> Result<Parsed<'_>, Jp
     let mut scans = 0;
     let mut markers = 0;
     let mut frame = None;
+    let mut sample_layout = Vec::new();
     let mut metadata = Vec::new();
     let mut metadata_bytes = 0u64;
     loop {
@@ -73,6 +124,8 @@ pub(super) fn inspect(bytes: &[u8], limits: JpegLimits) -> Result<Parsed<'_>, Jp
             return Ok(Parsed {
                 info,
                 coefficient_bytes,
+                sample_layout,
+                working_bytes: working_bytes + metadata_bytes * 2,
                 metadata,
             });
         }
@@ -93,6 +146,12 @@ pub(super) fn inspect(bytes: &[u8], limits: JpegLimits) -> Result<Parsed<'_>, Jp
                     return Err(invalid("重复图像帧"));
                 }
                 frame = Some(parse_frame(payload, marker == 0xc2, limits)?);
+                sample_layout = payload[6..]
+                    .as_chunks::<3>()
+                    .0
+                    .iter()
+                    .map(|p| [p[0], p[1]])
+                    .collect();
             }
             0xda => {
                 if frame.is_none() || payload.len() < 6 {

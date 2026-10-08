@@ -61,7 +61,7 @@ jobs:
         run: rustup show
       - name: Check real JPEG core and safe output
         run: node tools/jpeg-lab.mjs core-check
-      - name: Retain self-generated experiment evidence
+      - name: Retain JPEG experiment evidence and fixture notices
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
