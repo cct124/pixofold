@@ -1,6 +1,6 @@
 # 开发交接
 
-更新日期：2026-10-09（Asia/Shanghai）。[P0观测修正](_plan/261009/jpeg-desktop-bundle.md)已获授权提交d5bf44c并推送origin/dev，CI run37895466410六个jobs全部success。[J2第二段](_plan/261009/jpeg-desktop-workflow.md)的PNG/JPEG工作流/v10/方向预览已在本机实现，统一检查、真实混合部署和Windows MSI构建通过；新功能尚未提交。用户已选择自行安装/启动/卸载手测，旧PNG/v9包已单独保留。新代码的三平台CI及GUI/安装证据待取得。
+更新日期：2026-10-09（Asia/Shanghai）。当前dev/a21d330已推送origin/dev；[P0观测修正](_plan/261009/jpeg-desktop-bundle.md)（d5bf44c）六个CI jobs全部success，[J2第二段](_plan/261009/jpeg-desktop-workflow.md)的PNG/JPEG工作流/v10/方向预览已实现并经统一检查、真实混合部署与Windows MSI构建通过后入库。旧PNG/v9包单独保留；用户自行安装/启动/卸载手测与新SHA三平台结果待取得。
 
 ## 当前阶段
 
@@ -27,7 +27,7 @@
 
 ## 后续优先顺序
 
-1. 用户选择J2先保留本机改动并手测：44份改动保持未提交/未推送，等待新MSI反馈，发现问题优先修复；提交及新SHA三平台CI待用户后续决定。
+1. J2第二段已提交a21d330并推送，接收新MSI手测反馈（发现问题优先修复），并按新SHA核对三平台应用检查/构建/部署与JPEG jobs。
 2. 用户已选择手动完成Windows MSI安装/启动/卸载，等待实际反馈；同期合并A1原生收尾，安全问题优先修复，视觉欠项独立记录。
 3. 使用J2新MSI完成原生混合批次/亮暗中英/方向与结果查看/重载退出手测，补充照片/大图观感及RSS抽测；与自动后端证据分别记录。
 4. JPEG桌面稳定后建立动画验证底座，GIF/APNG逐格式先无损后有损；各目标平台安装/运行和源码/许可资料分别验收。PNG性能专项仍按实际回归触发。
