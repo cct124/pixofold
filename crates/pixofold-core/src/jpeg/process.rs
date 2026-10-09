@@ -44,7 +44,9 @@ impl Drop for OwnedChild {
         if !matches!(self.0.try_wait(), Ok(Some(_))) {
             let _ = self.0.kill();
         }
-        let _ = self.0.wait();
+        let _status = self.0.wait();
+        #[cfg(test)]
+        observe::reaped(self.0.id(), _status);
     }
 }
 
@@ -132,6 +134,14 @@ fn run_inner(
     thread::scope(|scope| {
         // child在scope闭包内创建，提前返回时先drop子进程，再由scope等候I/O。
         let mut child = OwnedChild(command.spawn().map_err(|e| io_error("启动进程", e))?);
+        #[cfg(test)]
+        observe::notify(ProcessEvent::Spawned {
+            pid: child.0.id(),
+            workspace: command
+                .get_current_dir()
+                .expect("run sets the workspace")
+                .to_owned(),
+        });
         let mut stdin = child.0.stdin.take().ok_or(JpegError::ValidationFailed)?;
         let stdout = child.0.stdout.take().ok_or(JpegError::ValidationFailed)?;
         let stderr = child.0.stderr.take().ok_or(JpegError::ValidationFailed)?;
@@ -216,6 +226,77 @@ fn run_inner(
     })
 }
 
+/// 仅测试观察实际所有者的原生wait结果，不用全局PID快照代替原进程退出证据。
+#[cfg(test)]
+#[derive(Debug)]
+pub(crate) enum ProcessEvent {
+    Spawned {
+        pid: u32,
+        workspace: std::path::PathBuf,
+    },
+    Reaped {
+        pid: u32,
+        status: std::io::Result<std::process::ExitStatus>,
+        resume: Option<mpsc::Sender<()>>,
+    },
+}
+
+#[cfg(test)]
+pub(crate) struct ProcessObserver {
+    pub events: mpsc::Sender<ProcessEvent>,
+    pub hold_reaped: bool,
+}
+
+#[cfg(test)]
+pub(crate) mod observe {
+    use super::{ProcessEvent, ProcessObserver};
+    use std::{cell::RefCell, sync::mpsc};
+
+    thread_local! {
+        static EVENTS: RefCell<Option<ProcessObserver>> = const { RefCell::new(None) };
+    }
+
+    pub(super) fn notify(event: ProcessEvent) {
+        EVENTS.with_borrow(|observer| {
+            if let Some(observer) = observer {
+                let _ = observer.events.send(event);
+            }
+        });
+    }
+
+    pub(super) fn reaped(pid: u32, status: std::io::Result<std::process::ExitStatus>) {
+        let receiver = EVENTS.with_borrow(|observer| {
+            let observer = observer.as_ref()?;
+            let (resume, receiver) = mpsc::channel();
+            observer
+                .events
+                .send(ProcessEvent::Reaped {
+                    pid,
+                    status,
+                    resume: observer.hold_reaped.then_some(resume),
+                })
+                .ok()?;
+            observer.hold_reaped.then_some(receiver)
+        });
+        // 只在测试门闩上等待；接收者/许可被丢弃时立即放行，允许panic安全收尾。
+        if let Some(receiver) = receiver {
+            let _ = receiver.recv();
+        }
+    }
+
+    /// 观察仅绑定当前worker，panic也恢复原观察者，不影响并行测试或生产构建。
+    pub(crate) fn with<T>(observer: ProcessObserver, run: impl FnOnce() -> T) -> T {
+        struct Reset(Option<ProcessObserver>);
+        impl Drop for Reset {
+            fn drop(&mut self) {
+                EVENTS.with_borrow_mut(|slot| *slot = self.0.take());
+            }
+        }
+        let _reset = Reset(EVENTS.with_borrow_mut(|slot| slot.replace(observer)));
+        run()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -236,7 +317,8 @@ mod tests {
             return;
         };
         if let Some(ready) = std::env::var_os("PIXOFOLD_PROCESS_READY") {
-            std::fs::write(ready, std::process::id().to_string()).unwrap();
+            // 完整帧才表示ready；读者不能把部分PID当成另一个有效进程。
+            std::fs::write(ready, format!("ready:{}\n", std::process::id())).unwrap();
         }
         match mode.as_str() {
             "exit" => std::process::exit(7),

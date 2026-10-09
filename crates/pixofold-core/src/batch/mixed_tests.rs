@@ -297,6 +297,8 @@ fn jpeg_errors_keep_their_domain_and_never_grant_png_metadata_consent() {
 struct ProcessRunner {
     ready: std::path::PathBuf,
     timeout: Duration,
+    events: mpsc::Sender<crate::jpeg::ProcessEvent>,
+    hold_reaped: bool,
 }
 
 #[test]
@@ -337,6 +339,10 @@ impl Runner for ProcessRunner {
             false,
             self.timeout,
             cancel,
+            crate::jpeg::ProcessObserver {
+                events: self.events.clone(),
+                hold_reaped: self.hold_reaped,
+            },
         )
         .expect_err("controlled child must stop");
         assert!(
@@ -352,8 +358,11 @@ fn real_jpeg_process_is_reaped_before_cancel_timeout_and_shutdown_release_the_bu
     for mode in ["cancel", "timeout", "shutdown"] {
         let h = Harness::new(256 * 1024 * 1024, false);
         let ready = h.dir.path().join("child-ready");
+        let (events, exit_events) = mpsc::channel();
         let runner = Arc::new(ProcessRunner {
             ready: ready.clone(),
+            events,
+            hold_reaped: mode != "shutdown",
             timeout: if mode == "timeout" {
                 Duration::from_secs(2)
             } else {
@@ -361,22 +370,26 @@ fn real_jpeg_process_is_reaped_before_cancel_timeout_and_shutdown_release_the_bu
             },
         });
         let mut service = BatchService::with_runner(BatchConfig::default(), runner).unwrap();
+        // panic时先丢弃观测接收者/门闩许可，再由service的Drop执行取消和join。
+        let observed = exit_events;
         service.engines = h.service.engines.clone();
         let id = service.start(h.request(&[ImageKind::Jpeg])).unwrap();
         let start = Instant::now();
-        // 子进程写出PID后才发取消/关闭；无需固定休眠或猜测进程启动时序。
-        let pid = loop {
-            if let Ok(text) = fs::read_to_string(&ready)
-                && let Ok(pid) = text.parse::<u32>()
-            {
-                break pid;
+        let crate::jpeg::ProcessEvent::Spawned { pid, workspace } =
+            observed.recv_timeout(WAIT).unwrap()
+        else {
+            panic!("{mode}: child must report its identity before exit");
+        };
+        // 身份取自实际Child，完整ready帧只确认夹具已进入阻塞路径。
+        loop {
+            if fs::read_to_string(&ready).is_ok_and(|text| text == format!("ready:{pid}\n")) {
+                break;
             }
             if start.elapsed() > WAIT {
-                service.shutdown().unwrap();
-                panic!("child never became ready");
+                panic!("{mode}: child {pid} never became ready");
             }
             std::thread::yield_now();
-        };
+        }
         let active = service.snapshot().unwrap();
         assert_eq!(active.active_workers, 1);
         assert!(active.reserved_working_bytes.0 > 0);
@@ -385,6 +398,49 @@ fn real_jpeg_process_is_reaped_before_cancel_timeout_and_shutdown_release_the_bu
         }
         if mode == "shutdown" {
             service.shutdown().unwrap();
+        }
+        let exited = if mode == "shutdown" {
+            // shutdown已返回，退出证据必须已经存在，不能等候迟到回收。
+            observed.try_recv().unwrap_or_else(|error| {
+                panic!("{mode}: child {pid} missing exit before shutdown: {error}")
+            })
+        } else {
+            observed
+                .recv_timeout(WAIT)
+                .unwrap_or_else(|error| panic!("{mode}: child {pid} did not reap: {error}"))
+        };
+        let crate::jpeg::ProcessEvent::Reaped {
+            pid: reaped_pid,
+            status,
+            resume,
+        } = exited
+        else {
+            panic!("{mode}: unexpected event after child {pid} started");
+        };
+        assert_eq!(
+            reaped_pid, pid,
+            "{mode}: exit must belong to the original child"
+        );
+        assert!(
+            status.is_ok(),
+            "{mode}: child {pid} wait failed: {status:?}"
+        );
+        if let Some(resume) = resume {
+            // 原生wait已完成，但目录尚未清理：worker和预算必须继续保留。
+            let held = service.snapshot().unwrap();
+            assert_eq!(held.active_workers, 1, "{mode}");
+            assert!(held.reserved_working_bytes.0 > 0, "{mode}");
+            assert!(
+                workspace.exists(),
+                "{mode}: cleanup must follow the reap gate"
+            );
+            assert!(matches!(
+                service.wait(id, Duration::ZERO),
+                Err(BatchError::TimedOut)
+            ));
+            resume.send(()).unwrap();
+        } else {
+            assert_eq!(mode, "shutdown");
         }
         let done = service.wait(id, WAIT).unwrap();
         if mode == "timeout" {
@@ -395,12 +451,13 @@ fn real_jpeg_process_is_reaped_before_cancel_timeout_and_shutdown_release_the_bu
             assert!(matches!(&done.jobs[0].state, JobState::Cancelled));
         }
         assert_eq!((done.active_workers, done.reserved_working_bytes.0), (0, 0));
-        let pid = sysinfo::Pid::from_u32(pid);
-        let mut system = sysinfo::System::new();
-        system.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), true);
         assert!(
-            system.process(pid).is_none(),
-            "terminal row must not retain its child process"
+            !workspace.exists(),
+            "{mode}: terminal row must have cleaned its workspace"
+        );
+        assert!(
+            observed.try_recv().is_err(),
+            "{mode}: duplicate process event"
         );
         service.shutdown().unwrap();
     }

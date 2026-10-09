@@ -1,7 +1,7 @@
 # JPEG可信随包引擎与隔离运行（J2第一段）
 
 - 创建日期：2026-10-09（Asia/Shanghai）。
-- 状态：代码实现、本机自动回归、正式MSI与包内资源隔离验证完成；待真实Windows安装/GUI启动/卸载及新代码三平台验收，保持活动。桌面JPEG工作流属于J2第二段。
+- 状态：本机实现/回归/MSI完成。针对3e5e532的Windows回收断言，本机已改用实际Child退出证据并增加清理门闩，20轮并行及统一检查通过；修正尚未提交，待新SHA平台验证。用户选择手动安装/GUI启动/卸载，结果待反馈，保持活动。
 - 分支/基准：dev/7863652，业务基准681f050；本轮实现已提交6fc7198并推送origin/dev（7863652..6fc7198），开工前的索引、阶段计划、J1b平台进展三份文档随同入库。
 - 关联：[阶段计划](../260930/next-development-plan.md)、[J1b混合核心](../../_fin/261009/jpeg-mixed-batch.md)。
 
@@ -43,7 +43,7 @@
 ## 剩余验收与下一入口
 
 1. 在无Node/Rust/CMake/Visual Studio的Windows隔离系统或由用户执行真实安装/启动/卸载；用当前MSI，记录WebView2准备、打开空工作台、纯PNG样本处理和正常退出。在诊断日志确认jpeg_engine_verified；资源异常的降级另用隔离副本核验，避免改动现用安装。当前未操作用户GUI，没有取得此项证据。
-2. 新代码的三平台构建/部署验证待用户明确授权提交推送后按新SHA核对；7863652全绿只完成J1b，不能覆盖本轮。macOS/Ubuntu实际安装、签名后工具身份及公开发行源码资料各自验收。
+2. 代码已随6fc7198/3e5e532推送；当前SHA的Windows检查失败，须先修复并按后续实际SHA复验。7863652全绿只完成J1b，不能覆盖本轮。macOS/Ubuntu实际安装、签名后工具身份及公开发行源码资料各自验收。
 3. J2第二段从应用共享引擎注入、实际能力及协议/生成DTO演进开始，再接混合导入/重试/报告、方向缩略图与原生闭环；当前产品仍只开放PNG/v9，不把helper随包写成JPEG工作台完成。
 4. 本轮变更含共享构建/暂存脚本、构建期身份和加载模块/回归、无GUI部署入口、Tauri资源/钩子及CI、文档与J1b归档；未修改参考仓库或用户图片。改动已提交6fc7198并推送origin/dev，见下节。
 
@@ -58,3 +58,37 @@
 - 用户要求根据工作区内容编写提交信息、提交并推送，无需执行其它任务。复核范围：28份文件（含J1b记录从_plan迁至_fin、新增jpeg-desktop-bundle计划与resources说明、build-support/jpeg.rs、jpeg_bundle加载模块、bundle-check程序与两个Node脚本、共享build.mjs；其余为钩子/资源映射/CI/依赖与文档），无未暂存改动与未跟踪残留（生成的runtime资源按设计由.gitignore排除），git diff --check通过。
 - 提交6fc7198「feat: 接入JPEG可信随包helper与无开发环境部署验收」（28 files changed、975 insertions、173 deletions）。沙箱内.git只读，add/commit/push按规则提升同一条命令执行，未绕开沙箱约束；7863652..6fc7198  dev -> dev已同步origin/dev，本地与远端一致。
 - 沿用本轮已完成验证（pnpm check：155项前端、43项核心单元与完整集成回归、110项桌面、2项doctest、34份语料与类型一致性；静态CRT的jpeg:lab:check 21项与jpeg:core:check无损20项/有损92组合67输出/混合入口；11:55:25 EXE与11:55:21 MSI及包内资源隔离验收）；本次未改业务代码，不重复构建或测试。真实Windows安装/启动/卸载与三平台结果仍待验收，不把本机与历史CI结果写成新代码通过。
+
+## 2026-10-09 推送后复核：Windows生命周期回归待修
+
+- 用户询问下一步任务。本机HEAD与GitHub branch查询均为3e5e532bbfbe1ff1e74770e2718b15b6bdb80851，包含业务6fc7198，开工工作区干净；上一轮回复中的未提交状态已过时。仅只读核对，无fetch或CI重跑。
+- [CI run37891299251](https://github.com/cct124/pixofold/actions/runs/37891299251)于2026-10-09 14:00:26（Asia/Shanghai）触发。14:10查询：JPEG三平台jobs全部success；macOS应用job113692715450于14:09:32完成success（含随包部署验证）；Ubuntu job113692715442检查/构建success，部署验证进行中；Windows job113692715403于14:09:28完成failure。
+- Windows完整job日志确认：pnpm check进入核心单元测试后42 passed、1 failed；失败为batch::mixed_tests::real_jpeg_process_is_reaped_before_cancel_timeout_and_shutdown_release_the_budget，在[混合回归](../../../../crates/pixofold-core/src/batch/mixed_tests.rs)第401行断言terminal row must not retain its child process。后续桌面构建和随包部署验证均skipped。
+- 源码复核：用例循环cancel/timeout/shutdown，在任务终态及worker/预约归零之后，新建sysinfo::System按夹具PID枚举并要求不存在。失败日志未区分循环分支或PID身份。生产[进程所有者](../../../../crates/pixofold-core/src/jpeg/process.rs)已有kill/wait、I/O join与目录清理路径；仅凭当前日志不能认定生产进程泄漏，也不能直接认定测试偶发误判。
+- 下一修复需辨别同一子进程是否真正退出、PID是否仍指向原进程，以及状态观测与回收的时序；用确定性证据修正生产路径或测试观察方式，保留全部生命周期保证，不能通过删断言、固定延迟或反复重跑规避。具体任务与J2第二段排序见[阶段计划末节](../260930/next-development-plan.md)。
+- 本次未运行新的本机测试/构建或操作GUI，仅更新索引、阶段计划及本连续记录，未提交推送；平台修复和安装验收完成前不归档本任务。
+- 交接前最终核对：Ubuntu job113692715442于14:11:31完成success，六个jobs最终五项success、一项Windows Check failure；Ubuntu/macOS包含新增的随包部署入口。Windows失败范围保持上述结论。
+
+## 2026-10-09 授权实施P0生命周期修复
+
+- 用户同意按P0→安装验收→J2第二段的顺序实施。开工dev/3e5e532，保留前轮三份未提交计划/索引改动。先诊断已定位的sysinfo进程可见性断言，不能预设生产泄漏或直接放宽测试。
+- 生产OwnedChild已有wait及Drop兜底；测试在子进程写出PID后取消/关闭，终态后重新按PID枚举。开始核对锁定sysinfo的Windows实现、夹具握手与真实进程退出证据，再做定向并行复现。
+- 当前宿主没有WindowsSandbox.exe；实际无开发工具Windows安装验收仍需可用隔离系统或用户手测，不把宿主临时目录当作全新系统。
+
+### 诊断证据与观测修正
+
+- 临时增加mode/PID/ready内容和观察到的进程身份诊断，按16线程运行核心43项回归，首轮及额外20轮均通过，没有本机重现CI那一次失败。另用已wait确认退出、保留额外进程句柄的Windows实验，快照仍不可见，未支持“保留句柄必然使快照可见”的假设。实验日志target/p0-process-diagnose-261009.log、target/p0-retained-handle-261009.log，临时诊断用例已移除。
+- 已核对锁定sysinfo 0.35.1的Windows后端：旧断言重新枚举Toolhelp快照并按数字PID查找，不能绑定最初Child的身份/原生退出结果。现有证据不足以确定原CI失败具体属于PID复用、夹具ready读取时序或其它观察竞争；不将推测写成生产泄漏根因。
+- 将回归改为直接观察生产OwnedChild的spawn身份与原生wait结果，观察器和消息全部受cfg(test)控制、按当前worker线程隔离，panic恢复原观察者。生产仍按原顺序kill/wait、join及目录清理，没有增加unsafe或运行依赖。
+- 子进程ready改为完整ready:PID换行帧，主测试用实际Child报告的PID精确匹配；不再将部分文件内容解析为另一个合法PID。所有失败信息带cancel/timeout/shutdown分支和原进程身份。
+- 取消/超时用可控门闩暂停在wait完成后、临时目录清理前，直接断言worker=1、预算仍占用、目录仍存在，零等待查询必须TimedOut；放行后才要求终态、预算归零和目录消失。shutdown返回后用try_recv要求退出证据已经存在，不能等待迟到回收。接收者/门闩许可在service之前析构，断言失败也能收尾。
+- 修改后定向核心回归通过；20轮16线程核心回归全部通过（每轮43项，含三种真实子进程结束路径），日志target/p0-process-fixed-261009.log、target/p0-process-stress-261009.log。随后开始pnpm check统一检查；结果续记下节。
+- 用户已明确选择自行使用现成MSI完成安装、启动、卸载手测；安装包链接已交付，结果尚待用户反馈。不会自动操作用户桌面或把当前宿主视为无开发环境。
+
+### P0本机最终验证与后续门槛
+
+- pnpm check成功：155前端、43核心单元、完整Rust集成回归、110桌面、2 doctest，34语料与生成类型一致；全目标/全特性Clippy通过。日志target/p0-lifecycle-check-261009.log。修改后的20轮16线程核心回归均为43 passed、0 failed；没有通过延时、跳过或减少生命周期断言规避问题。
+- 改动集中在mixed_tests、jpeg/mod测试入口及jpeg/process的cfg(test)观察器/受控夹具；生产回收调用顺序和引擎/协议保持原逻辑。未新增运行依赖、unsafe或格式能力，Cargo.lock、pnpm-lock.yaml及生成TS无diff；本次无需重复未受影响的helper/MSI构建，用户手测沿用已标识的现有安装包。
+- 当前仍为dev/3e5e532，6份源码/开发记录改动在工作区。AGENTS.md要求明确授权才提交推送；新SHA CI未执行，不能把本机通过写成远端基线恢复。P2桌面混合工作流按计划在基线验收后继续，用户的P1手测结果独立接收。
+- 已复核源码/文档diff，git diff --check通过，三份文档77个本地链接有效且无NUL。已展示工作区审阅入口，并向用户请求本次提交推送的明确授权；收到授权前不执行Git写入或远端动作。
+- 用户随后明确授权“提交并推送，继续核对CI”，本轮按6份已审阅文件提交并同步origin/dev；实际提交号与推送结果在执行后补记，后续只读核对对应新SHA。

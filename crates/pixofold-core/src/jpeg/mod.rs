@@ -9,6 +9,8 @@ mod quality;
 pub use engine::JpegEngine;
 pub(crate) use format::probe_header;
 #[cfg(test)]
+pub(crate) use process::{ProcessEvent, ProcessObserver};
+#[cfg(test)]
 pub(crate) fn run_process_for_test(
     command: &mut std::process::Command,
     input: &[u8],
@@ -16,8 +18,11 @@ pub(crate) fn run_process_for_test(
     keep: bool,
     timeout: Duration,
     cancel: &CancellationToken,
+    observer: ProcessObserver,
 ) -> Result<(), JpegError> {
-    process::run(command, input, limit, keep, timeout, cancel).map(|_| ())
+    process::observe::with(observer, || {
+        process::run(command, input, limit, keep, timeout, cancel).map(|_| ())
+    })
 }
 pub use quality::{JpegLossyFallbackReason, JpegMode, JpegProcessing, JpegQualityMapping};
 
