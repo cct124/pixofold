@@ -1,9 +1,10 @@
 # JPEG 受控单文件无损核心（J1a）
 
 - 创建日期：2026-09-30（Asia/Shanghai）。
-- 状态：J1a已随ff0a837入库；2026-10-08取得a2031e7三平台JPEG真实核心通过的结果。当前Windows应用失败另由A0定位修复；本轮新增J1b第一段保守有损，详见关联新任务，批次/桌面仍未开放JPEG。
+- 归档日期：2026-10-09（Asia/Shanghai）。
+- 状态：完成。J1a单文件无损已由a2031e7及当前c287f4e三平台真实核心回归验证；当前三平台应用检查/构建也通过，关联A0基线收口。JPEG混合批次/桌面属于后续阶段。
 - 分支与代码基准：dev/7925c48；本轮在保留前轮计划、索引、A0记录及J0归档/链接变更的基础上完成实现，已提交ff0a837（见末节）。
-- 关联：[阶段计划](next-development-plan.md)、[Windows基线](png-native-name-portability.md)、[已完成J0](../../_fin/260930/jpeg-engine-lab.md)。
+- 关联：[阶段计划](../../_plan/260930/next-development-plan.md)、[Windows基线](png-native-name-portability.md)、[已完成J0](../260930/jpeg-engine-lab.md)。
 
 ## 目标与验收
 
@@ -52,13 +53,18 @@
 - 用户要求根据工作区内容编写提交信息、提交并推送，无需执行其它任务。复核范围：26份文件（含J0记录从_plan迁至_fin、新增jpeg-lossless-core计划、core/src/jpeg四份、native/jpeg两份、core-check脚本与示例入口；另有.gitattributes/CI/依赖脚本/README/第三方说明与共享输出最小适配），无未暂存改动与未跟踪残留，git diff --check通过。
 - 提交ff0a837「feat: 实现受控JPEG单文件无损核心并修复Windows检出格式」（26 files changed、2018 insertions、28 deletions；含jpeg-engine-lab.md从_plan到_fin的重命名）。沙箱内.git只读，add/commit/push按规则提升同一条命令执行，未绕开沙箱约束；7925c48..ff0a837  dev -> dev已同步origin/dev，本地与远端一致。
 - 沿用本轮已完成验证（pnpm check：155项前端、Rust全套含105项桌面与2项doctest、34份语料与生成类型一致性；jpeg:core:check 20项语料/14项有收益与helper哈希`4f7848d38e4b1ed03f8d77656c28ef81b84cc5e3afd08f0586597f2f7e331cb9`、jpeg:lab:check 21项无损及锚点、17:45:54正式无安装包构建）；本次未改业务代码，不重复构建或测试。推送按push触发CI，三平台Check/桌面构建与JPEG job的新结果须以最终HEAD取得，不把本次推送写成已通过。
-## 下一步与未完成项
+## 2026-10-08 交接时的后续事项
 
 1. a2031e7三平台JPEG核心已通过；应用Windows日志测试故障已在A0本机修复并随365e520推送，待以新SHA三平台结果验收，不将本机修复写成远端通过。
-2. [J1b第一段](../261008/jpeg-lossy-core.md)已实现单文件保守有损；继续第二段必要的PNG/JPEG共用模型、探测/实际预算与单池预约，不放宽复杂Exif/签名保护。
+2. [J1b第一段](jpeg-lossy-core.md)已实现单文件保守有损；继续第二段必要的PNG/JPEG共用模型、探测/实际预算与单池预约，不放宽复杂Exif/签名保护。
 3. J2：能力声明、协议/生成类型、过滤/导入/重试、混合批次、方向缩略图、工具随包和Windows原生运行，再做安装小试验。当前无新JPEG界面可供手测；既有PNG用户手测与A1收尾继续独立跟踪。
 
 ## 2026-10-08 平台复核与有损阶段关联
 
 - 当前HEAD a2031e7 的CI run36699374325中，三平台JPEG引擎实验及真实无损核心均通过，macOS/Ubuntu应用检查/构建通过；Windows应用日志测试失败，实际原因与本机修复见[A0](png-native-name-portability.md)。
-- 新增有损共用helper后，原有20项正常语料/14项有收益、APP11拒绝及可靠输出/故障回归再次通过；本轮实际验证维护在[J1b记录](../261008/jpeg-lossy-core.md)。保留无损独立验证，不把本轮92个有损/回退组合计为新三平台结果。
+- 新增有损共用helper后，原有20项正常语料/14项有收益、APP11拒绝及可靠输出/故障回归再次通过；本轮实际验证维护在[J1b记录](jpeg-lossy-core.md)。保留无损独立验证，不把本轮92个有损/回退组合计为新三平台结果。
+
+## 2026-10-09 平台收口与归档
+
+- 当前c287f4e的[CI run37761724641](https://github.com/cct124/pixofold/actions/runs/37761724641)六个jobs全部success，JPEG核心步骤继续完整执行J1a及J1b第一段回归；Windows应用修复同一SHA通过，关联基线门槛已满足。
+- J1a单文件核心目标完成，本日归档至_fin/261009，保留原创建日期和历史过程。共用批次模型、全局预算、工具随包与桌面/安装验收转入[阶段计划](../../_plan/260930/next-development-plan.md)，不算作J1a已完成范围。本日仅更新交接，没有重新构建或运行JPEG。

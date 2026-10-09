@@ -173,28 +173,54 @@ wire_enum!(
     pixofold_core::import::ScanLimit,
     [Entries, Files, Depth, ReadBytes]
 );
-wire_enum!(
-    JobErrorDto,
-    pixofold_core::batch::JobErrorCode,
-    [
-        InvalidInput,
-        UnsupportedFormat,
-        UnsupportedAnimation,
-        UnsupportedContentCredentials,
-        UnsupportedMetadata,
-        ResourceLimit,
-        Decode,
-        Encode,
-        Validation,
-        TargetConflict,
-        SourceChanged,
-        Io,
-        CommitFailed,
-        CleanupFailed,
-        WorkerPanicked,
-        ServiceFault,
-    ]
-);
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) enum JobErrorDto {
+    InvalidInput,
+    UnsupportedFormat,
+    UnsupportedAnimation,
+    UnsupportedContentCredentials,
+    UnsupportedMetadata,
+    ResourceLimit,
+    Decode,
+    Encode,
+    Validation,
+    TargetConflict,
+    SourceChanged,
+    Io,
+    CommitFailed,
+    CleanupFailed,
+    WorkerPanicked,
+    ServiceFault,
+}
+impl TryFrom<pixofold_core::batch::JobErrorCode> for JobErrorDto {
+    type Error = QueryError;
+    fn try_from(value: pixofold_core::batch::JobErrorCode) -> Result<Self, Self::Error> {
+        use pixofold_core::batch::JobErrorCode as C;
+        Ok(match value {
+            C::InvalidInput => Self::InvalidInput,
+            C::UnsupportedFormat => Self::UnsupportedFormat,
+            C::UnsupportedAnimation => Self::UnsupportedAnimation,
+            C::UnsupportedContentCredentials => Self::UnsupportedContentCredentials,
+            C::UnsupportedMetadata => Self::UnsupportedMetadata,
+            C::ResourceLimit => Self::ResourceLimit,
+            C::Decode => Self::Decode,
+            C::Encode => Self::Encode,
+            C::Validation => Self::Validation,
+            C::TargetConflict => Self::TargetConflict,
+            C::SourceChanged => Self::SourceChanged,
+            C::Io => Self::Io,
+            C::CommitFailed => Self::CommitFailed,
+            C::CleanupFailed => Self::CleanupFailed,
+            C::WorkerPanicked => Self::WorkerPanicked,
+            C::ServiceFault => Self::ServiceFault,
+            C::ToolIdentity | C::ToolIo | C::ToolExit | C::TimedOut => {
+                return Err(QueryError::InvalidSnapshot);
+            }
+        })
+    }
+}
 wire_enum!(
     UnsupportedFormatDto,
     pixofold_core::import::UnsupportedFormat,

@@ -561,7 +561,7 @@ fn import_and_start_honor_backup_policy_and_retry_keeps_it() {
             let JobState::Succeeded(report) = &first.jobs[0].state else {
                 panic!("RGB应成功");
             };
-            let ProcessingOutcome::Optimized { backup, .. } = &report.outcome else {
+            let ProcessingOutcome::Optimized { backup, .. } = report.outcome() else {
                 panic!("应有压缩收益");
             };
             if output == "overwrite" {
@@ -597,7 +597,7 @@ fn import_and_start_honor_backup_policy_and_retry_keeps_it() {
             let JobState::Succeeded(report) = &retried.jobs[1].state else {
                 panic!("修复后应成功");
             };
-            let ProcessingOutcome::Optimized { backup, .. } = &report.outcome else {
+            let ProcessingOutcome::Optimized { backup, .. } = report.outcome() else {
                 panic!("应有压缩收益");
             };
             if output == "overwrite" {
@@ -646,7 +646,7 @@ fn mutation_retry_preserves_success_backups_and_checks_batch_revision_and_row_se
     let ProcessingOutcome::Optimized {
         backup: Some(backup),
         ..
-    } = &report.outcome
+    } = report.outcome()
     else {
         panic!("overwrite must preserve backup")
     };
@@ -851,8 +851,8 @@ fn credentials_confirmation_is_explicit_versioned_and_keeps_complete_backups() {
         let JobState::Succeeded(report) = &row.state else {
             panic!("{:?}", row.state);
         };
-        assert!(report.content_credentials_removed);
-        let ProcessingOutcome::Optimized { backup, .. } = &report.outcome else {
+        assert!(report.credentials_removed());
+        let ProcessingOutcome::Optimized { backup, .. } = report.outcome() else {
             panic!("expected gain");
         };
         if output == "overwrite_with_backup" {

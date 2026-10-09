@@ -41,7 +41,7 @@ fn target(job: &JobSnapshot) -> Result<DirectoryTarget, AssetError> {
     let JobState::Succeeded(report) = &job.state else {
         return Err(AssetError::Unavailable);
     };
-    let ProcessingOutcome::Optimized { output, .. } = &report.outcome else {
+    let ProcessingOutcome::Optimized { output, .. } = report.outcome() else {
         return Err(AssetError::Unavailable);
     };
     let (path, authority) = match &job.request.output {

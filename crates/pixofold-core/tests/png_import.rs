@@ -624,7 +624,7 @@ fn scan_to_batch_keeps_real_results_and_does_not_treat_header_check_as_decode() 
     let ProcessingOutcome::Optimized {
         backup: Some(backup),
         ..
-    } = &report.outcome
+    } = report.outcome()
     else {
         panic!("覆盖必须有备份");
     };

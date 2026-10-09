@@ -158,7 +158,7 @@ fn parallel_sources_with_the_same_stem_keep_distinct_backups() {
         let ProcessingOutcome::Optimized {
             backup: Some(backup),
             ..
-        } = &report.outcome
+        } = report.outcome()
         else {
             panic!("应备份");
         };

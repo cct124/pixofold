@@ -236,7 +236,7 @@ mod tests {
             return;
         };
         if let Some(ready) = std::env::var_os("PIXOFOLD_PROCESS_READY") {
-            std::fs::write(ready, b"ready").unwrap();
+            std::fs::write(ready, std::process::id().to_string()).unwrap();
         }
         match mode.as_str() {
             "exit" => std::process::exit(7),

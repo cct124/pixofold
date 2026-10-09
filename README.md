@@ -75,7 +75,7 @@ pnpm desktop:dev
 | `pnpm fixtures:check` | 只读重生成并核对 PNG 语料与 SHA256 清单 |
 | `pnpm jpeg:lab:build` | 下载并校验固定 MozJPEG 源码，独立构建开发实验工具；需要 CMake 和 C 编译器 |
 | `pnpm jpeg:lab:check` | 用自生成语料检查 JPEG 系数无损、有损重编码、元数据和错误/资源边界 |
-| `pnpm jpeg:core:check` | 运行 JPEG 单文件无损/保守有损、独立解码比对和安全输出回归；须先构建固定工具 |
+| `pnpm jpeg:core:check` | 运行 JPEG 无损/保守有损及真实 PNG/JPEG 混合批次、独立解码比对和安全输出回归；须先构建固定工具 |
 | `cargo run -p pixofold-core --release --locked --example png_baseline` | 在隔离目录测量静态 PNG 体积与耗时基线 |
 | `cargo run -p pixofold-core --release --locked --example png_quality_baseline` | q 锚点、实际回退、库评分及黑白背景误差基线 |
 | `cargo run -p pixofold-core --release --locked --example batch_profile -- SOURCE WORKERS COPIES [--confirm-credentials]` | 临时副本上测量整图并发；有损68，采样RSS/活动数；可显式移除测试副本凭据 |
@@ -84,7 +84,7 @@ Windows 可执行文件位于 `target/release/pixofold.exe`，安装包位于 `t
 
 JPEG 开发实验的版本、构建参数和限制见 [实验入口说明](tools/jpeg-lab/README.md)，实际结果与后续接入门槛见 [JPEG实验记录](docs/devlog/_fin/260930/jpeg-engine-lab.md)。实验工具留在 `.tools/`，语料与报告留在独立的 `target/jpeg-lab-*/`；当前产品仍只开放静态 PNG。CI 的三平台实验配置须以实际运行结果验收。
 
-独立的 `pixofold_core::jpeg` 已提供单文件无损与保守有损入口，受控字节 helper 复用可靠输出层，**尚未开放桌面 JPEG**。模式/质量映射、元数据保护/回退、资源边界、工具信任及备份扩展名契约见 [JPEG 核心说明](native/jpeg/README.md)。不提供JPEG凭据移除；批次共用模型/总预算与工具随包仍待后续接入。应用统一检查不自动下载/构建JPEG工具，真实核心回归由上述显式命令和三平台JPEG job执行，实际平台结果见[开发日志](docs/devlog/README.md)。
+独立的 `pixofold_core::jpeg` 已提供无损与保守有损入口，受控字节helper复用可靠输出层；纯Rust批次现已支持PNG/JPEG共用模型、worker与工作集预约，**尚未开放桌面JPEG**。可信宿主用 `BatchService::with_engines` 配合 `scan_with_engines` 注入同一引擎能力，默认服务与扫描仍为PNG-only。模式/质量映射、元数据保护/回退、资源、工具信任及Rust API迁移见[JPEG核心说明](native/jpeg/README.md)。JPEG凭据移除、工具随包与桌面接入继续留待后续。应用统一检查不自动下载/构建JPEG工具，真实核心回归由上述显式命令和三平台JPEG job执行，实际平台结果见[开发日志](docs/devlog/README.md)。
 
 ## 静态 PNG 核心开发入口
 
@@ -112,12 +112,12 @@ cargo run -p pixofold-core --release --locked --example optimize_png -- path/to/
 
 ## 纯 Rust 批量开发入口
 
-`batch::BatchService` 接收 `BatchRequest { items, parameters }`，每项显式提供源路径与 `OutputPolicy`。API 用法及可编译示例见 [服务入口](crates/pixofold-core/src/batch/mod.rs)，真实混合批次及备份回归见 [集成测试](crates/pixofold-core/tests/png_batch.rs)。服务本身不扫描目录、不生成副本文件名、不连接窗口；文件/目录入口由下一节的 `import` 模块提供。核心参数默认无损，产品有损 80 仍由后续适配层显式传入。
+`batch::BatchService` 接收 `BatchRequest { items, parameters, engines }`，每项显式提供源路径、冻结的 `ImageKind` 与 `OutputPolicy`。API用法及可编译示例见[服务入口](crates/pixofold-core/src/batch/mod.rs)，PNG批次/备份见[集成测试](crates/pixofold-core/tests/png_batch.rs)，真实PNG/JPEG混合闭环见[原生验证入口](crates/pixofold-core/examples/jpeg_mixed_check.rs)。服务本身不扫描目录、不生成副本文件名、不连接窗口；文件/目录入口由下一节的import模块提供。核心默认无损，产品有损80由适配层显式传入；默认引擎配置仅PNG，JPEG须注入可信工具，迁移说明见[JPEG核心说明](native/jpeg/README.md)。
 
 | API | 契约 |
 | --- | --- |
-| `new` / `start` | 创建固定线程池；同步只读预检显式文件列表，再后台处理。同一服务只允许一个活动批次，只保留最近批次。调用方应在非 UI 线程执行预检。 |
-| `start_with_cancel` / `retry_with_cancel` | 共享应用取消令牌；准入前取消返回 `BatchError::Cancelled`，不创建新批次/尝试；入队后由核心协作取消，已提交成功不改写。旧 `start`/`retry` 用法不变。 |
+| `new` / `with_engines` / `start` | 创建固定线程池；默认PNG，with_engines可注入已验证JPEG能力。同步只读预检显式文件列表，再后台处理；同一服务只允许一个活动批次，只保留最近批次。调用方应在非UI线程执行预检。 |
+| `start_with_cancel` / `retry_with_cancel` | 共享应用取消令牌；准入前取消返回 `BatchError::Cancelled`，不创建新批次/尝试；入队后由核心协作取消，已提交成功不改写。start/retry仍自行创建取消令牌。 |
 | `snapshot` / `wait` | Rust 权威快照含批次 ID、稳定行 ID、attempt、revision、真实阶段/结果/汇总。`wait` 超时不代表计算停止。 |
 | `cancel` | 未开始项立即取消；运行项显示取消中，实际返回/清理后才释放槽位；已提交成功不改写为取消。 |
 | `retry` | 批次结束后，只重试显式选择的失败/取消行，固定新的设置和目标；成功/无收益行保留参数、结果和备份信息。 |
@@ -126,8 +126,8 @@ cargo run -p pixofold-core --release --locked --example optimize_png -- path/to/
 
 - 核心显式配置默认1 worker/1000行/4 GiB；worker有效域1–32。**正式桌面按系统资源自动配置线程池**：启动时读取可用CPU并行度及RAM，预算取可用RAM的一半、总RAM的四分之一、4 GiB中的最小值；池大小同时受CPU、32上限和每槽128 MiB基础预算限制。内存查询不可用时保守回退1 worker/256 MiB；低资源设备不强制多线程。此配置不实时追踪其他进程负载，也不是OS硬内存限额。
 - 每张图片作为一个完整任务交空闲worker：读取/解码、受控移除caBX、压缩、验证和输出全在该worker中执行；普通导入、普通重试和凭据确认共用唯一池，凭据确认一次提交所选行，不由前端逐张调用。编码器内部仍关闭并行，避免线程池嵌套。移除只作用于内存工作副本，成功且有收益后才提交；保留备份、文件冲突和源变化检查。
-- 调度前仅依据CRC有效的33字节PNG头与文件大小收紧该图执行上限：像素数与单边按图约束，解码缓冲按RGBA16最坏大小并留1 MiB最低余量，输入/候选上限覆盖源字节+RGBA16大小+1 MiB，均不超过用户原上限。完整pipeline实际采用同一上限，排队后图片变大不能绕过预算；头部不可用时沿用原始上限，不信任损坏尺寸。完整结构、动画和像素仍由原pipeline检查。
-- 工作集按上述**执行上限**计费：`9×max_input_bytes + 8×max_decoded_bytes + 有损时128×max_pixels + 16 MiB`，包含凭据工作副本。单项超过总预算失败，多个任务预算不足时排队，真实返回才释放预约；不是预分配或真实RSS承诺。大图可能仍串行，小图可并行；公共快照仍保留用户设置，不将内部收紧上限写成新的用户参数。
+- PNG任务在调度前依据CRC有效的33字节头与文件大小收紧执行上限：像素数与单边按图约束，解码缓冲按RGBA16最坏大小并留1 MiB最低余量，输入/候选上限覆盖源字节+RGBA16大小+1 MiB，均不超过用户原上限。完整pipeline实际采用同一上限，排队后图片变大不能绕过预算；头部不可用时沿用原始上限。JPEG最多读取2MiB标记前缀，按MCU对齐系数、元数据及像素工作区收紧执行上限；非法原配置先拒绝，不能被头探测钳制成有效参数。完整结构和像素仍由对应pipeline检查。
+- 工作集按上述**执行上限**计费：PNG为 `9×max_input_bytes + 8×max_decoded_bytes + 有损时128×max_pixels + 16 MiB`，包含凭据工作副本；JPEG为 `8×max_input_bytes + 2×max_decoded_bytes + 32 MiB`，覆盖父进程缓冲、原生工作集、管道和固定进程开销。单项超过总预算失败，多个任务预算不足时排队，真实返回且回收后才释放预约；不是预分配或RSS承诺。大图可能仍串行，小图可并行；公共快照保留用户设置。
 - 重复源/硬链接仍整批准入拒绝；单项坏文件、目标已存在、超预算及副本输出冲突只标记该行失败，其余项继续。同批同目标的全部副本、计划文件兼作另一输出父目录的相关副本均失败，不让线程先后决定胜者；副本指向其他输入时仅副本失败，不连带阻止合法覆盖行。预检关闭全部身份句柄后才编码，最终文件仍仅由 output 层复查和无覆盖提交。Windows 比较键保守折叠大小写，可能过度拒绝；其他平台不存在的目标别名可能直到最终提交才冲突，不承诺跨文件系统预检完全一致或抵御外部路径竞争。
 - 单项执行异常转为失败并释放预算；`WorkerPanicked` 的文件结果未知，需先检查源/目标/备份。锁故障停止接纳但仍可读快照；`CleanupFailed` 保留原始错误和残留路径，不伪装成成功取消。
 - 汇总仅成功项计节省量，其余保留源大小；未知大小/溢出返回 `None`。阶段与数量不是耗时百分比。批量模型保留 `PathBuf`、`Duration` 和错误上下文，**不是 IPC DTO**，TS 生成文件本阶段不变。
@@ -140,7 +140,7 @@ P1 新增的 19 项批量回归及 1 项编译型 doctest 在本轮 Windows 检�
 
 - 文件与目录列表共用入口，目录内排序、根列表按传入顺序；重叠目录和已接受候选的硬链接去重，以首次归属决定输出布局。不跟随叶节点或枚举节点的符号链接/Windows reparse；显式祖先别名仍沿用规范化边界，不是文件系统沙箱。
 - 显式根硬上限为 1000，且不得超过条目限制；默认 1000 个候选、10000 个发现条目、32 层目录及累计读取 1 GiB，单文件沿用 64 MiB 等资源限制。候选数可设 1–100000、条目数 1–1000000、深度 0–256（0 允许根目录直接文件），累计读取预算须非零。条目与每 64 KiB 读取边界检查取消；一次只保留一张图片的压缩数据，不展开像素。句柄数量有界但仍可能受系统限制，OS 调用和单次 CRC 不能硬中断。
-- 按内容识别静态 PNG，检查 chunk/CRC、头部资源上限并拒绝 APNG；JPEG/GIF/WebP 等明确反馈未支持。扫描候选不是完整解码成功的保证，坏像素数据仍可能在流水线失败；逐项错误不阻断其他条目。
+- 默认scan按内容识别静态PNG，检查chunk/CRC、头部资源上限并拒绝APNG；JPEG/GIF/WebP明确反馈未支持。可信宿主显式使用scan_with_engines时可加入JPEG，保存格式专属头信息，JPEG仍须使用jpg/jpeg扩展名；真实PNG误命名.jpg的契约保持。扫描不启动编码工具，候选不是完整解码成功的保证，坏像素数据仍可能在流水线失败；逐项错误不阻断其他条目。
 - 仅完整扫描且有候选时允许规划。取消或触及全局限制返回可展示的部分结果，**不得自动启动部分批次**；空输入不建立批次。无效参数等整批准入错误保留冻结清单，修正后可重新规划；单文件/目标错误保留全部任务，由start复查并标记该行失败。冻结的是路径与归属，不锁定文件内容，实际处理仍重新校验。
 - `Overwrite` 保持覆盖备份契约；`CopyTo` 支持指定目录的扁平或 `PreserveRoots` 布局。副本保留完整原文件名（包含大小写和扩展名、原始OS字符），不增加后缀、不自动编号或覆盖。保留结构时为 `目标/导入根名/相对父目录/原文件名`，单独文件直接放目标根；无名称的文件系统根用 `_root`。不同根同名允许合并布局，仅实际冲突的文件失败。`CopyBeside` 同目录同名会与原图冲突并逐项失败，应另选目录，不能回退成覆盖。识别仍看文件内容，不是扩展名转换功能。
 - 选定目标根必须已存在；`OutputPolicy::CopyTree { root, relative }` 只接受普通相对组件，规划不创建目录。只有 output 暂存阶段创建必要子目录，最终仍执行 noclobber；取消/失败/无收益可能保留空结构目录，避免并发任务误删共有目录。P5增加`OutputDirectory`及`CopyToAuthorized`/`CopyTreeAuthorized`，共享身份句柄并在规划、暂存和提交前复查，目录被替换或删除后拒绝写入；这是路径级检查，不是文件系统CAS。旧`CopyTo`/`CopyTree`/`Copy`契约保留，Rust下游完整匹配需处理新变体；桌面DTO随协议v7更新。

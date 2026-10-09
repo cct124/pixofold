@@ -248,6 +248,59 @@ fn parse_frame(
     ))
 }
 
+/// 调度只读取最多2MiB标记前缀，找到首个SOF即停止；只用于收紧执行上限。
+/// 未知/坏头由调用方保留原预算，完整结构和像素仍由执行层验证。
+pub(crate) fn probe_header(
+    reader: impl std::io::Read,
+    limits: JpegLimits,
+) -> Option<(JpegInfo, u64)> {
+    use std::io::Read;
+    let mut reader = reader.take(2 * 1024 * 1024);
+    let mut soi = [0u8; 2];
+    reader.read_exact(&mut soi).ok()?;
+    if soi != [0xff, 0xd8] {
+        return None;
+    }
+    for _ in 0..4096 {
+        let mut byte = [0u8; 1];
+        reader.read_exact(&mut byte).ok()?;
+        if byte[0] != 0xff {
+            return None;
+        }
+        loop {
+            reader.read_exact(&mut byte).ok()?;
+            if byte[0] != 0xff {
+                break;
+            }
+        }
+        let marker = byte[0];
+        if marker == 0xda || marker == 0xd9 {
+            return None;
+        }
+        let mut length = [0u8; 2];
+        reader.read_exact(&mut length).ok()?;
+        let length = usize::from(u16::from_be_bytes(length)).checked_sub(2)?;
+        if marker == 0xc0 || marker == 0xc2 {
+            let mut payload = [0u8; 18];
+            let payload = payload.get_mut(..length)?;
+            reader.read_exact(payload).ok()?;
+            let (info, _, working) = parse_frame(payload, marker == 0xc2, limits).ok()?;
+            let pixels = u64::from(info.width) * u64::from(info.height);
+            // 元数据上限两份，加上最坏有损像素工作区；同时覆盖无损回退。
+            let required = working + 2 * 1024 * 1024 + pixels * u64::from(info.components) * 2;
+            return Some((info, required));
+        }
+        let mut left = length;
+        let mut discard = [0u8; 8192];
+        while left > 0 {
+            let n = left.min(discard.len());
+            reader.read_exact(&mut discard[..n]).ok()?;
+            left -= n;
+        }
+    }
+    None
+}
+
 fn check_metadata(marker: u8, data: &[u8], previous: &[(u8, &[u8])]) -> Result<(), JpegError> {
     let known = match marker {
         0xe0 => {
@@ -341,6 +394,15 @@ fn validate_icc(metadata: &[(u8, &[u8])]) -> Result<(), JpegError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn scheduler_probe_caps_even_an_unterminated_marker_prefix() {
+        let mut bytes = vec![0xff; 3 * 1024 * 1024];
+        bytes[1] = 0xd8;
+        let mut reader = std::io::Cursor::new(bytes);
+        assert!(probe_header(&mut reader, JpegLimits::default()).is_none());
+        assert_eq!(reader.position(), 2 * 1024 * 1024);
+    }
     #[test]
     fn arbitrary_truncations_and_markers_are_errors_not_panics() {
         for len in 0..512 {

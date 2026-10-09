@@ -274,7 +274,7 @@ pub(crate) fn resolve(
         return Err(AssetError::StaleTask);
     }
     match (&job.state, target) {
-        (JobState::Succeeded(report), target) => match (&report.outcome, target) {
+        (JobState::Succeeded(report), target) => match (report.outcome(), target) {
             (
                 ProcessingOutcome::Optimized {
                     backup: Some(backup),
@@ -289,7 +289,10 @@ pub(crate) fn resolve(
         },
         (JobState::NoGain(_), None | Some(RevealTarget::Result)) => Ok(job.request.source.clone()),
         (JobState::Failed(failure), Some(RevealTarget::Backup)) => {
-            let mut cause = failure.cause.as_deref();
+            let mut cause = failure
+                .cause
+                .as_deref()
+                .and_then(pixofold_core::batch::ImageError::png);
             while let Some(error) = cause {
                 match error {
                     ProcessingError::CommitFailed { backup, .. } => return Ok(backup.clone()),

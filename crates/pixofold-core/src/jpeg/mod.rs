@@ -1,4 +1,4 @@
-//! JPEG单文件无损/保守有损核心，尚未接入桌面或批次。
+//! JPEG单文件无损/保守有损核心；批次通过受信引擎调用，尚未接入桌面。
 //! 固定可信原生工具只接收字节，输出层独占文件提交；不复用PNG凭据许可。
 
 mod engine;
@@ -7,7 +7,25 @@ mod process;
 mod quality;
 
 pub use engine::JpegEngine;
+pub(crate) use format::probe_header;
+#[cfg(test)]
+pub(crate) fn run_process_for_test(
+    command: &mut std::process::Command,
+    input: &[u8],
+    limit: u64,
+    keep: bool,
+    timeout: Duration,
+    cancel: &CancellationToken,
+) -> Result<(), JpegError> {
+    process::run(command, input, limit, keep, timeout, cancel).map(|_| ())
+}
 pub use quality::{JpegLossyFallbackReason, JpegMode, JpegProcessing, JpegQualityMapping};
+
+/// 只检查压缩结构/元数据与声明的资源，不调用原生工具或解码像素。
+pub(crate) fn inspect_structure(bytes: &[u8], limits: JpegLimits) -> Result<JpegInfo, JpegError> {
+    limits.validate()?;
+    Ok(format::inspect(bytes, limits)?.info)
+}
 
 use crate::{
     model::{
@@ -43,7 +61,7 @@ impl Default for JpegLimits {
 }
 
 impl JpegLimits {
-    fn validate(self) -> Result<(), JpegError> {
+    pub(crate) fn validate(self) -> Result<(), JpegError> {
         self.resources
             .validate()
             .map_err(|_| JpegError::InvalidLimits)?;
@@ -90,7 +108,7 @@ pub struct JpegInfo {
     pub progressive: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct JpegReport {
     pub image: JpegInfo,
     pub processing: JpegProcessing,

@@ -11,6 +11,7 @@
 - 副本保留原始OS文件名（含扩展名/大小写），不添加后缀。同目录同名按行冲突拒绝，不能转为覆盖。同名目录根允许合并布局，已有目标/同批同目标/父子目标/输出与输入交叉只使相关副本失败，其余继续；重复源身份仍整批拒绝。导入、普通重试及caBX确认共用预检和输出层noclobber，全部目标冲突也应进入Finished行结果，不能退回Ready整批拒绝。
 - 当前main为单WebviewWindow，原生拖放经WindowEvent::DragDrop分发，不是子WebView的WebviewEvent；不要双路转发。窗口分发回归与实际OS投递验收分开，未来增加子WebView时重新评估事件来源和区域归属。
 - 桌面启动按CPU/RAM配置唯一固定图片worker池（最多32）；普通压缩和凭据确认整图共用池，编码器内部不嵌套并行。PNG头/文件大小只用于收紧每图执行上限，预约按同一上限计费且pipeline必须实际执行，不能仅信扫描旧尺寸。全局预算不超过可用RAM/2、总RAM/4和4 GiB，未知RAM回退单worker/256 MiB；不是实时负载管理或RSS硬上限。核心手动BatchConfig默认仍为1，不将其误当桌面实际配置。
+- 纯Rust核心已接PNG/JPEG混合批次：可信宿主经ImageEngines注入已校验JPEG工具，scan_with_engines/规划/服务核对共享能力；默认服务及当前桌面仍为PNG-only/v9。行格式冻结，JPEG请求/报告/错误独立，不能复用PNG凭据许可。JPEG最多2MiB头探测仅收紧实际执行上限，预约计入父进程缓冲、原生工作集和32MiB固定余量；取消/超时/关闭先回收子进程/管道/临时目录再释放worker及预算。J2再接工具随包与桌面能力，真实混合回归通过jpeg:core:check执行。
 - 界面以 [HTML 原型](docs/UI界面设计/PixoFold.html)及[原型说明](docs/UI界面设计/HTML原型说明.md)为准，生成的 UI 图片仅作历史参考。旧项目 png-palettes 用于参考，未经任务要求不修改。
 - 实际工具链与命令以 README、`package.json`、`rust-toolchain.toml` 为准；不把规划或未运行的跨平台 CI 写成已验证能力。
 

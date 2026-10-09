@@ -1,8 +1,9 @@
 //! 导入候选、进度和规划契约；不是IPC DTO，路径和完整错误仅保留在Rust。
 
 use crate::{
-    batch::{BatchError, JobFailure},
-    model::{ByteCount, ImageInfo, ResourceLimits},
+    batch::{BatchError, ImageEngines, ImportedImage, JobFailure},
+    jpeg::JpegLimits,
+    model::{ByteCount, ResourceLimits},
 };
 use std::{fmt, path::PathBuf};
 
@@ -16,6 +17,8 @@ pub struct ScanOptions {
     pub max_depth: usize,
     pub max_read_bytes: ByteCount,
     pub probe_limits: ResourceLimits,
+    /// JPEG结构预检的独立上限；仍共用max_read_bytes，扫描不派生工具。
+    pub jpeg_limits: JpegLimits,
     /// 显式选择true才包含PixoFold保留名的临时/备份文件；普通_compressed图片不排除。
     pub include_artifacts: bool,
 }
@@ -31,6 +34,7 @@ impl Default for ScanOptions {
             max_depth: 32,
             max_read_bytes: ByteCount(1024 * 1024 * 1024),
             probe_limits: ResourceLimits::default(),
+            jpeg_limits: JpegLimits::default(),
             include_artifacts: false,
         }
     }
@@ -89,7 +93,7 @@ pub struct ImportIssue {
     pub kind: ImportIssueKind,
 }
 
-/// 结构有效的静态PNG候选。CRC正确但压缩像素损坏的输入仍可能在pipeline解码失败。
+/// 结构有效的PNG/JPEG候选；像素完整性仍由实际流水线验证。
 #[derive(Debug, Clone)]
 pub struct ImportedFile {
     pub source: PathBuf,
@@ -98,7 +102,7 @@ pub struct ImportedFile {
     pub root_is_directory: bool,
     pub relative_path: PathBuf,
     pub input_bytes: ByteCount,
-    pub image: ImageInfo,
+    pub image: ImportedImage,
 }
 
 /// 私有字段保证调用方不能把未完成清单伪装成完整扫描；更换设置不消耗或修改清单。
@@ -107,6 +111,7 @@ pub struct ImportScan {
     pub(super) files: Vec<ImportedFile>,
     pub(super) issues: Vec<ImportIssue>,
     pub(super) progress: ScanProgress,
+    pub(super) engines: ImageEngines,
 }
 impl ImportScan {
     pub fn files(&self) -> &[ImportedFile] {

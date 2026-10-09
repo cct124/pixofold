@@ -405,7 +405,7 @@ fn real_retry_preserves_success_backups_and_rejects_stale_batch_revision() {
     let ProcessingOutcome::Optimized {
         backup: Some(backup),
         ..
-    } = &report.outcome
+    } = report.outcome()
     else {
         panic!("应保留备份")
     };

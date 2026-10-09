@@ -27,6 +27,7 @@ fn source(directory: &Path, name: &str, sample: &str) -> (PathBuf, Vec<u8>) {
 }
 fn item(source: &Path, target: &Path) -> BatchItem {
     BatchItem {
+        format: pixofold_core::batch::ImageKind::Png,
         source: source.to_owned(),
         output: OutputPolicy::Copy {
             destination: target.to_owned(),
@@ -35,6 +36,7 @@ fn item(source: &Path, target: &Path) -> BatchItem {
 }
 fn request(items: Vec<BatchItem>) -> BatchRequest {
     BatchRequest {
+        engines: Default::default(),
         items,
         parameters: BatchParameters::default(),
     }
@@ -53,10 +55,12 @@ fn mixed_batch_backups_belong_only_to_successful_images_not_pending_credentials(
     let id = service
         .start(request(vec![
             BatchItem {
+                format: pixofold_core::batch::ImageKind::Png,
                 source: ordinary.clone(),
                 output: OutputPolicy::Overwrite,
             },
             BatchItem {
+                format: pixofold_core::batch::ImageKind::Png,
                 source: pending.clone(),
                 output: OutputPolicy::Overwrite,
             },
@@ -75,7 +79,7 @@ fn mixed_batch_backups_belong_only_to_successful_images_not_pending_credentials(
     let ProcessingOutcome::Optimized {
         backup: Some(backup),
         ..
-    } = &report.outcome
+    } = report.outcome()
     else {
         panic!("ordinary overwrite should retain its backup");
     };
@@ -108,6 +112,7 @@ fn real_mixed_batch_reports_only_actual_savings_and_keeps_overwrite_backup() {
     let mut request = request(vec![
         item(&rgb, &copy),
         BatchItem {
+            format: pixofold_core::batch::ImageKind::Png,
             source: alpha.clone(),
             output: OutputPolicy::Overwrite,
         },
@@ -157,11 +162,14 @@ fn real_mixed_batch_reports_only_actual_savings_and_keeps_overwrite_backup() {
     let JobState::Succeeded(report) = &snapshot.jobs[1].state else {
         panic!("透明图片应真实量化成功");
     };
-    assert!(matches!(report.processing, PngProcessing::Lossy { .. }));
+    assert!(matches!(
+        report.png().unwrap().processing,
+        PngProcessing::Lossy { .. }
+    ));
     let ProcessingOutcome::Optimized {
         backup: Some(backup),
         ..
-    } = &report.outcome
+    } = report.outcome()
     else {
         panic!("覆盖必须保留备份");
     };
@@ -261,6 +269,7 @@ fn blocked_copy_does_not_reject_a_legitimate_overwrite_of_its_destination() {
         .start(request(vec![
             item(&a, &b),
             BatchItem {
+                format: pixofold_core::batch::ImageKind::Png,
                 source: b.clone(),
                 output: OutputPolicy::OverwriteWithoutBackup,
             },
@@ -364,7 +373,7 @@ fn retry_rechecks_paths_retains_success_and_applies_current_quality_and_target()
         panic!("重试应成功");
     };
     assert!(
-        matches!(report.processing,PngProcessing::Lossy { mapping, .. } if mapping.target == 40)
+        matches!(report.png().unwrap().processing,PngProcessing::Lossy { mapping, .. } if mapping.target == 40)
     );
     assert_eq!(fs::read(&first_output).unwrap(), before);
     assert_eq!(fs::read(conflict).unwrap(), b"unrelated file");
@@ -437,6 +446,7 @@ fn commit_failure_retains_recoverable_backup_in_job_error_and_retry_does_not_rem
     let service = BatchService::new(BatchConfig::default()).unwrap();
     let id = service
         .start(request(vec![BatchItem {
+            format: pixofold_core::batch::ImageKind::Png,
             source: src.clone(),
             output: OutputPolicy::Overwrite,
         }]))
@@ -449,7 +459,7 @@ fn commit_failure_retains_recoverable_backup_in_job_error_and_retry_does_not_rem
     let Some(error) = &failure.cause else {
         panic!("必须保留原始错误");
     };
-    let ProcessingError::CommitFailed { backup, .. } = error.as_ref() else {
+    let Some(ProcessingError::CommitFailed { backup, .. }) = error.png() else {
         panic!("必须提供恢复路径");
     };
     assert_eq!(fs::read(backup).unwrap(), original);

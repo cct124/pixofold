@@ -1,9 +1,10 @@
 # JPEG 单文件保守有损核心（J1b 第一段）
 
 - 创建日期：2026-10-08（Asia/Shanghai）。
-- 状态：本机实现/验收完成并已提交365e520推送origin/dev（a2031e7..365e520）；统一检查、真实JPEG回归及正式构建通过，新SHA三平台待验收。仅J1b第一段，第二段共用模型/总预算和J2尚未实施。
+- 归档日期：2026-10-09（Asia/Shanghai）。
+- 状态：J1b第一段完成。业务365e520及当前HEAD c287f4e已入库；当前SHA三平台应用检查/构建与JPEG真实有损/无损核心jobs均通过。第二段共用模型/总预算和J2尚未实施。
 - 分支/基准：dev/a2031e7；本轮在保留A0诊断测试与连续记录改动的基础上完成实现，已提交365e520（见末节）。
-- 关联：[阶段计划](../260930/next-development-plan.md)、[A0](../260930/png-native-name-portability.md)、[J1a](../260930/jpeg-lossless-core.md)。
+- 关联：[阶段计划](../../_plan/260930/next-development-plan.md)、[A0](png-native-name-portability.md)、[J1a](jpeg-lossless-core.md)。
 
 ## 目标与验收
 
@@ -36,7 +37,7 @@
 - pnpm tauri build --no-bundle --ci成功，日志target/j1b-desktop-build-261008.log。正式EXE位于target/release/pixofold.exe，2026-10-08 17:45:22（Asia/Shanghai），10,633,728 bytes，SHA256 43C13F111C1D7FB62D44AB4A45414AEFE0ED411148D21F502E09E5C090DA6D5B，版本0.1.0。未启动GUI或制作安装包，helper尚未随桌面分发，EXE仍只开放PNG。
 - API/资源/工具/样本许可与平台边界已同步native/jpeg/README.md、根README、实验说明和第三方说明。Rust/TS生成源和协议v9未改变，无新增依赖/锁文件变更，不修改参考仓库或用户图片。最终git diff --check和9份文档98个本地链接/NUL检查通过；实际改动17份已跟踪文件与4份新增文件（JPEG质量模型、真实有损Rust示例/独立脚本及本记录），没有暂存、提交或推送。
 
-## 下一步与未完成项
+## 2026-10-08 交接时的后续事项
 
 1. 本轮改动已提交365e520并推送；等待新SHA三平台应用与JPEG jobs验收，不沿用旧SHA的J1a结果。A0及本记录待此门槛完成后再按实际日期归档。
 2. 下一开发入口为batch/model、batch/resources/planning、import/scan/planning及Runner，推进最小共用模型与实际预算；本核心尚未由桌面图片池调度，不宣称全局资源准入已支持JPEG。
@@ -47,3 +48,10 @@
 - 用户要求根据工作区内容编写提交信息、提交并推送，无需执行其它任务。复核范围：21份文件（JPEG质量模型与核心/helper扩展、有损示例与独立脚本、诊断测试基线修复、CI/README/第三方说明与四份devlog），无未暂存改动与未跟踪残留，git diff --check通过。
 - 提交365e520「feat: 实现JPEG保守有损核心并修复Windows日志测试基线」（21 files changed、1066 insertions、143 deletions）。沙箱内.git只读，add/commit/push按规则提升同一条命令执行，未绕开沙箱约束；a2031e7..365e520  dev -> dev已同步origin/dev，本地与远端一致。
 - 沿用本轮已完成验证（pnpm check：155项前端、36项核心单元与完整Rust套件含106项桌面及2项doctest、34份语料、生成类型一致性与全目标/全特性Clippy；jpeg:core:check无损20项与有损92组合67输出及独立复验、jpeg:lab:check 21项；17:45:22正式无安装包构建）；本次未改业务代码，不重复构建或测试。推送按push触发CI，三平台应用Check/构建与JPEG jobs结果须以最终HEAD取得，不把本次推送写成已通过。
+
+## 2026-10-09 当前SHA三平台验收与阶段归档
+
+- 本日只读核对本地/远端同为c287f4e440b27ef210900b5f0cec0c7d30e9ed47，工作区开工干净；对应[CI run37761724641](https://github.com/cct124/pixofold/actions/runs/37761724641)于2026-10-08 18:25:58（Asia/Shanghai）完成success。
+- Windows/macOS/Ubuntu应用统一检查和正式无安装包构建均success；JPEG job113259883781/113259883334/113259883675的工具构建、引擎实验、真实核心与安全输出均success。核心步骤调用当前core-check，包含原无损和有损Rust入口/独立复验，实际执行未被跳过。
+- 本阶段验收完成，本日归档至_fin/261009。小图/单张上游照片的覆盖边界保持，真实大图/文字素材/观感与桌面原生验收移交后续，不宣称安装、完整摄影质量或全局JPEG资源准入已验证。
+- 下一主要开发是J1b第二段真实PNG/JPEG混合批次核心，详见[本日阶段计划](../../_plan/260930/next-development-plan.md)。本日仅读取远端结果和更新文档，不重跑测试、JPEG实验或构建，不提交推送。

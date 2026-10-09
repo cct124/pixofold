@@ -30,4 +30,6 @@ J0实验已归档，持续证据见[开发日志](../../docs/devlog/_fin/260930/
 
 J1b第一段已新增单文件保守有损。core-check继续使用J1a无损回归，再运行jpeg_lossy_check及lossy-check.mjs：质量0/40/80/100、元数据/颜色回退、备份/副本/NoGain、源和合法候选被替换、冲突、取消与资源限制。独立djpeg/coeffdump验证已提交产物；lossy-report.json记录质量锚点误差/体积。另使用固定源码附带的testimages/testorig.jpg玫瑰照片，校验SHA256并在证据包保留原始README.ijg、LICENSE.md与来源说明。该227×149小照片仅用于最小真实内容观察，不代表完整照片集或色彩管理验收。
 
+J1b第二段增加jpeg_mixed_check：真实PNG/JPEG混合扫描、无损/有损与颜色回退、逐行/全部冲突、重试稳定ID、备份与原始OS名称、目录结构、能力一致性、PNG凭据隔离、扫描上限和关闭回收。混合JPEG产物继续由djpeg/coeffdump/标记检查独立复验，记录mixed-results/checks.json及core-report.json的mixedOutputsVerified。应用统一测试另用可控门闩和真实阻塞子进程验证worker/工作集共享与取消/超时/关闭后的回收顺序；两类证据分别记录，不等同桌面GUI或RSS实测。
+
 正式核心的生命周期、默认保护、严格Exif子集和安全输出边界见[JPEG核心说明](../../native/jpeg/README.md)，剩余单池预算/共用模型与桌面随包属于J1b第二段/J2。产品当前仍只开放静态PNG。

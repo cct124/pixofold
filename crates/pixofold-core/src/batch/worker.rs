@@ -1,7 +1,7 @@
 //! 固定worker取队列项、执行pipeline并交还预算；外部编码和阶段回调不持有状态锁。
 
 use super::*;
-use crate::model::{PngRequest, ProcessingError, ProcessingOutcome, ProcessingStage};
+use crate::model::{ProcessingOutcome, ProcessingStage};
 use std::{
     panic::{AssertUnwindSafe, catch_unwind},
     sync::Arc,
@@ -11,7 +11,7 @@ struct Work {
     batch: BatchId,
     index: usize,
     attempt: u32,
-    request: PngRequest,
+    request: ImageRequest,
     cancel: CancellationToken,
     reservation: u64,
 }
@@ -102,20 +102,20 @@ pub(super) fn run(shared: Arc<Shared>, runner: Arc<dyn Runner>) {
             })
         }));
         let terminal = match result {
-            Ok(Ok(report)) => match report.outcome {
+            Ok(Ok(report)) => match report.outcome() {
                 ProcessingOutcome::Optimized { .. } => JobState::Succeeded(report),
                 ProcessingOutcome::NoGain => JobState::NoGain(report),
             },
-            Ok(Err(ProcessingError::Cancelled)) => JobState::Cancelled,
-            Ok(Err(error)) => JobState::Failed(JobFailure::processing(error)),
+            Ok(Err(error)) if error.cancelled() => JobState::Cancelled,
+            Ok(Err(error)) => JobState::Failed(JobFailure::image(error)),
             Err(_) => JobState::Failed(JobFailure::fault(JobErrorCode::WorkerPanicked)),
         };
         match &terminal {
             JobState::Succeeded(report) | JobState::NoGain(report) => {
                 tracing::info!(target: "pixofold", event = "job_finished",
                     result = if matches!(&terminal, JobState::Succeeded(_)) { "succeeded" } else { "no_gain" },
-                    input_bytes = report.input_bytes.0, output_bytes = report.output_bytes.0,
-                    credentials_removed = report.content_credentials_removed,
+                    input_bytes = report.input_bytes().0, output_bytes = report.output_bytes().0,
+                    credentials_removed = report.credentials_removed(),
                     elapsed_ms = started.elapsed().as_millis() as u64);
             }
             JobState::Failed(error) => tracing::warn!(target: "pixofold", event = "job_finished",
@@ -133,7 +133,7 @@ pub(super) fn run(shared: Arc<Shared>, runner: Arc<dyn Runner>) {
                 && matches!(job.view.state, JobState::Running { .. })
             {
                 if let JobState::Succeeded(report) | JobState::NoGain(report) = &terminal {
-                    job.view.input_bytes = Some(report.input_bytes);
+                    job.view.input_bytes = Some(report.input_bytes());
                 }
                 job.view.state = terminal;
                 batch.running -= 1;

@@ -29,4 +29,4 @@ mod scan;
 
 pub use model::*;
 pub use planning::copy_beside;
-pub use scan::scan;
+pub use scan::{scan, scan_with_engines};

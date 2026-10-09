@@ -262,7 +262,9 @@ fn read_page_never_serializes_unrequested_rows_and_handles_u64_max_revision() {
     snapshot.revision = u64::MAX;
     let batch = Arc::make_mut(snapshot.batch.as_mut().unwrap());
     let mut outside_page = batch.jobs[0].clone();
-    let JobState::Succeeded(report) = &mut outside_page.state else {
+    let JobState::Succeeded(pixofold_core::batch::ImageReport::Png(report)) =
+        &mut outside_page.state
+    else {
         panic!("expected success");
     };
     report.elapsed = Duration::MAX;
@@ -391,11 +393,14 @@ fn metadata_recovery_causes_keep_distinct_wire_categories() {
         Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0].state =
             JobState::Failed(JobFailure {
                 code: JobErrorCode::CleanupFailed,
-                cause: Some(Arc::new(ProcessingError::CleanupFailed {
-                    original: Some(Box::new(ProcessingError::UnsupportedMetadata(*chunk))),
-                    source: io::Error::other("private reason"),
-                    temporary: Path::new("private-parent").join("temp.png"),
-                })),
+                cause: Some(Arc::new(
+                    ProcessingError::CleanupFailed {
+                        original: Some(Box::new(ProcessingError::UnsupportedMetadata(*chunk))),
+                        source: io::Error::other("private reason"),
+                        temporary: Path::new("private-parent").join("temp.png"),
+                    }
+                    .into(),
+                )),
             });
         let result = wire(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).unwrap());
         assert_eq!(
@@ -458,14 +463,17 @@ fn error_conversion_preserves_recovery_categories_but_never_raw_io_or_absolute_p
     let (_dir, _runtime, mut snapshot) = completed();
     let error = JobFailure {
         code: JobErrorCode::CleanupFailed,
-        cause: Some(Arc::new(ProcessingError::CleanupFailed {
-            original: Some(Box::new(ProcessingError::CommitFailed {
+        cause: Some(Arc::new(
+            ProcessingError::CleanupFailed {
+                original: Some(Box::new(ProcessingError::CommitFailed {
+                    source: io::Error::other("secret source content"),
+                    backup: Path::new("private-parent").join("backup.png"),
+                })),
                 source: io::Error::other("secret source content"),
-                backup: Path::new("private-parent").join("backup.png"),
-            })),
-            source: io::Error::other("secret source content"),
-            temporary: Path::new("private-parent").join("temp.png"),
-        })),
+                temporary: Path::new("private-parent").join("temp.png"),
+            }
+            .into(),
+        )),
     };
     Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0].state = JobState::Failed(error.clone());
     snapshot.error = Some(
@@ -493,7 +501,9 @@ fn error_conversion_preserves_recovery_categories_but_never_raw_io_or_absolute_p
 fn lossy_fallback_mapping_and_elapsed_milliseconds_come_from_actual_report() {
     let (_dir, _runtime, mut snapshot) = completed();
     let batch = Arc::make_mut(snapshot.batch.as_mut().unwrap());
-    let JobState::Succeeded(report) = &mut batch.jobs[0].state else {
+    let JobState::Succeeded(pixofold_core::batch::ImageReport::Png(report)) =
+        &mut batch.jobs[0].state
+    else {
         panic!("expected success");
     };
     report.processing = PngProcessing::LosslessFallback {
@@ -514,12 +524,39 @@ fn lossy_fallback_mapping_and_elapsed_milliseconds_come_from_actual_report() {
         json!({"kind": "lossless_fallback", "mappingVersion": 3,
         "reason": {"kind": "quality_below_target", "measured": 69}})
     );
-    let JobState::Succeeded(report) =
+    let JobState::Succeeded(pixofold_core::batch::ImageReport::Png(report)) =
         &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0].state
     else {
         unreachable!()
     };
     report.elapsed = Duration::MAX;
+    assert_eq!(
+        convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).unwrap_err(),
+        QueryError::InvalidSnapshot
+    );
+}
+
+#[test]
+fn protocol_v9_rejects_jpeg_rows_and_tool_errors_without_inventing_png_results() {
+    use pixofold_core::{
+        batch::{FormatOptions, ImageError, JobErrorCode, JobFailure},
+        jpeg::JpegError,
+    };
+    let (_dir, _runtime, mut snapshot) = completed();
+    let job = &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0];
+    let original = job.request.options.clone();
+    job.request.options = FormatOptions::Jpeg(Default::default());
+    job.state = JobState::Queued;
+    assert_eq!(
+        convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).unwrap_err(),
+        QueryError::InvalidSnapshot
+    );
+    let job = &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0];
+    job.request.options = original;
+    job.state = JobState::Failed(JobFailure {
+        code: JobErrorCode::TimedOut,
+        cause: Some(Arc::new(ImageError::Jpeg(JpegError::Timeout))),
+    });
     assert_eq!(
         convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).unwrap_err(),
         QueryError::InvalidSnapshot
@@ -559,11 +596,14 @@ fn cancelled_cleanup_is_not_mislabeled_service_fault_and_controls_are_visible_as
     batch.jobs[0].request.source = Path::new("private-parent").join("line\nname.png");
     batch.jobs[0].state = JobState::Failed(JobFailure {
         code: JobErrorCode::CleanupFailed,
-        cause: Some(Arc::new(ProcessingError::CleanupFailed {
-            original: Some(Box::new(ProcessingError::Cancelled)),
-            source: io::Error::other("private"),
-            temporary: Path::new("private-parent").join("temp.png"),
-        })),
+        cause: Some(Arc::new(
+            ProcessingError::CleanupFailed {
+                original: Some(Box::new(ProcessingError::Cancelled)),
+                source: io::Error::other("private"),
+                temporary: Path::new("private-parent").join("temp.png"),
+            }
+            .into(),
+        )),
     });
     let result = wire(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).unwrap());
     let row = &result["page"]["items"][0];

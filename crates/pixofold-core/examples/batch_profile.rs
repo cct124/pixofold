@@ -76,6 +76,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let input = dir.path().join(format!("input-{i}.png"));
         fs::write(&input, &original)?;
         items.push(BatchItem {
+            format: pixofold_core::batch::ImageKind::Png,
             source: input,
             output: OutputPolicy::Copy {
                 destination: dir.path().join(format!("output-{i}.png")),
@@ -93,7 +94,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..BatchConfig::default()
     })?;
     let started = Instant::now();
-    service.start(pixofold_core::batch::BatchRequest { items, parameters })?;
+    service.start(pixofold_core::batch::BatchRequest {
+        items,
+        parameters,
+        engines: Default::default(),
+    })?;
     let mut samples = Samples::default();
     let mut done = samples.wait(&service)?;
     let initial_ms = started.elapsed().as_millis();

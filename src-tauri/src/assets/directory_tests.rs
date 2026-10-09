@@ -185,7 +185,10 @@ fn output_directories_reject_old_batches_running_rows_clear_and_non_results() {
         panic!("real result expected")
     };
     let mut no_gain = report.clone();
-    no_gain.outcome = ProcessingOutcome::NoGain;
+    match &mut no_gain {
+        pixofold_core::batch::ImageReport::Png(r) => r.outcome = ProcessingOutcome::NoGain,
+        _ => panic!("expected PNG"),
+    }
     job.state = JobState::NoGain(no_gain);
     assert_eq!(directory_page(&snapshot, &request).unwrap().total, 0);
     assert!(

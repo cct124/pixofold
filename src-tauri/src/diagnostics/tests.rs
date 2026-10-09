@@ -300,6 +300,7 @@ fn real_worker_pool_logs_each_image_with_its_own_batch_job_and_attempt() {
                 let source = temp.path().join(format!("PRIVATE_{i}.png"));
                 fs::write(&source, fixture("gradient-rgb8.png")).unwrap();
                 BatchItem {
+                    format: pixofold_core::batch::ImageKind::Png,
                     source,
                     output: OutputPolicy::Copy {
                         destination: temp.path().join(format!("copy_{i}.png")),
@@ -309,6 +310,7 @@ fn real_worker_pool_logs_each_image_with_its_own_batch_job_and_attempt() {
             .collect();
         let id = service
             .start(BatchRequest {
+                engines: Default::default(),
                 items,
                 parameters: Default::default(),
             })

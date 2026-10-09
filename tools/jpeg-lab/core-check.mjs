@@ -64,6 +64,40 @@ export function runCoreChecks({ root, build, tools, source }) {
   if (run.error) throw run.error;
   assert.equal(run.status, 0, 'JPEG核心真实引擎/安全输出检查失败');
   runLossyChecks({ root, tools, directory, hash, source });
+  const mixed = spawnSync(
+    'cargo',
+    [
+      'run',
+      '--locked',
+      '-p',
+      'pixofold-core',
+      '--example',
+      'jpeg_mixed_check',
+      '--',
+      path.dirname(tools.helper),
+      hash,
+      directory,
+    ],
+    { cwd: root, stdio: 'inherit', windowsHide: true, timeout: 180000 },
+  );
+  if (mixed.error) throw mixed.error;
+  assert.equal(mixed.status, 0, 'PNG/JPEG真实混合批次检查失败');
+  const mixedChecks = JSON.parse(
+    readFileSync(path.join(directory, 'mixed-results', 'checks.json'), 'utf8'),
+  );
+  for (const entry of mixedChecks) {
+    const original = readFileSync(entry.source);
+    const output = readFileSync(entry.output);
+    assert.deepEqual(extraMarkers(output), extraMarkers(original), '混合批次独立元数据复验');
+    assert.ok(execute(tools.djpeg, ['-strict', '-ppm'], output).length > 0, '混合候选完整解码');
+    if (entry.lossless) {
+      assert.deepEqual(
+        execute(tools.coefficients, [], output),
+        execute(tools.coefficients, [], original),
+        '混合批次独立系数复验',
+      );
+    }
+  }
   writeFileSync(
     path.join(directory, 'core-report.json'),
     JSON.stringify(
@@ -71,6 +105,7 @@ export function runCoreChecks({ root, build, tools, source }) {
         helperSha256: hash,
         platform: process.platform,
         samples: samples.length,
+        mixedOutputsVerified: mixedChecks.length,
         result: 'passed',
       },
       null,

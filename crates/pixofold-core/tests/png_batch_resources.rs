@@ -30,6 +30,7 @@ fn parallel_refined_limits_match_the_standalone_pipeline_for_every_static_fixtur
             let source = dir.path().join(name);
             fs::copy(fixtures.join(name), &source).unwrap();
             items.push(BatchItem {
+                format: pixofold_core::batch::ImageKind::Png,
                 source,
                 output: OutputPolicy::Copy {
                     destination: dir.path().join(format!("batch-{name}")),
@@ -44,6 +45,7 @@ fn parallel_refined_limits_match_the_standalone_pipeline_for_every_static_fixtur
         .unwrap();
         let id = service
             .start(BatchRequest {
+                engines: Default::default(),
                 items,
                 parameters: BatchParameters {
                     mode,
@@ -70,8 +72,8 @@ fn parallel_refined_limits_match_the_standalone_pipeline_for_every_static_fixtur
                 JobState::Succeeded(report) | JobState::NoGain(report) => report,
                 other => panic!("意外结果: {other:?}"),
             };
-            assert_eq!(report.processing, reference.processing);
-            match (&report.outcome, reference.outcome) {
+            assert_eq!(report.png().unwrap().processing, reference.processing);
+            match (report.outcome(), reference.outcome) {
                 (ProcessingOutcome::NoGain, ProcessingOutcome::NoGain) => {}
                 (
                     ProcessingOutcome::Optimized { output, .. },

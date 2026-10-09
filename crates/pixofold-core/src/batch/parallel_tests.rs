@@ -1,6 +1,8 @@
 //! 在真实pipeline阶段放置可释放门闩，证明整图并行及预约上限生效；不靠固定休眠。
 use super::*;
-use crate::model::{OutputPolicy, PngMetadataPolicy, PngMode, ProcessingOutcome, QualityValue};
+use crate::model::{
+    OutputPolicy, PngMetadataPolicy, PngMode, PngRequest, ProcessingOutcome, QualityValue,
+};
 use std::{fs, path::Path, sync::mpsc, thread::ThreadId};
 
 const WAIT: Duration = Duration::from_secs(10);
@@ -20,11 +22,12 @@ impl GatedPipeline {
 impl Runner for GatedPipeline {
     fn run(
         &self,
-        request: &PngRequest,
+        request: &ImageRequest,
         cancel: &CancellationToken,
         stage: &mut dyn FnMut(ProcessingStage),
-    ) -> Result<ProcessingReport, ProcessingError> {
-        crate::pipeline::optimize_png(request, cancel, |next| {
+    ) -> Result<ImageReport, ImageError> {
+        let request = request.png().unwrap();
+        crate::pipeline::optimize_png(&request, cancel, |next| {
             stage(next);
             if next == self.stage {
                 self.entered
@@ -36,6 +39,8 @@ impl Runner for GatedPipeline {
                 }
             }
         })
+        .map(ImageReport::Png)
+        .map_err(ImageError::Png)
     }
 }
 struct Harness {
@@ -75,6 +80,7 @@ impl Harness {
                 let source = self.directory.path().join(format!("input-{i}.png"));
                 fs::write(&source, bytes).unwrap();
                 BatchItem {
+                    format: crate::batch::ImageKind::Png,
                     source,
                     output: OutputPolicy::Copy {
                         destination: self.directory.path().join(format!("result-{i}.png")),
@@ -83,6 +89,7 @@ impl Harness {
             })
             .collect();
         BatchRequest {
+            engines: Default::default(),
             items,
             parameters: BatchParameters {
                 mode: PngMode::Lossy {
@@ -197,9 +204,9 @@ fn confirmed_credentials_use_two_whole_file_workers_for_all_output_policies() {
             let JobState::Succeeded(report) = &job.state else {
                 panic!("应压缩成功");
             };
-            assert!(report.content_credentials_removed);
+            assert!(report.credentials_removed());
             assert_eq!(job.attempt, 2);
-            let ProcessingOutcome::Optimized { output, backup } = &report.outcome else {
+            let ProcessingOutcome::Optimized { output, backup } = report.outcome() else {
                 panic!("应有收益");
             };
             let result = fs::read(output).unwrap();
@@ -267,6 +274,7 @@ fn refined_budget_still_serializes_large_jobs_and_rejects_an_unfit_job_without_w
     let reservation = estimate_working_set(BatchParameters {
         mode: input.mode,
         limits,
+        ..BatchParameters::default()
     })
     .unwrap();
     let h = Harness::new(2, reservation, ProcessingStage::Optimizing);

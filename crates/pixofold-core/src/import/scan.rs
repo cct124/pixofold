@@ -3,7 +3,7 @@
 
 use super::model::*;
 use crate::{
-    batch::JobFailure,
+    batch::{ImageEngines, ImageKind, ImportedImage, JobFailure},
     model::{ByteCount, CancellationToken, ProcessingError},
     output::{self, paths},
     probe,
@@ -38,11 +38,32 @@ pub fn scan(
     cancel: &CancellationToken,
     on_progress: impl FnMut(&ScanProgress),
 ) -> Result<ImportScan, ImportError> {
+    scan_with_engines(
+        roots,
+        options,
+        cancel,
+        on_progress,
+        &ImageEngines::default(),
+    )
+}
+
+/// 按可信宿主提供的能力扫描；JPEG只读有界压缩字节，扫描不运行helper。
+/// 返回清单保存同一引擎实例，规划后的批次只能交给持有该能力的服务。
+/// # Errors
+/// 配置/根数无效时拒绝，单图结构错误写入issues。
+pub fn scan_with_engines(
+    roots: &[PathBuf],
+    options: ScanOptions,
+    cancel: &CancellationToken,
+    on_progress: impl FnMut(&ScanProgress),
+    engines: &ImageEngines,
+) -> Result<ImportScan, ImportError> {
     if !(1..=100_000).contains(&options.max_files)
         || !(1..=1_000_000).contains(&options.max_entries)
         || options.max_depth > 256
         || options.max_read_bytes.0 == 0
         || options.probe_limits.validate().is_err()
+        || (engines.supports(ImageKind::Jpeg) && options.jpeg_limits.validate().is_err())
     {
         return Err(ImportError::InvalidOptions);
     }
@@ -51,6 +72,7 @@ pub fn scan(
     }
     let mut scanner = Scanner {
         report: ImportScan {
+            engines: engines.clone(),
             files: Vec::new(),
             issues: Vec::new(),
             progress: ScanProgress {
@@ -221,7 +243,28 @@ impl<F: FnMut(&ScanProgress)> Scanner<'_, F> {
         if !self.running() {
             return Ok(());
         }
-        let image = probe::inspect_structure(&bytes, self.options.probe_limits)?;
+        let image = if bytes.starts_with(SIGNATURE) {
+            ImportedImage::Png(probe::inspect_structure(&bytes, self.options.probe_limits)?)
+        } else {
+            let extension = path.extension().and_then(|n| n.to_str()).unwrap_or("");
+            let inspected = if extension.eq_ignore_ascii_case("jpg")
+                || extension.eq_ignore_ascii_case("jpeg")
+            {
+                crate::jpeg::inspect_structure(&bytes, self.options.jpeg_limits)
+            } else {
+                Err(crate::jpeg::JpegError::UnsupportedJpeg)
+            };
+            match inspected {
+                Ok(info) => ImportedImage::Jpeg(info),
+                Err(error) => {
+                    self.issue(
+                        path,
+                        ImportIssueKind::Failure(JobFailure::image(error.into())),
+                    );
+                    return Ok(());
+                }
+            }
+        };
         if !self.running() {
             return Ok(());
         }
@@ -266,7 +309,17 @@ impl<F: FnMut(&ScanProgress)> Scanner<'_, F> {
         if !before.is_file() {
             return Err(ProcessingError::InvalidPath);
         }
-        if before.len() > self.options.probe_limits.max_input_bytes.0 {
+        let jpeg_available = self.report.engines.supports(ImageKind::Jpeg);
+        let max_input = if jpeg_available {
+            self.options
+                .probe_limits
+                .max_input_bytes
+                .0
+                .max(self.options.jpeg_limits.resources.max_input_bytes.0)
+        } else {
+            self.options.probe_limits.max_input_bytes.0
+        };
+        if before.len() > max_input {
             return Err(ProcessingError::ResourceLimit("导入单文件字节数"));
         }
         let modified = before
@@ -274,7 +327,7 @@ impl<F: FnMut(&ScanProgress)> Scanner<'_, F> {
             .map_err(|e| ProcessingError::io("读取导入修改时间", e))?;
         let mut bytes = Vec::new();
         let mut buffer = [0_u8; READ_CHUNK];
-        // 先读签名，非PNG不耗费整文件预算；PNG再逐块读取，避免扫描内持有解码像素。
+        // 先读签名，未支持格式只读前缀；支持格式逐块读取，不持有解码像素。
         let mut remaining = before.len();
         let mut first = true;
         while remaining > 0 {
@@ -305,7 +358,18 @@ impl<F: FnMut(&ScanProgress)> Scanner<'_, F> {
             // Read可能短读；拿到完整前缀（或EOF）再分类，不能把短读当坏签名。
             if first && (bytes.len() >= 12 || remaining == 0) {
                 first = false;
-                if !bytes.starts_with(SIGNATURE) {
+                let png = bytes.starts_with(SIGNATURE);
+                let jpeg = bytes.starts_with(&[0xff, 0xd8, 0xff]);
+                if png || (jpeg && jpeg_available) {
+                    let limit = if png {
+                        self.options.probe_limits.max_input_bytes
+                    } else {
+                        self.options.jpeg_limits.resources.max_input_bytes
+                    };
+                    if before.len() > limit.0 {
+                        return Err(ProcessingError::ResourceLimit("导入单文件字节数"));
+                    }
+                } else {
                     let format = if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
                         UnsupportedFormat::Jpeg
                     } else if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {

@@ -71,13 +71,21 @@ fn recovery_cause(error: &ProcessingError) -> RecoveryCauseDto {
     };
     RecoveryCauseDto::Failed { code }
 }
-fn failure(value: &JobFailure) -> JobFailureDto {
+fn failure(value: &JobFailure) -> Result<JobFailureDto> {
+    // v9只声明PNG能力；JPEG错误保持在领域层，不能折叠成误导的PNG wire响应。
+    if value
+        .cause
+        .as_deref()
+        .is_some_and(|e| matches!(e, ImageError::Jpeg(_)))
+    {
+        return Err(QueryError::InvalidSnapshot);
+    }
     let mut recovery = RecoveryDto {
         backup_name: None,
         temporary_name: None,
         original_error: None,
     };
-    let mut cause = value.cause.as_deref();
+    let mut cause = value.cause.as_deref().and_then(ImageError::png);
     while let Some(error) = cause {
         match error {
             ProcessingError::CommitFailed { backup, .. } => {
@@ -98,11 +106,11 @@ fn failure(value: &JobFailure) -> JobFailureDto {
             _ => break,
         }
     }
-    JobFailureDto {
-        code: value.code.into(),
+    Ok(JobFailureDto {
+        code: value.code.try_into()?,
         recovery: (recovery.backup_name.is_some() || recovery.temporary_name.is_some())
             .then_some(recovery),
-    }
+    })
 }
 fn batch_error(error: &BatchError) -> Result<TaskFailureDto> {
     Ok(match error {
@@ -153,7 +161,7 @@ pub(crate) fn task_error(error: &TaskError) -> Result<TaskFailureDto> {
             ImportError::Batch(e) => return batch_error(e),
             ImportError::File { index, failure: f } => TaskFailureDto::File {
                 index: count(*index)?,
-                failure: failure(f),
+                failure: failure(f)?,
             },
         },
     })
@@ -219,7 +227,8 @@ fn processing(value: PngProcessing) -> ProcessingDto {
         },
     }
 }
-fn report(value: &ProcessingReport) -> Result<ReportDto> {
+fn report(value: &ImageReport) -> Result<ReportDto> {
+    let value = value.png().ok_or(QueryError::InvalidSnapshot)?;
     let (output_name, backup_name) = match &value.outcome {
         ProcessingOutcome::Optimized { output, backup } => {
             (Some(name(output)), backup.as_deref().map(name))
@@ -240,6 +249,9 @@ fn report(value: &ProcessingReport) -> Result<ReportDto> {
     })
 }
 fn job(value: &JobSnapshot) -> Result<JobDto> {
+    if value.request.format() != ImageKind::Png {
+        return Err(QueryError::InvalidSnapshot);
+    }
     Ok(JobDto {
         id: count(value.id.get())?,
         attempt: value.attempt,
@@ -258,7 +270,7 @@ fn job(value: &JobSnapshot) -> Result<JobDto> {
             JobState::Succeeded(r) => JobStateDto::Succeeded { report: report(r)? },
             JobState::NoGain(r) => JobStateDto::NoGain { report: report(r)? },
             JobState::Failed(f) => JobStateDto::Failed {
-                failure: failure(f),
+                failure: failure(f)?,
             },
             JobState::Cancelled => JobStateDto::Cancelled,
         },
@@ -330,12 +342,15 @@ pub(super) fn snapshot(value: &TaskSnapshot, request: &TaskPageRequest) -> Resul
             let items = range(files.len(), request)?
                 .map(|index| {
                     let file = &files[index];
+                    let ImportedImage::Png(image) = &file.image else {
+                        return Err(QueryError::InvalidSnapshot);
+                    };
                     Ok(CandidateDto {
                         index: count(index)?,
                         source_name: name(&file.source),
                         input_bytes: DecimalU64(file.input_bytes.0),
-                        width: file.image.width,
-                        height: file.image.height,
+                        width: image.width,
+                        height: image.height,
                     })
                 })
                 .collect::<Result<_>>()?;
@@ -355,7 +370,7 @@ pub(super) fn snapshot(value: &TaskSnapshot, request: &TaskPageRequest) -> Resul
                         source_name: name(&issue.path),
                         issue: match &issue.kind {
                             ImportIssueKind::Failure(f) => IssueKindDto::Failure {
-                                failure: failure(f),
+                                failure: failure(f)?,
                             },
                             ImportIssueKind::Unsupported(format) => IssueKindDto::Unsupported {
                                 format: (*format).into(),

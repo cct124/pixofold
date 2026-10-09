@@ -188,7 +188,10 @@ fn resolver_uses_committed_output_and_optional_backup_not_a_requested_copy_name(
             panic!("expected report")
         };
         let mut no_gain = report.clone();
-        no_gain.outcome = ProcessingOutcome::NoGain;
+        match &mut no_gain {
+            pixofold_core::batch::ImageReport::Png(r) => r.outcome = ProcessingOutcome::NoGain,
+            _ => panic!("expected PNG"),
+        }
         job.state = JobState::NoGain(no_gain);
         req.expected_state = AssetState::NoGain;
         assert_eq!(
@@ -272,14 +275,17 @@ fn failed_commit_can_locate_its_recovery_backup_but_not_a_fake_result() {
     let job = &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0];
     job.state = JobState::Failed(JobFailure {
         code: JobErrorCode::CleanupFailed,
-        cause: Some(Arc::new(ProcessingError::CleanupFailed {
-            temporary: dir.path().join("temp"),
-            source: std::io::Error::other("private error"),
-            original: Some(Box::new(ProcessingError::CommitFailed {
-                backup: backup.clone(),
-                source: std::io::Error::other("private path"),
-            })),
-        })),
+        cause: Some(Arc::new(
+            ProcessingError::CleanupFailed {
+                temporary: dir.path().join("temp"),
+                source: std::io::Error::other("private error"),
+                original: Some(Box::new(ProcessingError::CommitFailed {
+                    backup: backup.clone(),
+                    source: std::io::Error::other("private path"),
+                })),
+            }
+            .into(),
+        )),
     });
     assert_eq!(
         resolve(&snapshot, &req, Some(RevealTarget::Backup)).unwrap(),

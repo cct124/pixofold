@@ -1,6 +1,7 @@
-//! 单图预约与执行上限：只读固定PNG头，不解码、不缓存全文件、不在调度锁内I/O。
+//! 单图预约与执行上限：读取PNG固定头或JPEG有界标记前缀，不解码、不缓存全文件、不持调度锁I/O。
 //! 收紧的上限必须传入整条pipeline，排队后变大的源图不能按旧小图预算执行。
 
+use super::{FormatOptions, ImageRequest};
 use std::{fs::File, io::Read};
 
 use crate::{
@@ -9,6 +10,8 @@ use crate::{
 };
 
 const BUFFER_MARGIN: u64 = 1024 * 1024;
+// 四分量JPEG为候选熵编码预留32 bytes/pixel，另留两份最大元数据余量；仍受用户输入上限限制。
+const JPEG_CANDIDATE_BYTES_PER_PIXEL: u64 = 32;
 
 pub(super) fn execution_limits(
     request: &PngRequest,
@@ -51,6 +54,45 @@ pub(super) fn execution_limits(
     }
 }
 
+pub(super) fn image_limits(
+    request: &ImageRequest,
+    input_bytes: Option<ByteCount>,
+) -> ResourceLimits {
+    let FormatOptions::Jpeg(options) = request.options else {
+        return request
+            .png()
+            .map_or(request.limits, |png| execution_limits(&png, input_bytes));
+    };
+    let original = request.limits;
+    let Some(size) = input_bytes else {
+        return original;
+    };
+    let info = File::open(&request.source)
+        .ok()
+        .and_then(|file| crate::jpeg::probe_header(file, options.limits(original)));
+    let Some((info, required)) = info else {
+        return original;
+    };
+    let pixels = u64::from(info.width) * u64::from(info.height);
+    ResourceLimits {
+        max_input_bytes: ByteCount(
+            original.max_input_bytes.0.min(
+                size.0
+                    .saturating_add(pixels.saturating_mul(JPEG_CANDIDATE_BYTES_PER_PIXEL))
+                    .saturating_add(2 * BUFFER_MARGIN),
+            ),
+        ),
+        max_decoded_bytes: ByteCount(
+            original
+                .max_decoded_bytes
+                .0
+                .min(required.max(BUFFER_MARGIN)),
+        ),
+        max_pixels: original.max_pixels.min(pixels),
+        max_dimension: original.max_dimension.min(info.width.max(info.height)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -87,10 +129,13 @@ mod tests {
             quality: QualityValue::default(),
         };
         assert!(
-            estimate_working_set(BatchParameters { limits, mode })
-                .unwrap()
-                .0
-                < 64 * BUFFER_MARGIN
+            estimate_working_set(BatchParameters {
+                limits,
+                mode,
+                ..BatchParameters::default()
+            })
+            .unwrap()
+            .0 < 64 * BUFFER_MARGIN
         );
         assert_eq!(
             request.limits.max_pixels,

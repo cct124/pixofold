@@ -2,10 +2,10 @@
 
 use std::{collections::HashMap, ffi::OsString, fs};
 
-use super::{Job, model::*};
+use super::{Job, image::*, model::*};
 use crate::output::paths::key;
 use crate::{
-    model::{ByteCount, OutputPolicy, PngMode, PngRequest, ProcessingError},
+    model::{ByteCount, OutputPolicy, PngMode, ProcessingError},
     output, quality,
 };
 
@@ -37,6 +37,27 @@ pub fn estimate_working_set(parameters: BatchParameters) -> Result<ByteCount, Ba
         .ok_or(BatchError::InvalidConfig)
 }
 
+/// JPEG阶段峰值预约：8份输入涵盖source、增长到两倍的管道candidate、stored及源/备份复查；
+/// 两份原生预算覆盖系数/像素及分配余量，32MiB覆盖helper映像、I/O线程栈/管道/固定开销。
+/// 三次调用顺序执行，指纹/像素流只计算摘要；不是RSS硬限额。
+/// # Errors
+/// JPEG配置超出合法域或计费算术溢出时返回InvalidLimits，不自动钳制配置。
+pub fn estimate_jpeg_working_set(
+    limits: crate::jpeg::JpegLimits,
+) -> Result<ByteCount, crate::jpeg::JpegError> {
+    limits.validate()?;
+    limits
+        .resources
+        .max_input_bytes
+        .0
+        .checked_mul(8)
+        .zip(limits.resources.max_decoded_bytes.0.checked_mul(2))
+        .and_then(|(a, b)| a.checked_add(b))
+        .and_then(|n| n.checked_add(32 * 1024 * 1024))
+        .map(ByteCount)
+        .ok_or(crate::jpeg::JpegError::InvalidLimits)
+}
+
 struct Paths {
     source: Option<OsString>,
     target: Option<OsString>,
@@ -46,8 +67,9 @@ struct Paths {
 }
 
 pub(super) fn prepare(
-    requests: Vec<PngRequest>,
+    requests: Vec<ImageRequest>,
     budget: ByteCount,
+    engines: &ImageEngines,
 ) -> Result<Vec<Job>, BatchError> {
     let mut paths = Vec::with_capacity(requests.len());
     let mut jobs = Vec::with_capacity(requests.len());
@@ -103,16 +125,38 @@ pub(super) fn prepare(
                 None
             }
         };
+        // 头探测只能收紧有效的配置，不能把非法JPEG上限钳制成可执行参数。
+        if let FormatOptions::Jpeg(options) = request.options
+            && let Err(error) = options.limits(request.limits).validate()
+        {
+            failure.get_or_insert_with(|| JobFailure::image(error.into()));
+        }
         let execution_limits = if failure.is_none() {
-            super::resources::execution_limits(&request, size)
+            super::resources::image_limits(&request, size)
         } else {
             request.limits
         };
-        let parameters = BatchParameters {
-            mode: request.mode,
-            limits: execution_limits,
+        let reservation = match request.options {
+            FormatOptions::Png(_) => estimate_working_set(BatchParameters {
+                mode: request.mode,
+                limits: execution_limits,
+                ..BatchParameters::default()
+            })?,
+            FormatOptions::Jpeg(options) => {
+                if !engines.supports(ImageKind::Jpeg) {
+                    failure.get_or_insert_with(|| {
+                        JobFailure::image(crate::jpeg::JpegError::ToolIdentity.into())
+                    });
+                }
+                match estimate_jpeg_working_set(options.limits(execution_limits)) {
+                    Ok(n) => n,
+                    Err(e) => {
+                        failure.get_or_insert_with(|| JobFailure::image(e.into()));
+                        ByteCount(0)
+                    }
+                }
+            }
         };
-        let reservation = estimate_working_set(parameters)?;
         if reservation > budget {
             failure.get_or_insert_with(|| {
                 JobFailure::processing(ProcessingError::ResourceLimit("批量工作集预算"))
@@ -120,7 +164,10 @@ pub(super) fn prepare(
         }
         let mapping = match request.mode {
             PngMode::Lossless => None,
-            PngMode::Lossy { quality: q } => Some(quality::png_quality(q)),
+            PngMode::Lossy { quality: q } => Some(match request.format() {
+                ImageKind::Png => QualityMapping::Png(quality::png_quality(q)),
+                ImageKind::Jpeg => QualityMapping::Jpeg(crate::jpeg::JpegQualityMapping::new(q)),
+            }),
         };
         jobs.push(Job {
             execution_limits,

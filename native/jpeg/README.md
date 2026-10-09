@@ -1,6 +1,6 @@
-# JPEG 单文件核心（J1a 无损 / J1b 保守有损）
+# JPEG 核心与混合批次（J1a / J1b）
 
-本目录的 helper 与 `pixofold_core::jpeg` 构成独立核心，支持单文件无损与保守有损，尚未接入桌面、批次、IPC、缩略图或安装包。当前 PixoFold 工作台仍仅支持静态 PNG。J1b 下一段接最小共用模型/总资源预约，J2 再接桌面与随包工具；不能把开发缓存作为产品部署方案。
+本目录的 helper 与 `pixofold_core::jpeg` 提供无损与保守有损核心，现已接入纯Rust PNG/JPEG混合批次、共用worker和资源预约。当前桌面工作台仍仅支持静态PNG；JPEG的IPC、缩略图、随包工具和安装验收属于J2，不能把开发缓存作为产品部署方案。
 
 ## 构建和真实回归
 
@@ -11,7 +11,15 @@ pnpm jpeg:core:check
 
 沿用 [固定源码](../../tools/jpeg-lab/engine.json) 的 MozJPEG v4.1.5，不新增 Cargo 依赖。构建脚本校验上游归档、配置/源文件身份，编译静态库和本目录 helper，并记录工具 SHA256；核心加载由受信宿主提供的绝对目录及预期哈希，不搜索 PATH、不执行 shell、不自动下载。哈希来源属于应用信任配置，不得让图片输入或任意 IPC 指定工具/哈希；加载及每次运行复查哈希、普通文件和原生身份，但不是对恶意可写安装目录的执行 CAS 或 OS 沙箱。
 
-核心回归入口为 `tools/jpeg-lab/core-check.mjs`，依次运行 `jpeg_core_check` 与 `jpeg_lossy_check` Rust 示例及独立 coeffdump/djpeg/标记复验。命令缺工具、源码身份变化或缺语料直接失败，不静默跳过。CI 的三平台 JPEG job 在 J0 实验后运行完整核心回归，应用 `pnpm check` 仍无需编译原生 JPEG 工具。证据写入独立 `target/jpeg-lab-core-*/`；包含自生成边界语料和固定上游 testorig.jpg 玫瑰照片（227×149），照片 SHA256 与原始许可/来源随报告保留。小图验证不代表完整摄影观感、ICC 校准或性能验收。
+核心回归入口为 `tools/jpeg-lab/core-check.mjs`，依次运行 `jpeg_core_check`、`jpeg_lossy_check`、`jpeg_mixed_check`及独立coeffdump/djpeg/标记复验。命令缺工具、源码身份变化或缺语料直接失败，不静默跳过。三平台JPEG job沿用此入口，应用 `pnpm check` 仍无需编译原生JPEG工具。证据写入独立 `target/jpeg-lab-core-*/`；包含自生成边界语料和固定上游testorig.jpg玫瑰照片（227×149），照片SHA256与原始许可/来源随报告保留。小图验证不代表完整摄影观感、ICC校准或性能验收；新代码的平台结果以开发记录为准。
+
+## 混合批次入口与迁移
+
+- 宿主先用 `JpegEngine::load` 验证固定工具，再构造 `ImageEngines::with_jpeg` 和 `BatchService::with_engines`。将 `service.engines()` 传入 `scan_with_engines`，再调用清单的 `plan` 和服务的 `start`；规划保存同一个共享引擎实例，服务拒绝换入另一实例。默认 `scan` / `BatchService::new` 仍只提供PNG，显式JPEG行缺能力时逐行失败。
+- 扫描按内容识别，保留原有条目/累计字节/取消上限，不解码像素或启动helper。JPEG须为jpg/jpeg原扩展名（大小写保留）；误命名为.jpg的真实PNG继续按PNG处理。保护元数据/坏结构进入扫描问题，坏像素仍可能在执行时失败。
+- 一个固定池处理两种格式及PNG凭据确认；格式请求、报告、质量映射和错误为显式分支，共用状态/统计/输出层。重试保留行ID和未选行，JPEG拒绝PNG凭据移除策略。副本保留原名，目标冲突逐行隔离，全部冲突仍返回Finished批次。
+- 核心Rust字面量迁移：`BatchItem`增加 `format`，`BatchRequest`增加 `engines`，`BatchParameters`增加 `jpeg`，`ScanOptions`增加 `jpeg_limits`；默认参数可用结构更新语法。行请求改为 `ImageRequest`，报告/错误/候选属性/质量映射分别由 `ImageReport`、`ImageError`、`ImportedImage`、`QualityMapping`区分格式；共用输入模式为 `CompressionMode`（沿用既有PngMode输入契约）。单文件API不变。
+- 桌面内部调用方已迁移，v9的DTO/生成TS形状保持；转换器明确拒绝JPEG专属行与错误，直至J2正式演进协议和实际能力。
 
 ## 模式、质量与兼容性
 
@@ -33,7 +41,7 @@ pnpm jpeg:core:check
 ## 资源、生命周期和文件安全
 
 - 默认输入/候选各最多 64 MiB、16 Mi 像素、单边 16384、系数预算 128 MiB；绝对配置上限为输入 64 MiB、16 Mi 像素、单边 65535、工作集 512 MiB。最多 64 次扫描、4096 个标记和 1 MiB 元数据（含每标记计费）；系数按 MCU 对齐预检并计入源/编码工作集及元数据副本。
-- native 的 source/destination 各设置一半工作集参数，系数分配前再次检查实际头和对齐预算；关闭 backing store 的上游构建超预算时失败，不回退磁盘。libjpeg 的参数主要约束虚拟数组，不是 RSS 硬配额；输入/候选缓冲、固定开销、管道和进程运行时仍需 J1b 统一纳入并发准入，不宣称已接当前桌面 RAM 预约器。
+- native的source/destination各设置一半工作集参数，系数分配前再次检查实际头和对齐预算；关闭backing store的上游构建超预算时失败，不回退磁盘。批次按执行上限预约8份输入/候选缓冲、2份原生工作集及32MiB固定余量，覆盖同时存活的source/candidate/stored、源/备份复查、管道增长、helper和I/O线程开销。最多2MiB标记前缀只用于收紧尺寸和预算；坏头保留原上限，执行时真实复查。限额不是RSS硬配额，桌面尚未开放JPEG。
 - 有损/像素验证额外保守计入两份全尺寸像素工作区；Rust预检及helper实际头都复查此上限。native从总工作集扣除该余量，再将剩余预算分给解码/编码虚拟数组；仍不代表对所有库分配的RSS硬限制。
 - 单图片顺序调用三次原生工具：无损为源系数/优化/候选系数，有损为源像素/重编码/候选像素；默认每次30秒，可设1ms–120s。单次一个单线程原生进程，父进程限制输入、stdout字节/精确系数或像素长度和16KiB stderr；stderr只计数、不展示/记录。三个I/O线程只搬运管道，不是嵌套编码线程池。
 - 每次创建独占临时工作目录，清空继承环境，仅保留 Windows 系统目录和固定临时目录/locale。工具只收发字节，没有用户路径或最终文件写权限接口；可信 helper 不派生子进程。取消、超时、管道错误先终结并 wait 自有进程，再 join I/O、清理目录；清理失败有结构化恢复上下文。该超时不包含整个文件 I/O/工具身份哈希，也不是 OS 级实时保证。
@@ -42,4 +50,4 @@ pnpm jpeg:core:check
 
 ## 待验收与许可
 
-平台执行结果分别见 [J1a记录](../../docs/devlog/_plan/260930/jpeg-lossless-core.md) 与 [J1b有损记录](../../docs/devlog/_plan/261008/jpeg-lossy-core.md)；新代码不能沿用旧SHA的三平台结果。helper使用相同静态MozJPEG，版权/许可来源见[第三方说明](../../THIRD_PARTY_NOTICES.md)，尚未随桌面分发；正式随包需完整通知、源代码和安装运行验证。
+平台执行结果分别见 [J1a记录](../../docs/devlog/_fin/261009/jpeg-lossless-core.md) 与 [J1b有损记录](../../docs/devlog/_fin/261009/jpeg-lossy-core.md)；新代码不能沿用旧SHA的三平台结果。helper使用相同静态MozJPEG，版权/许可来源见[第三方说明](../../THIRD_PARTY_NOTICES.md)，尚未随桌面分发；正式随包需完整通知、源代码和安装运行验证。

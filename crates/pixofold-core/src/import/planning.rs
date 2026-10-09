@@ -3,7 +3,7 @@
 use super::model::*;
 use crate::{
     batch::{self, BatchItem, BatchParameters, BatchRequest, JobFailure},
-    model::{OutputPolicy, PngRequest, ProcessingError},
+    model::{OutputPolicy, ProcessingError},
 };
 use std::{
     ffi::OsStr,
@@ -105,23 +105,26 @@ impl ImportScan {
         let outputs = output.outputs_for(&self.files.iter().collect::<Vec<_>>())?;
         let mut requests = Vec::with_capacity(self.files.len());
         for (file, policy) in self.files.iter().zip(outputs) {
-            requests.push(PngRequest {
+            requests.push(parameters.request(BatchItem {
                 source: file.source.clone(),
                 output: policy,
-                mode: parameters.mode,
-                limits: parameters.limits,
-                metadata: Default::default(),
-            });
+                format: file.image.format(),
+            }));
         }
-        let jobs = batch::preview(requests).map_err(ImportError::Batch)?;
+        let jobs = batch::preview(requests, &self.engines).map_err(ImportError::Batch)?;
         let mut items = Vec::with_capacity(jobs.len());
         for job in jobs {
             items.push(BatchItem {
+                format: job.request.format(),
                 source: job.request.source,
                 output: job.request.output,
             });
         }
-        Ok(BatchRequest { items, parameters })
+        Ok(BatchRequest {
+            items,
+            parameters,
+            engines: self.engines.clone(),
+        })
     }
 }
 

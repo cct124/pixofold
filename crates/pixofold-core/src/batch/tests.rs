@@ -2,7 +2,8 @@
 
 use super::*;
 use crate::model::{
-    ImageInfo, OutputPolicy, PngColorType, PngMode, PngProcessing, ProcessingOutcome, QualityValue,
+    ImageInfo, OutputPolicy, PngColorType, PngMode, PngProcessing, ProcessingOutcome,
+    ProcessingReport, QualityValue,
 };
 use std::{
     fs,
@@ -48,15 +49,15 @@ impl Drop for Active {
 }
 struct ControlledRunner {
     gate: Arc<Gate>,
-    started: mpsc::Sender<PngRequest>,
+    started: mpsc::Sender<ImageRequest>,
 }
 impl Runner for ControlledRunner {
     fn run(
         &self,
-        request: &PngRequest,
+        request: &ImageRequest,
         cancel: &CancellationToken,
         stage: &mut dyn FnMut(ProcessingStage),
-    ) -> Result<ProcessingReport, ProcessingError> {
+    ) -> Result<ImageReport, ImageError> {
         self.gate.enter();
         let _active = Active(Arc::clone(&self.gate));
         stage(ProcessingStage::BeforeCommit);
@@ -72,13 +73,14 @@ impl Runner for ControlledRunner {
                 original: Some(Box::new(ProcessingError::Cancelled)),
                 source: std::io::Error::from(std::io::ErrorKind::PermissionDenied),
                 temporary: request.source.with_extension("tmp"),
-            });
+            }
+            .into());
         }
         if name != "committed" {
             cancel.check()?;
         }
         if name == "fail" {
-            return Err(ProcessingError::InvalidPng("确定性失败"));
+            return Err(ProcessingError::InvalidPng("确定性失败").into());
         }
         let bytes = fs::metadata(&request.source).unwrap().len();
         let info = ImageInfo {
@@ -88,7 +90,7 @@ impl Runner for ControlledRunner {
             color_type: PngColorType::Rgb,
             interlaced: false,
         };
-        Ok(ProcessingReport {
+        Ok(ImageReport::Png(ProcessingReport {
             image: info.clone(),
             output_image: info,
             processing: PngProcessing::Lossless,
@@ -104,13 +106,13 @@ impl Runner for ControlledRunner {
             } else {
                 ProcessingOutcome::NoGain
             },
-        })
+        }))
     }
 }
 struct Harness {
     service: BatchService,
     gate: Arc<Gate>,
-    started: Receiver<PngRequest>,
+    started: Receiver<ImageRequest>,
     directory: tempfile::TempDir,
 }
 impl Harness {
@@ -135,17 +137,19 @@ impl Harness {
                 let source = self.directory.path().join(format!("{name}.png"));
                 fs::write(&source, b"synthetic runner input").unwrap();
                 BatchItem {
+                    format: crate::batch::ImageKind::Png,
                     source,
                     output: OutputPolicy::Overwrite,
                 }
             })
             .collect();
         BatchRequest {
+            engines: Default::default(),
             items,
             parameters: BatchParameters::default(),
         }
     }
-    fn started(&self) -> PngRequest {
+    fn started(&self) -> ImageRequest {
         self.started
             .recv_timeout(WAIT)
             .expect("worker应已进入受控执行器")
@@ -249,7 +253,9 @@ fn settings_are_copied_and_stage_revision_never_regresses() {
     let finished = h.finish(id);
     assert!(finished.revision > revision);
     assert_eq!(finished.jobs[1].request.mode, original);
-    assert_eq!(finished.jobs[1].mapping.unwrap().target, 73);
+    assert!(
+        matches!(finished.jobs[1].mapping, Some(QualityMapping::Png(mapping)) if mapping.target == 73)
+    );
 }
 
 #[test]
@@ -441,12 +447,14 @@ fn shutdown_and_drop_wait_for_active_work_without_prior_cancel() {
             let source = directory.path().join(format!("{name}.png"));
             fs::write(&source, b"controlled input").unwrap();
             BatchItem {
+                format: crate::batch::ImageKind::Png,
                 source,
                 output: OutputPolicy::Overwrite,
             }
         });
         service
             .start(BatchRequest {
+                engines: Default::default(),
                 items: items.into(),
                 parameters: BatchParameters::default(),
             })
@@ -557,7 +565,7 @@ fn cleanup_failure_after_cancel_remains_a_failure_with_recovery_context() {
         original,
         source,
         temporary,
-    }) = failure.cause.as_deref()
+    }) = failure.cause.as_deref().and_then(ImageError::png)
     else {
         panic!("必须保留原始错误与残留文件路径");
     };

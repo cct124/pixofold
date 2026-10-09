@@ -1,11 +1,12 @@
 //! 批量领域契约；不是 IPC DTO。路径、Duration、原始错误留在 Rust 边界内。
 
+use super::image::*;
+use crate::jpeg::JpegError;
 use std::{fmt, io, path::PathBuf, sync::Arc};
 
 use crate::model::{
-    ByteCount, ContentCredentialsSource, OutputPolicy, PngMetadataPolicy, PngMode,
-    PngQualityMapping, PngRequest, ProcessingError, ProcessingReport, ProcessingStage,
-    ResourceLimits,
+    ByteCount, ContentCredentialsSource, OutputPolicy, PngMetadataPolicy, ProcessingError,
+    ProcessingStage, ResourceLimits,
 };
 
 /// 服务生命周期内单调递增的批次标识，不能由调用方伪造。
@@ -29,8 +30,9 @@ impl JobId {
 /// 一次启动的公共参数。核心 API 默认无损，产品默认有损由后续适配层显式传入。
 #[derive(Debug, Clone, Copy, Default)]
 pub struct BatchParameters {
-    pub mode: PngMode,
+    pub mode: CompressionMode,
     pub limits: ResourceLimits,
+    pub jpeg: JpegOptions,
 }
 
 /// 已选定的一个源及其显式输出策略；P1 不扫描目录或自动生成副本名。
@@ -38,12 +40,30 @@ pub struct BatchParameters {
 pub struct BatchItem {
     pub source: PathBuf,
     pub output: OutputPolicy,
+    /// 扫描时识别并冻结；执行不因源被换成另一格式而改变编码路径。
+    pub format: ImageKind,
 }
 
 #[derive(Debug, Clone)]
 pub struct BatchRequest {
     pub items: Vec<BatchItem>,
     pub parameters: BatchParameters,
+    /// 与扫描共用的引擎能力；服务核对共享实例，不能悄悄替换helper。
+    pub engines: ImageEngines,
+}
+impl BatchParameters {
+    pub(crate) fn request(self, item: BatchItem) -> ImageRequest {
+        ImageRequest {
+            source: item.source,
+            output: item.output,
+            mode: self.mode,
+            limits: self.limits,
+            options: match item.format {
+                ImageKind::Png => FormatOptions::Png(PngMetadataPolicy::Preserve),
+                ImageKind::Jpeg => FormatOptions::Jpeg(self.jpeg),
+            },
+        }
+    }
 }
 
 /// 只选择失败/取消的行；可更新输出目标，源文件仍固定为该行的原路径。
@@ -95,8 +115,8 @@ pub enum JobState {
         stage: ProcessingStage,
         cancel_requested: bool,
     },
-    Succeeded(ProcessingReport),
-    NoGain(ProcessingReport),
+    Succeeded(ImageReport),
+    NoGain(ImageReport),
     Failed(JobFailure),
     Cancelled,
 }
@@ -128,17 +148,47 @@ pub enum JobErrorCode {
     CleanupFailed,
     WorkerPanicked,
     ServiceFault,
+    ToolIdentity,
+    ToolIo,
+    ToolExit,
+    TimedOut,
 }
 
 #[derive(Debug, Clone)]
 pub struct JobFailure {
     pub code: JobErrorCode,
     /// WorkerPanicked 的文件结果未知，不能宣称未写入；调用方应先核查备份/目标。
-    pub cause: Option<Arc<ProcessingError>>,
+    pub cause: Option<Arc<ImageError>>,
 }
 impl JobFailure {
     pub(crate) fn processing(error: ProcessingError) -> Self {
+        Self::image(ImageError::Png(error))
+    }
+    pub(crate) fn image(error: ImageError) -> Self {
         let code = match &error {
+            ImageError::Png(e) | ImageError::Jpeg(JpegError::File(e)) => Self::processing_code(e),
+            ImageError::Jpeg(e) => match e {
+                JpegError::InvalidLimits | JpegError::InvalidJpeg(_) => JobErrorCode::InvalidInput,
+                JpegError::UnsupportedJpeg => JobErrorCode::UnsupportedFormat,
+                JpegError::ProtectedMetadata(0xeb) => JobErrorCode::UnsupportedContentCredentials,
+                JpegError::ProtectedMetadata(_) => JobErrorCode::UnsupportedMetadata,
+                JpegError::ResourceLimit(_) => JobErrorCode::ResourceLimit,
+                JpegError::ToolIdentity => JobErrorCode::ToolIdentity,
+                JpegError::ToolIo { .. } => JobErrorCode::ToolIo,
+                JpegError::ToolExit(_) => JobErrorCode::ToolExit,
+                JpegError::Timeout => JobErrorCode::TimedOut,
+                JpegError::ValidationFailed => JobErrorCode::Validation,
+                JpegError::Cleanup { .. } => JobErrorCode::CleanupFailed,
+                JpegError::Cancelled | JpegError::File(_) => JobErrorCode::ServiceFault,
+            },
+        };
+        Self {
+            code,
+            cause: Some(Arc::new(error)),
+        }
+    }
+    fn processing_code(error: &ProcessingError) -> JobErrorCode {
+        match error {
             ProcessingError::InvalidLimits
             | ProcessingError::InvalidPath
             | ProcessingError::InvalidPng(_) => JobErrorCode::InvalidInput,
@@ -160,10 +210,6 @@ impl JobFailure {
             ProcessingError::CleanupFailed { .. } => JobErrorCode::CleanupFailed,
             // 正常取消直接转换成 JobState::Cancelled，只有内部误用才进入此分支。
             ProcessingError::Cancelled => JobErrorCode::ServiceFault,
-        };
-        Self {
-            code,
-            cause: Some(Arc::new(error)),
         }
     }
     pub(super) fn fault(code: JobErrorCode) -> Self {
@@ -176,8 +222,8 @@ pub struct JobSnapshot {
     pub id: JobId,
     /// 从 1 起，每次显式重试递增。成功/无收益保留旧参数和尝试号。
     pub attempt: u32,
-    pub request: PngRequest,
-    pub mapping: Option<PngQualityMapping>,
+    pub request: ImageRequest,
+    pub mapping: Option<QualityMapping>,
     /// 准入时的真实文件大小；成功返回后更新为流水线实际读取值，无法读取则为 None。
     pub input_bytes: Option<ByteCount>,
     pub state: JobState,
@@ -188,7 +234,9 @@ impl JobSnapshot {
     pub fn content_credentials_source(&self) -> Option<&ContentCredentialsSource> {
         if let JobState::Failed(failure) = &self.state
             && let Some(cause) = &failure.cause
-            && let ProcessingError::ContentCredentialsRequireConsent(source) = cause.as_ref()
+            && let ImageError::Png(ProcessingError::ContentCredentialsRequireConsent(source)) =
+                cause.as_ref()
+            && self.request.format() == ImageKind::Png
         {
             return Some(source);
         }
@@ -226,7 +274,7 @@ impl BatchSummary {
             let output = match &job.state {
                 JobState::Succeeded(report) => {
                     result.succeeded += 1;
-                    Some(report.output_bytes.0)
+                    Some(report.output_bytes().0)
                 }
                 JobState::NoGain(_) => {
                     result.no_gain += 1;
@@ -253,9 +301,9 @@ impl BatchSummary {
             if let JobState::Succeeded(report) = &job.state {
                 saved = saved.and_then(|sum| {
                     report
-                        .input_bytes
+                        .input_bytes()
                         .0
-                        .checked_sub(report.output_bytes.0)
+                        .checked_sub(report.output_bytes().0)
                         .and_then(|n| sum.checked_add(n))
                 });
             }

@@ -2,6 +2,9 @@
 //! 状态只在短临界区更新，路径I/O、编码、等待join均在锁外。同步pipeline是唯一处理入口。
 //! worker持有Shared而非BatchService，避免所有权环；取消和Drop不等同于强杀编码器。
 
+mod image;
+#[cfg(test)]
+mod mixed_tests;
 mod model;
 #[cfg(test)]
 mod parallel_tests;
@@ -9,12 +12,16 @@ mod planning;
 mod resources;
 mod worker;
 
+pub use image::*;
 pub use model::*;
-pub use planning::estimate_working_set;
+pub use planning::{estimate_jpeg_working_set, estimate_working_set};
 
 /// 供导入规划复用完全相同的只读预检；不创建服务、不启动worker或写目录。
-pub(crate) fn preview(requests: Vec<PngRequest>) -> Result<Vec<JobSnapshot>, BatchError> {
-    planning::prepare(requests, ByteCount(u64::MAX))
+pub(crate) fn preview(
+    requests: Vec<ImageRequest>,
+    engines: &ImageEngines,
+) -> Result<Vec<JobSnapshot>, BatchError> {
+    planning::prepare(requests, ByteCount(u64::MAX), engines)
         .map(|jobs| jobs.into_iter().map(|job| job.view).collect())
 }
 
@@ -26,7 +33,7 @@ use std::{
 };
 
 use crate::model::{
-    ByteCount, CancellationToken, PngRequest, ProcessingError, ProcessingReport, ProcessingStage,
+    ByteCount, CancellationToken, PngMetadataPolicy, ProcessingError, ProcessingStage,
     ResourceLimits,
 };
 
@@ -183,20 +190,40 @@ impl Shared {
 trait Runner: Send + Sync {
     fn run(
         &self,
-        request: &PngRequest,
+        request: &ImageRequest,
         cancel: &CancellationToken,
         stage: &mut dyn FnMut(ProcessingStage),
-    ) -> Result<ProcessingReport, ProcessingError>;
+    ) -> Result<ImageReport, ImageError>;
 }
-struct PipelineRunner;
+struct PipelineRunner(ImageEngines);
 impl Runner for PipelineRunner {
     fn run(
         &self,
-        request: &PngRequest,
+        request: &ImageRequest,
         cancel: &CancellationToken,
         stage: &mut dyn FnMut(ProcessingStage),
-    ) -> Result<ProcessingReport, ProcessingError> {
-        crate::pipeline::optimize_png(request, cancel, stage)
+    ) -> Result<ImageReport, ImageError> {
+        match &request.options {
+            FormatOptions::Png(_) => {
+                let png = request.png().ok_or(ProcessingError::InvalidLimits)?;
+                crate::pipeline::optimize_png(&png, cancel, stage)
+                    .map(ImageReport::Png)
+                    .map_err(ImageError::Png)
+            }
+            FormatOptions::Jpeg(_) => {
+                let engine = self
+                    .0
+                    .jpeg
+                    .as_deref()
+                    .ok_or(crate::jpeg::JpegError::ToolIdentity)?;
+                let jpeg = request
+                    .jpeg()
+                    .ok_or(crate::jpeg::JpegError::InvalidLimits)?;
+                crate::jpeg::optimize_jpeg(&jpeg, engine, cancel, stage)
+                    .map(ImageReport::Jpeg)
+                    .map_err(ImageError::Jpeg)
+            }
+        }
     }
 }
 
@@ -210,7 +237,9 @@ impl Runner for PipelineRunner {
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let mut service = BatchService::new(BatchConfig::default())?;
 /// let id = service.start(BatchRequest {
+///     engines: Default::default(),
 ///     items: vec![BatchItem {
+///         format: ImageKind::Png,
 ///         source: "input.png".into(),
 ///         output: OutputPolicy::Copy { destination: "output.png".into() },
 ///     }],
@@ -232,6 +261,7 @@ impl Runner for PipelineRunner {
 pub struct BatchService {
     shared: Arc<Shared>,
     workers: Vec<JoinHandle<()>>,
+    engines: ImageEngines,
 }
 
 struct Preparation<'a>(&'a Shared);
@@ -247,7 +277,19 @@ impl BatchService {
     /// # Errors
     /// 配置非法或OS无法创建线程时失败，已创建线程会收尾，不遗留后台任务。
     pub fn new(config: BatchConfig) -> Result<Self, BatchError> {
-        Self::with_runner(config, Arc::new(PipelineRunner))
+        Self::with_engines(config, ImageEngines::default())
+    }
+    /// 创建共用worker池；引擎须由可信宿主预先验证。失败时已建线程全部回收。
+    /// # Errors
+    /// 配置非法或OS无法创建线程时返回错误；不在此下载、加载或启动编码工具。
+    pub fn with_engines(config: BatchConfig, engines: ImageEngines) -> Result<Self, BatchError> {
+        let mut service = Self::with_runner(config, Arc::new(PipelineRunner(engines.clone())))?;
+        service.engines = engines;
+        Ok(service)
+    }
+    /// 扫描/规划应克隆同一配置；克隆不会重新读取工具或创建进程。
+    pub fn engines(&self) -> &ImageEngines {
+        &self.engines
     }
 
     fn with_runner(config: BatchConfig, runner: Arc<dyn Runner>) -> Result<Self, BatchError> {
@@ -271,12 +313,13 @@ impl BatchService {
         let mut service = Self {
             shared,
             workers: Vec::with_capacity(config.workers),
+            engines: ImageEngines::default(),
         };
         for i in 0..config.workers {
             let (shared, runner) = (Arc::clone(&service.shared), Arc::clone(&runner));
             let dispatcher = tracing::dispatcher::get_default(Clone::clone);
             match std::thread::Builder::new()
-                .name(format!("pixofold-png-{i}"))
+                .name(format!("pixofold-image-{i}"))
                 .spawn(move || {
                     tracing::dispatcher::with_default(&dispatcher, || worker::run(shared, runner))
                 }) {
@@ -297,7 +340,7 @@ impl BatchService {
     /// 同步只读预检文件列表后入队并返回ID；编码在后台，参数与输出路径已克隆固定。
     /// 单项缺失/权限/副本目标冲突记录失败并继续其他行；重复源身份整批拒绝。
     /// # Errors
-    /// 空列表、队列上限、非法参数、服务忙/关闭、重复源均在启动前返回。
+    /// 空列表、队列上限、非法公共参数、引擎实例不匹配、服务忙/关闭、重复源均在启动前返回。
     pub fn start(&self, request: BatchRequest) -> Result<BatchId, BatchError> {
         self.start_with_cancel(request, CancellationToken::default())
     }
@@ -322,19 +365,20 @@ impl BatchService {
             return Err(BatchError::TooManyJobs);
         }
         estimate_working_set(request.parameters)?;
+        if !self.engines.accepts(&request.engines) {
+            return Err(BatchError::InvalidConfig);
+        }
         let _guard = self.prepare_guard()?;
         let requests = request
             .items
             .into_iter()
-            .map(|item| PngRequest {
-                source: item.source,
-                output: item.output,
-                mode: request.parameters.mode,
-                limits: request.parameters.limits,
-                metadata: Default::default(),
-            })
+            .map(|item| request.parameters.request(item))
             .collect();
-        let jobs = planning::prepare(requests, self.shared.config.working_set_budget)?;
+        let jobs = planning::prepare(
+            requests,
+            self.shared.config.working_set_budget,
+            &request.engines,
+        )?;
         let mut state = self.shared.lock();
         if state.closed {
             return Err(BatchError::Closed);
@@ -472,9 +516,21 @@ impl BatchService {
             requests[i].output = retry.output;
             requests[i].mode = request.parameters.mode;
             requests[i].limits = request.parameters.limits;
-            requests[i].metadata = retry.metadata;
+            requests[i].options = match requests[i].options {
+                FormatOptions::Png(_) => FormatOptions::Png(retry.metadata),
+                FormatOptions::Jpeg(_) => {
+                    if !matches!(retry.metadata, PngMetadataPolicy::Preserve) {
+                        return Err(BatchError::InvalidRetry);
+                    }
+                    FormatOptions::Jpeg(request.parameters.jpeg)
+                }
+            };
         }
-        let mut jobs = planning::prepare(requests, self.shared.config.working_set_budget)?;
+        let mut jobs = planning::prepare(
+            requests,
+            self.shared.config.working_set_budget,
+            &self.engines,
+        )?;
         for (i, job) in jobs.iter_mut().enumerate() {
             if selected.contains(&i) {
                 job.view.attempt = old[i].view.attempt + 1;
