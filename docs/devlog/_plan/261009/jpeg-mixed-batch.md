@@ -1,8 +1,8 @@
 # PNG/JPEG 混合批次核心与资源准入（J1b 第二段）
 
 - 创建日期：2026-10-09（Asia/Shanghai）。
-- 状态：本机实现与验收完成；未提交，待授权提交后的新SHA三平台验证，保留活动记录。桌面JPEG/J2尚未实施。
-- 分支/基准：dev/c287f4e；保留上轮未提交的阶段计划、索引、A0/J1a/J1b第一段归档与关联链接变更，不提交推送。
+- 状态：本机实现与验收完成，已提交681f050并推送origin/dev（c287f4e..681f050）；待新SHA三平台验证，保留活动记录。桌面JPEG/J2尚未实施。
+- 分支/基准：dev/c287f4e；本轮在保留阶段计划、索引、A0/J1a/J1b第一段归档与关联链接变更的基础上完成实现，已提交681f050（见末节）。
 - 关联：[阶段计划](../260930/next-development-plan.md)、[JPEG单文件核心](../../_fin/261009/jpeg-lossy-core.md)、[PNG桌面连续记录](../260922/png-batch-desktop.md)。
 
 ## 目标与验收
@@ -44,6 +44,12 @@
 ### 最终交付与下一入口
 
 - pnpm tauri build --no-bundle --ci成功，Rust release构建用时1m56s；日志target/j1b-mixed-desktop-build-261009.log。target/release/pixofold.exe为0.1.0、10,772,480 bytes，构建时间2026-10-09 10:54:13（Asia/Shanghai），SHA256 1BDABD423BA11279891915A1503300B6D757B919C17336A0DE5C395A2A20F991。未启动GUI或生成安装包，helper尚未随桌面部署，工作台仍只开放PNG。
-- 最终cargo fmt --all -- --check与git diff --check通过，7份文档108个本地链接/NUL检查通过；生成TS及两个锁文件无diff。新增业务模块batch/image、混合调度/生命周期回归batch/mixed_tests和真实入口examples/jpeg_mixed_check；批次/导入/预算、桌面内部转换与现有调用方、JPEG脚本及相关文档同步修改。全部为本机未提交改动，保留开工前的计划/阶段归档和关联链接，不修改参考仓库或用户原图。
-- 平台边界：本轮已验证Windows本机自动回归、真实工具和无安装包构建；没有新SHA的macOS/Ubuntu CI证据，历史c287f4e全绿不覆盖这些改动。待用户授权提交后核对三平台应用及JPEG完整core-check，满足后归档本任务。
+- 最终cargo fmt --all -- --check与git diff --check通过，7份文档108个本地链接/NUL检查通过；生成TS及两个锁文件无diff。新增业务模块batch/image、混合调度/生命周期回归batch/mixed_tests和真实入口examples/jpeg_mixed_check；批次/导入/预算、桌面内部转换与现有调用方、JPEG脚本及相关文档同步修改。改动已提交为681f050并推送origin/dev（见下节），未修改参考仓库或用户原图。
+- 平台边界：本轮已验证Windows本机自动回归、真实工具和无安装包构建；尚未取得新SHA的macOS/Ubuntu CI证据，历史c287f4e全绿不覆盖这些改动。提交推送后按新SHA核对三平台应用及JPEG完整core-check，满足后归档本任务。
 - 下一开发入口为J2第一步：固定helper构建与身份清单、可信随包加载、无.tools/额外PATH运行，并进行Windows安装/启动小试验；随后再演进实际能力、协议/生成类型、混合导入/结果/重试和方向缩略图。PNG原生A1继续合并用户手测；大图/摄影观感、RSS和其他平台安装仍需各自证据。
+
+## 2026-10-09 编写提交信息、提交与推送
+
+- 用户要求根据工作区内容编写提交信息、提交并推送，无需执行其它任务。复核范围：45份文件（含A0/J1a/J1b第一段三份记录从_plan迁至_fin/261009、新增jpeg-mixed-batch计划、batch/image与mixed_tests、jpeg_mixed_check入口；其余为批次/导入/预算、桌面内部转换、JPEG脚本与文档），无未暂存改动与未跟踪残留，git diff --check通过。
+- 提交681f050「feat: 支持PNG/JPEG混合批次与共用资源准入」（45 files changed、2163 insertions、230 deletions）。沙箱内.git只读，add/commit/push按规则提升同一条命令执行，未绕开沙箱约束；c287f4e..681f050  dev -> dev已同步origin/dev，本地与远端一致。
+- 沿用本轮已完成验证（pnpm check：155项前端、43项核心单元与完整Rust回归含107项桌面/2项doctest、34份语料与类型一致性；jpeg:core:check无损20项、有损92组合/67输出及真实混合入口与独立复验；10:54:13正式无安装包构建）；本次未改业务代码，不重复构建或测试。推送按push触发CI，三平台应用与JPEG完整core-check结果须以最终HEAD取得，不把本次推送写成已通过。
