@@ -1,7 +1,7 @@
 # PNG/JPEG桌面混合工作流（J2第二段）
 
 - 创建日期：2026-10-09（Asia/Shanghai）。
-- 状态：代码与本机自动验收/正式MSI完成，用户随后要求提交推送，本段已提交a21d330并推送origin/dev（d5bf44c..a21d330）；等待手测反馈，新SHA三平台及照片/大图/RSS仍待后续验收，保持活动。P0 d5bf44c的六个CI jobs已于2026-10-09 15:07:21全部通过。
+- 状态：业务a21d330及交接3757d4b已推送origin/dev。用户反馈手动验证功能正常；本轮运行日志确认4张图片成功提交、两次正常退出，无压缩/引擎/清理故障记录，另有一次与ICC限制吻合的缩略图Unavailable。新SHA三平台、逐项GUI/卸载与照片/大图/RSS仍待独立补证，保持活动。P0 d5bf44c的六个CI jobs已全部通过。
 - 分支/基准：dev/d5bf44cf35579f1b4877954b2acca3200956b48f，已推送origin/dev。接手时保留J2第一段的提交结果补记；本轮先同步第一段和索引的真实CI进展。
 - 关联：[阶段计划](../260930/next-development-plan.md)、[可信工具随包及P0](jpeg-desktop-bundle.md)、[PNG原生收尾](../260922/png-batch-desktop.md)。
 
@@ -61,3 +61,20 @@
 - 用户要求根据工作区内容编写提交信息、提交并推送，无需执行其它任务（此前“保留本机改动”的选择被本轮指令替代）。复核范围：44份文件（新增image-contract.ts、assets/jpeg.rs、bundle_check.rs与本段计划；其余为核心共享引擎与预览、桌面启动/任务/IPC/assets/验收程序、生成TS与前端展示/回归、README/AGENTS/native说明），无未暂存改动与未跟踪残留，git diff --check通过。
 - 提交a21d330「feat: 桌面接通PNG/JPEG混合工作流与方向预览（协议v10）」（44 files changed、1617 insertions、182 deletions）。沙箱内.git只读，add/commit/push按规则提升同一条命令执行，未绕开沙箱约束；d5bf44c..a21d330  dev -> dev已同步origin/dev，本地与远端一致。
 - 沿用本轮已完成验证（pnpm check：159项前端、44项核心单元、113项桌面、2项doctest、34份语料与全目标Clippy；jpeg:core:check无损20项/有损92组合67输出/混合入口；jpeg:bundle:check真实应用混合任务、13个输出与11份预览及MSI解包资源复验；15:45:51新MSI）；本次未改业务代码，不重复构建或测试。真实GUI安装/启动/卸载、照片大图观感、RSS与新SHA三平台结果仍待验收，不把本机与历史结果写成新代码通过。
+
+## 2026-10-09 用户手测反馈与运行日志检查
+
+- 用户反馈“手动验证后功能正常”，并授权检查相关运行日志。开工HEAD为dev/3757d4b（业务a21d330），工作区干净；当前任务为只读日志核对和本连续记录维护，不提交推送。用户未逐项说明安装/卸载、主题/DPI及照片观感覆盖范围，不自动替其补全验收矩阵。
+- 已核对diagnostics实际配置：开发日志位于仓库logs/，release日志位于用户系统临时目录的pixofold-logs/。沙箱进程的临时目录与用户安装程序不同，已定位到真实用户的release目录；最近两份日志在16:03–16:11，早前开发/旧release会话另行识别。接下来解析JSONL、按会话检查告警/失败及启动、任务终态和退出健康统计。
+
+### 日志结果（时间均为Asia/Shanghai）
+
+- 本次主要检查两份release/0.1.0日志：`run-1791532992388-uws1AHfhPpyq.jsonl`（16:03:12–16:11:21，58行，SHA256 D37964A90E722CBA7A27C94F5DD3ECB49F9D5B88B0F3B4C3747ED11DA2579997）及`run-1791533484893-KG5K7VdPJ1It.jsonl`（16:11:24–16:11:29，6行，SHA256 5637395495EB413A38939AC38E0606CD923FD83C73B6CBD7631426D0BB067E71）。64行JSON均有效，带sequence的事件无缺号/重复；WARN/ERROR均为0，但不据此忽略INFO内的失败结果。
+- 安装目录中的主程序SHA256为45808AEB423D2B29CD652A81A693EBB7F90E20F09B297650588C1D2D1CD91F2E，与此前新MSI实际解包的主程序一致；安装目录helper为8FC117B4851AE02D405995361EDDCCEE646B3307A7584EF15FC62FE1D1ACFD60，与固定可信资源一致。主程序包内哈希与构建后还原bundle标记的EXE哈希不同，分别比较相同产物，不混用。
+- 两次启动均记录jpeg_engine_verified。第一会话两个批次分别3/3和1/1成功，四个任务各恰好有一次job_started/job_finished、一次output_commit_started/output_commit_succeeded及Reading→Optimizing→Validating→BeforeCommit阶段；无失败、取消或未闭合任务。未出现ToolIdentity/ToolIo/ToolExit/TimedOut、WorkerPanicked/ServiceFault、CommitFailed/CleanupFailed、application_start_failed或shutdown_failed。
+- 4次thumbnail请求中3次ok，1次在16:10:16.854返回`Some(Unavailable)`（selection=2、job=1、attempt=1）；对应压缩已成功，输入14,124 bytes、输出13,245 bytes，与交付自生成icc.jpg的原图/真实输出大小完全相符。源码对ICC/CMYK/不明确颜色、保护元数据或工具身份失败均可返回Unavailable，因此日志不能单独证明具体分支；结合已验证引擎、成功任务及手测样本，判断与当前ICC预览边界吻合，未发现压缩故障，保留该项而不宣称“所有请求均成功”。
+- 4次扫描均Complete，可处理数量依次3、1、0、0；后两次在16:10:52和16:10:59未启动批次。现有日志仅记录候选数量和完成状态，未记录逐项扫描拒绝原因，不能仅凭日志断言是protected.jpg或其他格式拒绝。若用户当时使用了保护/不支持样本则属预期；用户本次整体反馈功能正常，当前没有新增缺陷证据。
+- 两次退出均有application_stopping(exit_code=0)及session_finished，dropped_events=0、write_failures=0；检查时无pixofold或pixofold-jpeg-helper残留进程。该证据确认这两次实际运行安全收尾，不扩展为所有崩溃/OS强杀场景保证。
+- 辅助检查全部6份保留的release日志，均可解析并有正常结束/健康统计；较早14:43–14:52会话有6条UnsupportedContentCredentials警告，属于PNG凭据保护拒绝。其中首批确认3张后最终6/6成功；第二批仍保留3张待确认行，退出正常。这些旧会话不计为本次v10运行失败。
+- 结论：用户手测反馈与运行证据一致，未发现需要修改业务代码的明确故障。只更新本记录、阶段索引与J2第一段反馈状态；未执行GUI、安装/卸载、业务修改、测试重跑或提交推送。卸载、无开发工具系统及主题/DPI等矩阵不能由上述日志代替逐项确认；本次未查询远端CI，不改变其待核对状态。
+- 文档交付检查：git diff --check通过，3份变更文档的31个本地链接及NUL检查通过。HEAD和本地origin/dev均为3757d4b，本轮仅3份开发记录处于未提交状态。

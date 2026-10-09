@@ -1,7 +1,7 @@
 # JPEG可信随包引擎与隔离运行（J2第一段）
 
 - 创建日期：2026-10-09（Asia/Shanghai）。
-- 状态：本机实现/回归/MSI及P0平台基线完成。修正d5bf44c已获授权提交并推送，CI run37895466410六个jobs全部success；用户手动安装/GUI启动/卸载结果待反馈，第一段保持活动。桌面混合接入另续记[J2第二段](jpeg-desktop-workflow.md)。
+- 状态：本机实现/回归/MSI及P0平台基线完成，d5bf44c的CI六个jobs全部success。用户已反馈手测功能正常，安装目录产物与新MSI一致，日志证明启动/图片提交/正常退出；无开发环境及卸载等逐项证据尚不齐，第一段保持活动。详细日志核对及桌面混合接入续记[J2第二段](jpeg-desktop-workflow.md)。
 - 分支/基准：dev/7863652，业务基准681f050；本轮实现已提交6fc7198并推送origin/dev（7863652..6fc7198），开工前的索引、阶段计划、J1b平台进展三份文档随同入库。
 - 关联：[阶段计划](../260930/next-development-plan.md)、[J1b混合核心](../../_fin/261009/jpeg-mixed-batch.md)。
 
@@ -101,3 +101,4 @@
 - 最终核对：run37895466410在2026-10-09 15:07:21（Asia/Shanghai）completed/success，六个jobs全部success。Check macOS（113705707715）15:01:19、Ubuntu（113705707967）14:58:50、Windows（113705707879）15:07:21完成；各自包含统一检查、桌面构建及随包部署验证，JPEG jobs身份见上。新SHA的P0基线已恢复，不代表原CI具体失败时序已重现，也不代替GUI/安装证据。
 - P0完成后开始[J2桌面混合工作流](jpeg-desktop-workflow.md)。本段仅剩用户MSI手测及各平台实际安装等独立验收，不因自动CI通过提前归档第一段。
 - 新MSI构建前，已把本段原PNG/v9 MSI保留至target/deliverables/261009-png-v9/PixoFold_0.1.0_x64_en-US.msi，并核对SHA256仍为472128C09BED631F826BD60333A7E47AFEEA7B7AD29CEBD825376BA13E516FEE。默认bundle路径现用于J2第二段v10新包，避免混用安装验收证据。
+- 用户现已反馈手动验证功能正常。本轮在真实用户release日志中核对2026-10-09 16:03–16:11两次运行，均通过jpeg_engine_verified、正常退出且日志丢失/写入失败为0；已安装主程序与新MSI包内哈希一致，4张图片成功提交。一次缩略图Unavailable与ICC样本边界吻合，细节及日志可见性限制集中记录在[J2第二段末节](jpeg-desktop-workflow.md)。这不是对无开发工具系统/卸载或全部视觉矩阵的额外确认。
