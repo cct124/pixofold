@@ -23,6 +23,8 @@ path = "src/main.rs"
 
 [build-dependencies]
 tauri-build.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
 
 [dependencies]
 pixofold-core.workspace = true
@@ -42,12 +44,14 @@ ts-rs = { workspace = true, optional = true }
 
 [dev-dependencies]
 tauri = { workspace = true, features = ["test"] }
+sha2.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 rustix.workspace = true
 
 [features]
 bindings = ["dep:ts-rs", "pixofold-core/bindings"]
+bundle-check = []
 
 [[bin]]
 name = "export-task-bindings"
@@ -56,3 +60,10 @@ required-features = ["bindings"]
 
 [lints]
 workspace = true
+
+# 开发验收工具，不随安装包分发、不注册IPC。
+[[bin]]
+name = "jpeg-bundle-check"
+path = "src/bin/jpeg-bundle-check.rs"
+test = false
+required-features = ["bundle-check"]

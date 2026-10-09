@@ -5,3 +5,6 @@
 pub mod desktop;
 pub use desktop::tasks;
 pub(crate) use desktop::{assets, diagnostics, ingress, ipc, lifecycle, subscriptions};
+
+#[path = "../build-support/jpeg.rs"]
+mod jpeg_build;

@@ -40,6 +40,16 @@ jobs:
         run: pnpm check
       - name: Build desktop executable
         run: pnpm tauri build --no-bundle --ci
+      - name: Verify bundled JPEG outside development environment
+        run: pnpm jpeg:bundle:check
+      - name: Retain bundled JPEG evidence
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: jpeg-bundle-${{ matrix.os }}
+          path: target/jpeg-bundle-*/
+          if-no-files-found: ignore
+          retention-days: 14
 
   jpeg-lab:
     name: JPEG engine lab (${{ matrix.os }})

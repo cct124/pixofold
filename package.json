@@ -26,6 +26,8 @@
     "jpeg:lab:build": "node tools/jpeg-lab.mjs build",
     "jpeg:lab:check": "node tools/jpeg-lab.mjs check",
     "jpeg:core:check": "node tools/jpeg-lab.mjs core-check",
+    "jpeg:bundle:prepare": "node tools/jpeg-bundle.mjs prepare",
+    "jpeg:bundle:check": "node tools/jpeg-bundle-check.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "types:generate": "node tools/generate-bindings.mjs",

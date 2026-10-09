@@ -14,9 +14,11 @@ pnpm jpeg:core:check
 pnpm jpeg:lab:build --cmake 'C:/path/to/cmake.exe'
 ```
 
-`engine.json`固定MozJPEG v4.1.5的提交与源码归档SHA256。构建为Release/静态libjpeg API 6.2和cjpeg/djpeg/jpegtran，关闭SIMD、TurboJPEG、Java、12-bit、算术编码及PNG输入依赖，Windows使用动态CRT；BUILD字符串固定到源码提交。SIMD关闭用于最小正确性基线，实验耗时不能代表产品性能。上游独立CMake配置，项目系数工具单独链接其静态库；不修改上游构建文件。CMake 4的旧策略兼容参数只用于上游配置。实验前核对源码/配置身份及系数验证器源码哈希，变化后必须重新构建；报告另记录工具二进制SHA256。
+`engine.json`固定MozJPEG v4.1.5的提交与源码归档SHA256。构建为Release/静态libjpeg API 6.2和cjpeg/djpeg/jpegtran，关闭SIMD、TurboJPEG、Java、12-bit、算术编码及PNG输入依赖，Windows使用静态CRT；BUILD字符串固定到源码提交。SIMD关闭用于最小正确性基线，实验耗时不能代表产品性能。上游独立CMake配置，项目系数工具单独链接其静态库；不修改上游构建文件。CMake 4的旧策略兼容参数只用于上游配置。实验前核对源码/配置身份及系数验证器源码哈希，变化后必须重新构建；报告另记录工具二进制SHA256。
 
 自生成原始PPM/JPEG和输出均写入每次新建的`target/jpeg-lab-*/`，源输入逐项核对SHA256。`report.json`记录引擎身份、平台、体积、耗时和拒绝边界。缓存/产物由Git排除，失败产物也保留供诊断。CI另设三平台实验job并保留自生成证据；配置存在不代表平台已经通过。
+
+共享build.mjs按Rust原生目标建立独立静态构建目录；新源码缓存首次由已验证归档解压，之后逐文件复核。变化后先检查来源并使用新的缓存，不能覆盖校验标识继续构建。pnpm jpeg:bundle:prepare暂存helper、目标身份和许可至src-tauri/resources/jpeg/runtime，实验编码器不进入默认安装包。pnpm jpeg:bundle:check复用生产加载器，在系统临时目录隔离验证，证据保留在target/jpeg-bundle-*；可传--resources验证解包资源。应用CI在正式构建后运行该入口，实际结果另记。
 
 ## 验证范围与接入门槛
 
@@ -32,4 +34,4 @@ J1b第一段已新增单文件保守有损。core-check继续使用J1a无损回�
 
 J1b第二段增加jpeg_mixed_check：真实PNG/JPEG混合扫描、无损/有损与颜色回退、逐行/全部冲突、重试稳定ID、备份与原始OS名称、目录结构、能力一致性、PNG凭据隔离、扫描上限和关闭回收。混合JPEG产物继续由djpeg/coeffdump/标记检查独立复验，记录mixed-results/checks.json及core-report.json的mixedOutputsVerified。应用统一测试另用可控门闩和真实阻塞子进程验证worker/工作集共享与取消/超时/关闭后的回收顺序；两类证据分别记录，不等同桌面GUI或RSS实测。
 
-正式核心的生命周期、默认保护、严格Exif子集和安全输出边界见[JPEG核心说明](../../native/jpeg/README.md)，剩余单池预算/共用模型与桌面随包属于J1b第二段/J2。产品当前仍只开放静态PNG。
+正式核心的生命周期、默认保护、严格Exif子集和安全输出边界见[JPEG核心说明](../../native/jpeg/README.md)，J1b混合核心已完成，J2第一段已接可信随包资源；桌面IPC/混合工作流属于J2第二段。产品当前仍只开放静态PNG。

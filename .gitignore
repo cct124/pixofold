@@ -7,6 +7,7 @@ coverage/
 .pnpm-store/
 *.tsbuildinfo
 src-tauri/gen/schemas/
+src-tauri/resources/jpeg/runtime/
 .env
 .env.*
 !.env.example

@@ -1,4 +1,8 @@
+#[path = "build-support/jpeg.rs"]
+mod jpeg;
+
 fn main() {
+    jpeg::generate().expect("JPEG资源无效；请运行pnpm jpeg:bundle:prepare后重新构建");
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
             "get_app_info",

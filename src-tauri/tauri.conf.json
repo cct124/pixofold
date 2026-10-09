@@ -4,9 +4,9 @@
   "version": "../package.json",
   "identifier": "app.pixofold.desktop",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "pnpm jpeg:bundle:prepare && pnpm dev",
     "devUrl": "http://127.0.0.1:1420",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "pnpm jpeg:bundle:prepare && pnpm build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -29,6 +29,7 @@
     }
   },
   "bundle": {
+    "resources": { "resources/jpeg/": "jpeg/" },
     "active": true,
     "targets": "all",
     "category": "GraphicsAndDesign",

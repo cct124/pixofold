@@ -1,6 +1,6 @@
 # JPEG 核心与混合批次（J1a / J1b）
 
-本目录的 helper 与 `pixofold_core::jpeg` 提供无损与保守有损核心，现已接入纯Rust PNG/JPEG混合批次、共用worker和资源预约。当前桌面工作台仍仅支持静态PNG；JPEG的IPC、缩略图、随包工具和安装验收属于J2，不能把开发缓存作为产品部署方案。
+本目录的 helper 与 `pixofold_core::jpeg` 提供无损与保守有损核心，现已接入纯Rust PNG/JPEG混合批次、共用worker和资源预约。当前桌面工作台仍仅支持静态PNG；J2第一段已接可信随包加载和隔离验证，JPEG的IPC/缩略图与混合工作流属于J2第二段，实际安装/平台结果另见开发记录。
 
 ## 构建和真实回归
 
@@ -50,4 +50,4 @@ pnpm jpeg:core:check
 
 ## 待验收与许可
 
-平台执行结果分别见 [J1a记录](../../docs/devlog/_fin/261009/jpeg-lossless-core.md) 与 [J1b有损记录](../../docs/devlog/_fin/261009/jpeg-lossy-core.md)；新代码不能沿用旧SHA的三平台结果。helper使用相同静态MozJPEG，版权/许可来源见[第三方说明](../../THIRD_PARTY_NOTICES.md)，尚未随桌面分发；正式随包需完整通知、源代码和安装运行验证。
+平台执行结果分别见 [J1a记录](../../docs/devlog/_fin/261009/jpeg-lossless-core.md)、[J1b有损记录](../../docs/devlog/_fin/261009/jpeg-lossy-core.md)与[J2随包记录](../../docs/devlog/_plan/261009/jpeg-desktop-bundle.md)；新代码不能沿用旧SHA的三平台结果。helper使用相同静态MozJPEG，版权/许可来源见[第三方说明](../../THIRD_PARTY_NOTICES.md)。J2生成资源包含许可正文/IJG致谢/来源，正式发行仍需完整对应源码资料、安装运行及签名后身份验证。

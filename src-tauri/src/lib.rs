@@ -5,6 +5,7 @@ mod commands;
 pub(crate) mod diagnostics;
 pub(crate) mod ingress;
 pub(crate) mod ipc;
+mod jpeg_bundle;
 pub(crate) mod lifecycle;
 pub(crate) mod resources;
 pub(crate) mod subscriptions;
@@ -78,7 +79,29 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
 
 fn run_application() -> Result<(), Box<dyn std::error::Error>> {
     let runtime = tasks::TaskRuntime::new(resources::task_config())?;
-    let builder = tauri::Builder::default().manage(lifecycle::DesktopTasks::new(runtime)?);
+    let builder = tauri::Builder::default()
+        .manage(lifecycle::DesktopTasks::new(runtime)?)
+        .setup(|app| {
+            let loaded = app.path().resource_dir()
+                .map_err(|_| "resource_directory")
+                .and_then(|root| jpeg_bundle::load(&root).map_err(|error| match error {
+                    pixofold_core::jpeg::JpegError::ToolIo { .. } => "tool_io",
+                    _ => "tool_identity",
+                }));
+            let engines = match loaded {
+                Ok(engine) => {
+                    tracing::info!(target: "pixofold", event = "jpeg_engine_verified");
+                    pixofold_core::batch::ImageEngines::with_jpeg(engine)
+                }
+                Err(code) => {
+                    tracing::warn!(target: "pixofold", event = "jpeg_engine_unavailable", error_code = code);
+                    pixofold_core::batch::ImageEngines::default()
+                }
+            };
+            // 应用持有可信能力；v9工作流仍PNG-only，避免不完整DTO接受JPEG任务。
+            app.manage(engines);
+            Ok(())
+        });
     let app = configure_app(builder).build(app_context())?;
     app.run(|app, event| {
         if let tauri::RunEvent::ExitRequested { api, code, .. } = event

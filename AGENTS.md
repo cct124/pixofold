@@ -55,6 +55,8 @@
 
 ## 工具链、依赖与配置
 
+- JPEG生产/实验共用tools/jpeg-lab/build.mjs固定配方；桌面dev/build钩子执行jpeg:bundle:prepare，资源固定在jpeg/runtime。build.rs核对目标/来源/产物并内嵌预期SHA256，运行时不信旁置清单。普通无工具debug可PNG-only，release必须有有效资源；修改helper/配方后重新prepare。Windows helper静态CRT，资源异常保留PNG；当前v9工作流仍只开放PNG。jpeg:bundle:check为独立无GUI部署验收，不随默认安装包分发；运行/安装/各平台证据分别记录。
+
 - 已使用 pnpm、Vite、Oxlint、Prettier、Vitest 与 Cargo workspace；`pnpm desktop:dev` 启动桌面，`pnpm check` 执行统一检查。变更 Rust DTO 后运行 `pnpm types:generate`，CI 用 `pnpm types:check` 只读检查。
 - 工程初始化时锁定 Rust、Node 和包管理器版本，在 README 记录实际命令与系统依赖；固定 Rust edition 与格式风格。本地和 CI 使用同一套配置。
 - 提交 `Cargo.lock` 与唯一的前端锁文件，使用锁定依赖的安装与构建；依赖升级尽量与功能改动分开，Git 依赖及随包编码工具固定到可复现版本。

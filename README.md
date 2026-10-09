@@ -84,7 +84,15 @@ Windows 可执行文件位于 `target/release/pixofold.exe`，安装包位于 `t
 
 JPEG 开发实验的版本、构建参数和限制见 [实验入口说明](tools/jpeg-lab/README.md)，实际结果与后续接入门槛见 [JPEG实验记录](docs/devlog/_fin/260930/jpeg-engine-lab.md)。实验工具留在 `.tools/`，语料与报告留在独立的 `target/jpeg-lab-*/`；当前产品仍只开放静态 PNG。CI 的三平台实验配置须以实际运行结果验收。
 
-独立的 `pixofold_core::jpeg` 已提供无损与保守有损入口，受控字节helper复用可靠输出层；纯Rust批次现已支持PNG/JPEG共用模型、worker与工作集预约，**尚未开放桌面JPEG**。可信宿主用 `BatchService::with_engines` 配合 `scan_with_engines` 注入同一引擎能力，默认服务与扫描仍为PNG-only。模式/质量映射、元数据保护/回退、资源、工具信任及Rust API迁移见[JPEG核心说明](native/jpeg/README.md)。JPEG凭据移除、工具随包与桌面接入继续留待后续。应用统一检查不自动下载/构建JPEG工具，真实核心回归由上述显式命令和三平台JPEG job执行，实际平台结果见[开发日志](docs/devlog/README.md)。
+独立的 `pixofold_core::jpeg` 已提供无损与保守有损入口，受控字节helper复用可靠输出层；纯Rust批次现已支持PNG/JPEG共用模型、worker与工作集预约，**尚未开放桌面JPEG**。可信宿主用 `BatchService::with_engines` 配合 `scan_with_engines` 注入同一引擎能力，默认服务与扫描仍为PNG-only。模式/质量映射、元数据保护/回退、资源、工具信任及Rust API迁移见[JPEG核心说明](native/jpeg/README.md)。可信工具随包已在J2第一段接入；JPEG凭据移除和桌面混合工作流留待后续。应用统一检查不自动下载/构建JPEG工具，真实核心回归由上述显式命令和三平台JPEG job执行，实际平台结果见[开发日志](docs/devlog/README.md)。
+
+## JPEG随包资源（J2第一段）
+
+- 桌面dev/build钩子先运行pnpm jpeg:bundle:prepare，复用固定MozJPEG配方生成资源、目标身份及许可资料。构建需CMake 3.15+、C编译器和tar；首次下载固定归档，之后复核归档与源码缓存。CMake可在PATH或通过CMAKE指定，Windows还会查询Visual Studio安装位置。安装后的应用无需开发工具。
+- 固定资源映射至应用资源目录的jpeg/runtime，Rust内嵌构建时验证的SHA256，运行时旁置manifest不能改变信任。Windows helper使用静态CRT；缺工具/被替换时记录稳定类别并保留PNG功能，不自动下载或搜索PATH。桌面JPEG入口仍待J2第二段。
+- 普通无工具debug检查可保持PNG-only；正式release构建必须先prepare，资源缺失/过期/目标不匹配即失败。脚本只构建Rust原生目标，不隐式交叉编译；已有暂存资源失效时需重新prepare。
+- pnpm jpeg:bundle:check在仓库外/中文空格路径/无开发PATH环境，复用生产加载器验证真实无损、有损、NoGain、预取消与缺失/替换拒绝，结果经独立工具复验。可传--resources后接已解包绝对资源根目录。程序受bundle-check特性控制，不随默认安装包分发。
+- Windows产物仍位于target/release/bundle；安装/启动/卸载、其他平台和签名发行分别验收，详见[连续记录](docs/devlog/_plan/261009/jpeg-desktop-bundle.md)。签名若改变helper字节，须先确定最终字节再生成可信身份。
 
 ## 静态 PNG 核心开发入口
 

@@ -1,9 +1,9 @@
 # PNG/JPEG 混合批次核心与资源准入（J1b 第二段）
 
 - 创建日期：2026-10-09（Asia/Shanghai）。
-- 状态：本机实现与验收完成，已提交681f050并推送origin/dev（c287f4e..681f050）；待新SHA三平台验证，保留活动记录。桌面JPEG/J2尚未实施。
+- 状态：完成，2026-10-09归档。业务681f050与交接7863652已推送，当前HEAD三平台应用检查/构建及JPEG完整回归全部通过；桌面JPEG/J2另行实施。
 - 分支/基准：dev/c287f4e；本轮在保留阶段计划、索引、A0/J1a/J1b第一段归档与关联链接变更的基础上完成实现，已提交681f050（见末节）。
-- 关联：[阶段计划](../260930/next-development-plan.md)、[JPEG单文件核心](../../_fin/261009/jpeg-lossy-core.md)、[PNG桌面连续记录](../260922/png-batch-desktop.md)。
+- 关联：[阶段计划](../../_plan/260930/next-development-plan.md)、[JPEG单文件核心](jpeg-lossy-core.md)、[PNG桌面连续记录](../../_plan/260922/png-batch-desktop.md)。
 
 ## 目标与验收
 
@@ -53,3 +53,22 @@
 - 用户要求根据工作区内容编写提交信息、提交并推送，无需执行其它任务。复核范围：45份文件（含A0/J1a/J1b第一段三份记录从_plan迁至_fin/261009、新增jpeg-mixed-batch计划、batch/image与mixed_tests、jpeg_mixed_check入口；其余为批次/导入/预算、桌面内部转换、JPEG脚本与文档），无未暂存改动与未跟踪残留，git diff --check通过。
 - 提交681f050「feat: 支持PNG/JPEG混合批次与共用资源准入」（45 files changed、2163 insertions、230 deletions）。沙箱内.git只读，add/commit/push按规则提升同一条命令执行，未绕开沙箱约束；c287f4e..681f050  dev -> dev已同步origin/dev，本地与远端一致。
 - 沿用本轮已完成验证（pnpm check：155项前端、43项核心单元与完整Rust回归含107项桌面/2项doctest、34份语料与类型一致性；jpeg:core:check无损20项、有损92组合/67输出及真实混合入口与独立复验；10:54:13正式无安装包构建）；本次未改业务代码，不重复构建或测试。推送按push触发CI，三平台应用与JPEG完整core-check结果须以最终HEAD取得，不把本次推送写成已通过。
+
+## 2026-10-09 下一阶段计划复核时的平台进展
+
+- 本机HEAD和GitHub只读branch查询均为786365246c203cbdf0b9714f571600080b143d67，包含业务681f050；开工工作区干净。此前摘要中的“未提交”已过时，以实际Git状态为准。
+- 对应[CI run37878230376](https://github.com/cct124/pixofold/actions/runs/37878230376)于2026-10-09 11:12:49（Asia/Shanghai）触发；截至本轮11:20查询整体仍在运行。三平台JPEG jobs的固定工具构建、实验和真实核心/混合批次步骤均success；macOS/Ubuntu统一检查已通过并进入桌面构建，Windows统一检查仍在执行。
+
+| 平台 | 应用Check/构建 | JPEG实验与真实核心 |
+| --- | --- | --- |
+| Windows | job113651694066，Check运行中、构建待执行 | job113651693846，success，11:15:46完成 |
+| macOS | job113651694014，统一检查success、构建运行中 | job113651694198，success，11:14:25完成 |
+| Ubuntu 24.04 | job113651694128，统一检查success、构建运行中 | job113651694053，success，11:14:12完成 |
+
+- 当前证据已覆盖新代码三平台JPEG真实核心，但尚不能将整轮CI或应用构建写为通过。待同一HEAD三个Check jobs及构建完成后归档；若失败，先读失败步骤再决定修复范围。未重跑CI或本机测试，未修改业务代码。
+- 下一开发交付按[阶段计划末节](../../_plan/260930/next-development-plan.md)推进J2可信helper随包与隔离运行，随后接桌面混合工作流；GUI、安装、照片/大图观感和RSS仍保留各自验收边界。
+
+## 2026-10-09 最终平台收口与归档
+
+- 用户授权J2实施时只读复核同一HEAD：run37878230376六个jobs全部success。应用job113651694128（Ubuntu）11:20:53、113651694014（macOS）11:22:42、113651694066（Windows）11:27:58完成，时间均为Asia/Shanghai；统一检查和正式无安装包构建均通过。JPEG三平台完整真实核心包含混合入口，结果见上节。
+- J1b第二段目标满足，按实际日期移至_fin/261009，保留创建日期与此前进行中记录。本次没有重跑远端CI；新J2改动的平台结果另验收，当前全绿不覆盖尚未提交的随包实现。

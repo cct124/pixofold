@@ -18,7 +18,7 @@ const BINARY: &str = if cfg!(windows) {
 const MAX_TOOL_BYTES: u64 = 64 * 1024 * 1024;
 
 /// 受信的固定单线程字节工具；可在有界图片worker间共享。不从PATH寻找或自动下载。
-/// J1a由核心宿主显式提供；桌面尚未构建/分发此引擎。
+/// 核心宿主显式提供；桌面随包加载复用此验证，工作流能力另由应用控制。
 pub struct JpegEngine {
     executable: PathBuf,
     sha256: [u8; 32],

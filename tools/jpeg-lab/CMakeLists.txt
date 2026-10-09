@@ -10,7 +10,7 @@ endif()
 
 add_executable(pixofold-coeffdump coeffdump.c)
 
-# J1a核心工具不包含实验语料命令，不自动分发到桌面。
+# 核心工具不包含实验语料命令；桌面仅暂存此目标和许可资料。
 add_executable(pixofold-jpeg-helper ../../native/jpeg/helper.c)
 target_compile_features(pixofold-jpeg-helper PRIVATE c_std_99)
 target_include_directories(pixofold-jpeg-helper PRIVATE "${MOZJPEG_SOURCE}" "${MOZJPEG_BUILD}")
