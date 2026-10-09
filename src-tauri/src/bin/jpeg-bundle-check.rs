@@ -12,6 +12,29 @@ use std::{error::Error, fs, path::Path};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
+    if args.first().is_some_and(|arg| arg == "--profile") {
+        if args.len() != 5 {
+            return Err(
+                "参数：--profile 资源根目录 输入目录 新输出目录 lossless或质量0–100".into(),
+            );
+        }
+        let mode = if args[4] == "lossless" {
+            pixofold_core::model::PngMode::Lossless
+        } else {
+            pixofold_core::model::PngMode::Lossy {
+                quality: QualityValue::new(args[4].to_str().ok_or("质量无效")?.parse()?)?,
+            }
+        };
+        let engine = jpeg_bundle::load(Path::new(&args[1]))?;
+        let report = pixofold_desktop_lib::bundle_check::profile(
+            engine,
+            Path::new(&args[2]),
+            Path::new(&args[3]),
+            mode,
+        )?;
+        println!("{report}");
+        return Ok(());
+    }
     if args.len() != 1 && args.len() != 3 {
         return Err("参数：资源根目录 [样本JPEG 新输出目录]".into());
     }

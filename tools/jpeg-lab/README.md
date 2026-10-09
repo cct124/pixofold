@@ -1,6 +1,6 @@
 # JPEG开发实验
 
-本入口为下一阶段JPEG核心提供引擎行为和资源边界证据。实验独立于PNG任务与桌面IPC，当前产品仍只开放静态PNG。
+本入口为JPEG核心提供引擎行为和资源边界证据。实验构建与生产共用固定配方；产品PNG/JPEG能力及实际验收状态见主README和devlog。
 
 ## 构建与运行
 
@@ -21,6 +21,8 @@ pnpm jpeg:lab:build --cmake 'C:/path/to/cmake.exe'
 共享build.mjs按Rust原生目标建立独立静态构建目录；新源码缓存首次由已验证归档解压，之后逐文件复核。变化后先检查来源并使用新的缓存，不能覆盖校验标识继续构建。pnpm jpeg:bundle:prepare暂存helper、目标身份和许可至src-tauri/resources/jpeg/runtime，实验编码器不进入默认安装包。pnpm jpeg:bundle:check复用生产加载器，在系统临时目录隔离验证，证据保留在target/jpeg-bundle-*；可传--resources验证解包资源。应用CI在正式构建后运行该入口，实际结果另记。
 
 ## 验证范围与接入门槛
+
+照片/大图补验使用`pnpm jpeg:acceptance:check --inputs ABS_DIR [--resources ABS_DIR] [--stress ABS_DIR] [--expectations ABS_JSON]`，复用实际桌面配置和TaskRuntime，独立验证及工作集采样范围见[native说明](../../native/jpeg/README.md)。它是显式开发验收，不自动下载照片、不随安装包分发；输入必须为准备好的隔离目录。预期JSON示例：`{"mode-80":{"over-limit.jpg":"ResourceLimit"}}`，未列入的失败或扫描拒绝必须失败。`jpeg:core:check`另含真实2MP有损收紧预算及32MiB拒绝回归。
 
 - 21项baseline/progressive、灰度、YCbCr 4:2:0/4:2:2/4:4:4、RGB、CMYK/YCCK、奇数尺寸、EXIF方向1–8、单段/分段ICC、COM与不透明APP11；ICC来自本项目的PNG生成语料，仅验证载荷保持、不作色彩校准；APP11是合成字节，不是真实签名内容凭据。
 - 系数层转写逐字节比较尺寸、组件/采样、量化表及有符号DCT系数，另比较解码像素与全部APP/COM载荷及顺序。`jpegtran -copy all`显式保留标记；默认参数会丢ICC，不能用于产品默认路径。额外构造JFIF前有ICC的输入，记录上游重建JFIF位置的边界，规范语料的顺序断言不因此放松。

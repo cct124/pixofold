@@ -578,6 +578,69 @@ fn bounded_scan_and_shutdown(root: &Path, fixtures: &Path, engines: &ImageEngine
     }));
 }
 
+fn lossy_budget_regression(
+    root: &Path,
+    fixtures: &Path,
+    engines: &ImageEngines,
+    checks: &mut Vec<Value>,
+) {
+    let dir = folder(root, "lossy-budget");
+    let source = dir.join("input.jpg");
+    let original = fs::read(fixtures.join("lossy-extra/budget.jpg")).unwrap();
+    fs::write(&source, &original).unwrap();
+    let service = BatchService::with_engines(
+        BatchConfig {
+            workers: 1,
+            working_set_budget: ByteCount(1024 * 1024 * 1024),
+            ..BatchConfig::default()
+        },
+        engines.clone(),
+    )
+    .unwrap();
+    for (name, decoded_bytes, succeeds) in [
+        ("normal.jpg", 128 * 1024 * 1024, true),
+        ("limited.jpg", 32 * 1024 * 1024, false),
+    ] {
+        let output = dir.join(name);
+        let mut parameters = BatchParameters {
+            mode: CompressionMode::Lossy {
+                quality: QualityValue::default(),
+            },
+            ..BatchParameters::default()
+        };
+        parameters.limits.max_decoded_bytes = ByteCount(decoded_bytes);
+        let id = service
+            .start(BatchRequest {
+                items: vec![item(
+                    &source,
+                    ImageKind::Jpeg,
+                    OutputPolicy::Copy {
+                        destination: output.clone(),
+                    },
+                )],
+                parameters,
+                engines: engines.clone(),
+            })
+            .unwrap();
+        let done = finish(&service, id);
+        if succeeds {
+            assert!(
+                matches!(&done.jobs[0].state, JobState::Succeeded(ImageReport::Jpeg(report))
+                if matches!(report.processing, JpegProcessing::Lossy { .. })),
+                "预算回归终态：{:?}",
+                done.jobs[0].state
+            );
+            checks.push(json!({"source":source,"output":output,"lossless":false}));
+        } else {
+            assert!(matches!(&done.jobs[0].state, JobState::Failed(failure)
+                    if failure.code == JobErrorCode::ResourceLimit
+                    && matches!(failure.cause.as_deref(), Some(ImageError::Jpeg(JpegError::ResourceLimit(_))))));
+            assert!(!output.exists());
+        }
+        assert_eq!(fs::read(&source).unwrap(), original);
+    }
+}
+
 fn main() {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
     assert_eq!(args.len(), 3);
@@ -608,6 +671,7 @@ fn main() {
     backup_layout_and_native_names(&root, fixtures, &engines);
     credentials_and_capabilities(&root, fixtures, &engines, tool, hash);
     bounded_scan_and_shutdown(&root, fixtures, &engines);
+    lossy_budget_regression(&root, fixtures, &engines, &mut checks);
     fs::write(
         root.join("checks.json"),
         serde_json::to_vec_pretty(&checks).unwrap(),

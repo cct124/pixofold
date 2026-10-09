@@ -1,7 +1,7 @@
 # PNG/JPEG桌面混合工作流（J2第二段）
 
 - 创建日期：2026-10-09（Asia/Shanghai）。
-- 状态：业务a21d330及交接3757d4b已推送origin/dev。用户反馈手动验证功能正常；本轮运行日志确认4张图片成功提交、两次正常退出，无压缩/引擎/清理故障记录，另有一次与ICC限制吻合的缩略图Unavailable。新SHA三平台、逐项GUI/卸载与照片/大图/RSS仍待独立补证，保持活动。P0 d5bf44c的六个CI jobs已全部通过。
+- 状态：0f4fcfd六个CI jobs全部success，用户确认此前功能正常及卸载，缺少WebView2的环境按其安排后置。阶段1本机有损预算修复、完整检查、真实2MP/照片/大图/工作集及新MSI部署复验已完成；18份源码/验证/文档改动尚未提交，新SHA三平台CI须取得本轮提交推送授权后核对。细分原生/视觉与无开发工具环境证据继续按实际范围记录。
 - 分支/基准：dev/d5bf44cf35579f1b4877954b2acca3200956b48f，已推送origin/dev。接手时保留J2第一段的提交结果补记；本轮先同步第一段和索引的真实CI进展。
 - 关联：[阶段计划](../260930/next-development-plan.md)、[可信工具随包及P0](jpeg-desktop-bundle.md)、[PNG原生收尾](../260922/png-batch-desktop.md)。
 
@@ -78,3 +78,31 @@
 - 辅助检查全部6份保留的release日志，均可解析并有正常结束/健康统计；较早14:43–14:52会话有6条UnsupportedContentCredentials警告，属于PNG凭据保护拒绝。其中首批确认3张后最终6/6成功；第二批仍保留3张待确认行，退出正常。这些旧会话不计为本次v10运行失败。
 - 结论：用户手测反馈与运行证据一致，未发现需要修改业务代码的明确故障。只更新本记录、阶段索引与J2第一段反馈状态；未执行GUI、安装/卸载、业务修改、测试重跑或提交推送。卸载、无开发工具系统及主题/DPI等矩阵不能由上述日志代替逐项确认；本次未查询远端CI，不改变其待核对状态。
 - 文档交付检查：git diff --check通过，3份变更文档的31个本地链接及NUL检查通过。HEAD和本地origin/dev均为3757d4b，本轮仅3份开发记录处于未提交状态。
+
+## 2026-10-09 手测记录入库后的平台核对与下一阶段规划
+
+- 用户询问下一步合理开发计划。开工dev/0f4fcfd0825f51542d5d2658da600d21e0174350，本地origin/dev及GitHub分支查询一致，工作区干净；0f4fcfd仅将前轮3份手测/日志开发记录入库，实际业务仍为a21d330。旧交接中的3757d4b和未提交状态已成为历史。
+- 当前SHA的[CI run37905198950](https://github.com/cct124/pixofold/actions/runs/37905198950)于2026-10-09 16:28:50（Asia/Shanghai）触发。16:32核对：Ubuntu JPEG job113736882266及macOS JPEG job113736882345已success；Windows JPEG job113736882052在真实核心回归步骤，三平台Check jobs113736881799/113736881999/113736882083在统一检查步骤，均in_progress。已完成步骤无failure；不能据此宣称六个jobs全绿。本轮仅只读查询，没有重跑或Git写入。
+- 16:36补查：Windows JPEG job也已success，JPEG三平台全部通过；macOS/Ubuntu Check统一检查通过、桌面构建进行中，Windows Check仍在统一检查。六个jobs已完成步骤均无failure，整体仍未结束。
+- 下一入口：继续按该SHA核对三平台统一检查、桌面构建和随包部署；明确失败优先处理。收到的功能正常反馈与运行日志已记入本段，卸载、无开发工具系统、主题/DPI、照片观感及RSS仍按实际范围补证。完整门槛满足前本段保持活动。
+- 下一主要开发任务为[动画验证底座与GIF最小实验](animation-foundation.md)：先独立建立有界合成/时间轴验证与确定性语料，再试固定源码Gifsicle；首个产品交付聚焦GIF无损核心及桌面闭环。动画实验可在平台等待期间开展，生产格式开放和阶段收口须使用自己的验证结果。
+
+## 2026-10-09 实施阶段1：JPEG收尾与照片/大图资源验收
+
+- 用户要求实施上一轮计划的阶段1（JPEG收尾）。开工dev/0f4fcfd，保留前轮4份本机规划/平台文档改动，不进入动画实现。本连续记录承接平台、手测与照片/资源证据。
+- 本轮GitHub只读复核确认run37905198950对应0f4fcfd0825f51542d5d2658da600d21e0174350，2026-10-09 16:46:37（Asia/Shanghai）completed/success；三平台Check jobs113736881799/113736881999/113736882083均success，统一检查、桌面构建及随包部署关键步骤通过；三平台JPEG jobs113736882052/113736882266/113736882345均success，真实核心步骤通过。未重跑或用旧SHA替代。
+- 用户补充“已卸载，未安装webview2的测试以后再测，先完善功能”。真实卸载已按用户反馈记为通过；缺少WebView2的目标环境按用户安排后置，无开发工具隔离系统仍无独立证据。继续本轮可自动完成的照片/大图/内存验收，已有功能正常反馈不重复索取。
+- 已定位现有真实核心、随包后端和独立djpeg/coeffdump入口；上游227×149照片仅提供最小真实内容观察，尚不足覆盖大照片。下一步准备来源/许可明确的隔离照片和大图，使用实际核心/桌面调度验证输出、原图安全、资源预算及采样工作集，观感与性能结论按样本范围记录。
+- 新增显式jpeg:acceptance:check及bundle-check的--profile路径，复用resources::task_config和TaskRuntime；50ms目标间隔采样父进程/直接helper工作集、活动数和预约，报告实际最大采样间隔；不含WebView/GUI。调用方须提供隔离语料，输出全新目录；独立djpeg/coeffdump复验，原图哈希、NoGain/失败无副本和完整反馈检查，预期拒绝由显式JSON清单限定。
+- 隔离语料来自许可明确的Fronalpstock照片（Daniel Schwen，CC BY-SA 3.0）及Times Square照片（Jeffrey Zeldman，CC BY-SA 4.0），保留原图哈希、来源、许可与准备脚本；另含固定上游rose及PNG。原始相机元数据与独立归一化派生图分别测试；原图不接受不能写成“原照片直接支持”。数据及许可证据位于target/jpeg-stage1-261009，未提交第三方图片。
+- 首轮证据target/jpeg-acceptance-cWKx69：无损2成功/4NoGain、2扫描拒绝；有损80中4项失败，其中两张约2MP为ToolExit、两张12MP为ResourceLimit。直接调用固定helper复现：city-small在24/32MiB时pixels成功而lossy退出2，64/128MiB时lossy成功；不是无收益或坏图。诊断结果target/jpeg-stage1-261009/helper-diagnose.json。
+- 根因已核对固定MozJPEG 6c9f0897的jccoefct：Huffman完整缓冲无条件申请whole_image和whole_image_uq两套编码系数，helper将扣除像素余量后的预算各半分给解码/编码；旧头探测/执行检查只覆盖两套总系数，收紧限额后编码半份不足。修正格式预检的有损工作集检查与头探测同源计费，保守覆盖四套系数及元数据/像素余量；在调用原生编码前返回ResourceLimit。helper/配方/哈希和默认128MiB上限保持原策略。
+- 增加1600×1200真实自生成JPEG混合批次回归：默认预算必须成功提交真实有损结果，32MiB必须明确ResourceLimit且无输出/原图不变；独立JPEG输出验证接入现有jpeg:core:check。照片验收另加入6.6/7.1MP可处理大图，12MP的有损资源拒绝作为显式边界保留，无损另验证。当前修复待真实回归和完整检查，新CI绿色仅覆盖开工SHA。
+- 修复后照片证据target/jpeg-acceptance-DZVdNS：10项输入每种模式均有完整任务/扫描反馈。无损2成功/6NoGain；有损40/80各6成功，100为1成功/5NoGain；两张12MP在有损下为显式ResourceLimit、无损正常终态；两个原始相机样本因复杂元数据扫描拒绝。默认80的4张归一化照片减少47.8%–49.8%，独立RGB解码PSNR36.48–40.03dB；不作为通用压缩率或画质承诺。全部源哈希不变，NoGain/拒绝无副本，未见ToolExit/Validation/清理故障。
+- 并发抽测为16张6.6/7.1MP JPEG副本及1张PNG，17/17成功，处理2625ms；实际桌面配置17 workers、约2.13GiB预算，采样峰值3个活动worker/3个helper，宿主+helper同时采样峰值133.20MiB（各自峰值19.57/117.74MiB不能相加代替同时峰值）。目标间隔50ms、最大实际间隔109ms，机器AMD Ryzen 9 7945HX/32逻辑CPU/约31.7GiB总RAM；这是无GUI后端抽测，不含WebView且不是硬RSS上限。
+- 已生成并查看city-small-comparison.png和landscape-small-comparison.png，包含输入、80、40的全图缩放与100%同位置裁切。抽样未见明显整体色偏、几何变化或破损，40档可见纹理/文字边缘损失；视觉结论限于这两张归一化场景，真实ICC校准/广泛照片观感仍不作扩展。对照图与来源/许可/脚本保存在target/jpeg-stage1-261009。
+- 新2MP回归初次遇到新增调用签名错误，修正后又被测试辅助服务512MiB总预算提前拒绝；已按目标将该回归固定为1worker/1GiB总预算，保持每图128MiB与32MiB两种检查，并要求32MiB错误原因来自JPEG工作集而非批次预算。完整jpeg:core:check现已通过（20无损/14收益、92有损组合/67输出、新2MP成功与超限拒绝及完整混合入口），证据target/jpeg-lab-core-noLvxz、日志target/jpeg-stage1-261009/core-fixed.log。当前进行pnpm check，随后构建包含修复的新MSI。
+- 完整检查已收口：pnpm check的格式/Oxlint/TypeScript、159项前端、34语料、生成类型通过；Clippy首次发现显式desktop测试装配未重导出resources，补齐测试根引用后续跑pnpm rust:check/rust:test及rustfmt，全目标/全特性Clippy、44核心单元、全部核心集成、113桌面和2 doctest全部通过。未重跑未受影响的前端；日志check-all.log、clippy-fixed.log及rust-fixed.log均在本轮证据目录。
+- 新MSI于17:53:33构建完成，保存target/deliverables/261009-jpeg-budget/PixoFold_0.1.0_x64_en-US.msi（4,063,232 bytes，SHA256 B3BEACF31D536841A3D406C539E94FFB447D9AC25D0EB3898C8A83FADE9915EF）。仍为开发版0.1.0，旧v10包保留原路径/哈希，不能混用安装证据。新MSI管理解包退出0，包内主程序SHA256 878E7857FCD09704F967C972E37652A9D87F879D678A9A488DBAF87F0F6BD615，helper仍为8FC117B4851AE02D405995361EDDCCEE646B3307A7584EF15FC62FE1D1ACFD60；含许可/来源及身份清单，未包含实验编码器、验收程序或照片。
+- 对该实际新包内资源执行jpeg:bundle:check通过，证据target/jpeg-bundle-ICwqrH及bundle-msi-fixed.log，真实混合后端13输出/11预览、工具缺失/伪造身份拒绝和独立输出检查通过。此项为解包/无GUI部署，新包安装/启动及完整OS视觉矩阵仍按用户实际手测反馈另记；未自行安装、启动或卸载程序。
+- 最终交接：本地HEAD、本地origin/dev及18:00前GitHub分支复核仍为0f4fcfd；保留前轮4份规划改动并纳入18份完整审阅范围，无依赖/锁文件/生成类型或helper配方变更。git diff --check、148个本地链接、8份Markdown及18份变更文本NUL/尾随空白检查通过。业务修复已具备审阅/新MSI交付条件；AGENTS.md要求明确授权才提交推送，未执行Git写入。新SHA三平台结果尚未取得，不能用0f4fcfd绿色覆盖本轮修复。

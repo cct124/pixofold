@@ -76,6 +76,7 @@ pnpm desktop:dev
 | `pnpm jpeg:lab:build` | 下载并校验固定 MozJPEG 源码，独立构建开发实验工具；需要 CMake 和 C 编译器 |
 | `pnpm jpeg:lab:check` | 用自生成语料检查 JPEG 系数无损、有损重编码、元数据和错误/资源边界 |
 | `pnpm jpeg:core:check` | 运行 JPEG 无损/保守有损及真实 PNG/JPEG 混合批次、独立解码比对和安全输出回归；须先构建固定工具 |
+| `pnpm jpeg:acceptance:check --inputs ABS_DIR [--resources ABS_DIR] [--stress ABS_DIR] [--expectations ABS_JSON]` | 显式照片/大图验收，复用桌面资源配置和任务服务，采样宿主/helper工作集并独立检查输出；语料来源与预期拒绝由调用方提供 |
 | `cargo run -p pixofold-core --release --locked --example png_baseline` | 在隔离目录测量静态 PNG 体积与耗时基线 |
 | `cargo run -p pixofold-core --release --locked --example png_quality_baseline` | q 锚点、实际回退、库评分及黑白背景误差基线 |
 | `cargo run -p pixofold-core --release --locked --example batch_profile -- SOURCE WORKERS COPIES [--confirm-credentials]` | 临时副本上测量整图并发；有损68，采样RSS/活动数；可显式移除测试副本凭据 |

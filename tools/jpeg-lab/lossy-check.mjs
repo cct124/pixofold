@@ -43,6 +43,26 @@ export function runLossyChecks({ root, tools, directory, hash, source }) {
     { flag: 'wx' },
   );
   const jfifEnd = 4 + base.readUInt16BE(4);
+  // 真实2MP基线图触发Huffman完整系数缓冲，覆盖调度收紧后仍能有损编码的回归。
+  const budgetRaster = path.join(extra, 'budget.ppm');
+  const budgetPixels = Buffer.alloc(1600 * 1200 * 3);
+  for (let y = 0; y < 1200; y++) {
+    for (let x = 0; x < 1600; x++) {
+      const at = (y * 1600 + x) * 3;
+      budgetPixels[at] = (x * 3 + y * 7) % 256;
+      budgetPixels[at + 1] = (x + y * 2) % 256;
+      budgetPixels[at + 2] = (x * 2 + y) % 256;
+    }
+  }
+  const budgetHeader = ['P6', '1600 1200', '255', ''].join(String.fromCharCode(10));
+  writeFileSync(budgetRaster, Buffer.concat([Buffer.from(budgetHeader), budgetPixels]), {
+    flag: 'wx',
+  });
+  save(
+    'budget',
+    execute(tools.cjpeg, ['-baseline', '-quality', '95', '-sample', '2x2', budgetRaster]),
+    extra,
+  );
   const thumbnail = Buffer.concat([
     base.subarray(0, jfifEnd),
     Buffer.from([0, 0, 0]),

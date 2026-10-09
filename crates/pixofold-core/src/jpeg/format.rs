@@ -84,6 +84,18 @@ impl Parsed<'_> {
         }
         Ok(())
     }
+
+    pub fn check_lossy_budget(&self, limits: JpegLimits) -> Result<(), JpegError> {
+        // 固定MozJPEG jccoefct的whole_image/whole_image_uq各占一套完整编码系数。
+        // helper平分解码/编码预算，编码半份须覆盖两套；保守计四套及两份像素工作区。
+        let raw = u64::from(self.info.width)
+            * u64::from(self.info.height)
+            * u64::from(self.info.components);
+        if self.working_bytes * 2 + raw * 2 > limits.resources.max_decoded_bytes.0 {
+            return Err(JpegError::ResourceLimit("JPEG有损Huffman编码工作集"));
+        }
+        Ok(())
+    }
 }
 
 fn invalid(reason: &'static str) -> JpegError {
@@ -308,8 +320,9 @@ pub(crate) fn probe_header(
             reader.read_exact(payload).ok()?;
             let (info, _, working) = parse_frame(payload, marker == 0xc2, limits).ok()?;
             let pixels = u64::from(info.width) * u64::from(info.height);
-            // 元数据上限两份，加上最坏有损像素工作区；同时覆盖无损回退。
-            let required = working + 2 * 1024 * 1024 + pixels * u64::from(info.components) * 2;
+            // 覆盖两套编码系数及helper平分预算，元数据上限按执行检查的双倍余量计费。
+            // 头探测只收紧上限；完整执行复查实际结构和有损所需工作集。
+            let required = working * 2 + 4 * 1024 * 1024 + pixels * u64::from(info.components) * 2;
             return Some((info, required));
         }
         let mut left = length;

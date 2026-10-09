@@ -4,7 +4,7 @@
 #[path = "../src/lib.rs"]
 pub mod desktop;
 pub use desktop::tasks;
-pub(crate) use desktop::{assets, diagnostics, ingress, ipc, lifecycle, subscriptions};
+pub(crate) use desktop::{assets, diagnostics, ingress, ipc, lifecycle, resources, subscriptions};
 
 #[path = "../build-support/jpeg.rs"]
 mod jpeg_build;

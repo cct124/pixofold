@@ -1,5 +1,5 @@
 //! 显式无GUI桌面验收；只编入开发检查feature，复用生产任务/DTO/展示服务。
-//! 调用方提供自生成语料和全新隔离输出目录；不接收IPC、不启动窗口。
+//! 调用方提供隔离验收语料和全新输出目录；不接收IPC、不启动窗口。
 
 use crate::{
     assets::{
@@ -29,6 +29,9 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+
+mod profile;
+pub use profile::profile;
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 

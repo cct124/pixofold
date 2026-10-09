@@ -282,6 +282,7 @@ pub fn optimize_jpeg(
     };
     let (candidate, validation) = match processing {
         JpegProcessing::Lossy { parameters } => {
+            parsed.check_lossy_budget(request.limits)?;
             let color = engine.decoded_color(&source.bytes, &parsed, request.limits, cancel)?;
             (
                 engine.reencode(
