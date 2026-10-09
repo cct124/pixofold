@@ -1,7 +1,7 @@
 # PNG/JPEG桌面混合工作流（J2第二段）
 
 - 创建日期：2026-10-09（Asia/Shanghai）。
-- 状态：0f4fcfd六个CI jobs全部success，用户确认此前功能正常及卸载，缺少WebView2的环境按其安排后置。阶段1本机有损预算修复、完整检查、真实2MP/照片/大图/工作集及新MSI部署复验已完成；18份源码/验证/文档改动尚未提交，新SHA三平台CI须取得本轮提交推送授权后核对。细分原生/视觉与无开发工具环境证据继续按实际范围记录。
+- 状态：0f4fcfd六个CI jobs全部success，用户确认此前功能正常及卸载，缺少WebView2的环境按其安排后置。阶段1有损预算修复、完整检查、真实2MP/照片/大图/工作集及新MSI部署复验已提交5f68448并推送origin/dev（0f4fcfd..5f68448）；新SHA三平台CI待核对。细分原生/视觉与无开发工具环境证据继续按实际范围记录。
 - 分支/基准：dev/d5bf44cf35579f1b4877954b2acca3200956b48f，已推送origin/dev。接手时保留J2第一段的提交结果补记；本轮先同步第一段和索引的真实CI进展。
 - 关联：[阶段计划](../260930/next-development-plan.md)、[可信工具随包及P0](jpeg-desktop-bundle.md)、[PNG原生收尾](../260922/png-batch-desktop.md)。
 
@@ -105,4 +105,10 @@
 - 完整检查已收口：pnpm check的格式/Oxlint/TypeScript、159项前端、34语料、生成类型通过；Clippy首次发现显式desktop测试装配未重导出resources，补齐测试根引用后续跑pnpm rust:check/rust:test及rustfmt，全目标/全特性Clippy、44核心单元、全部核心集成、113桌面和2 doctest全部通过。未重跑未受影响的前端；日志check-all.log、clippy-fixed.log及rust-fixed.log均在本轮证据目录。
 - 新MSI于17:53:33构建完成，保存target/deliverables/261009-jpeg-budget/PixoFold_0.1.0_x64_en-US.msi（4,063,232 bytes，SHA256 B3BEACF31D536841A3D406C539E94FFB447D9AC25D0EB3898C8A83FADE9915EF）。仍为开发版0.1.0，旧v10包保留原路径/哈希，不能混用安装证据。新MSI管理解包退出0，包内主程序SHA256 878E7857FCD09704F967C972E37652A9D87F879D678A9A488DBAF87F0F6BD615，helper仍为8FC117B4851AE02D405995361EDDCCEE646B3307A7584EF15FC62FE1D1ACFD60；含许可/来源及身份清单，未包含实验编码器、验收程序或照片。
 - 对该实际新包内资源执行jpeg:bundle:check通过，证据target/jpeg-bundle-ICwqrH及bundle-msi-fixed.log，真实混合后端13输出/11预览、工具缺失/伪造身份拒绝和独立输出检查通过。此项为解包/无GUI部署，新包安装/启动及完整OS视觉矩阵仍按用户实际手测反馈另记；未自行安装、启动或卸载程序。
-- 最终交接：本地HEAD、本地origin/dev及18:00前GitHub分支复核仍为0f4fcfd；保留前轮4份规划改动并纳入18份完整审阅范围，无依赖/锁文件/生成类型或helper配方变更。git diff --check、148个本地链接、8份Markdown及18份变更文本NUL/尾随空白检查通过。业务修复已具备审阅/新MSI交付条件；AGENTS.md要求明确授权才提交推送，未执行Git写入。新SHA三平台结果尚未取得，不能用0f4fcfd绿色覆盖本轮修复。
+- 最终交接：开工基准为0f4fcfd；本轮保留前轮4份规划改动并纳入18份完整审阅范围，无依赖/锁文件/生成类型或helper配方变更。git diff --check、148个本地链接、8份Markdown及18份变更文本NUL/尾随空白检查通过。改动随后按用户指令提交为5f68448并推送origin/dev（见下节）。新SHA三平台结果尚未取得，不能用0f4fcfd绿色覆盖本轮修复。
+
+## 2026-10-09 编写提交信息、提交与推送
+
+- 用户要求根据工作区内容编写提交信息、提交并推送，无需执行其它任务。复核范围：18份文件（新增jpeg-acceptance-check.mjs、bundle_check/profile.rs与animation-foundation计划；其余为jpeg/preflight与mixed回归、bundle-check程序、package.json/README、native与实验说明、devlog索引与J2记录），无未暂存改动与未跟踪残留（照片等隔离语料留在target不入库），git diff --check通过。
+- 提交5f68448「fix: 收紧有损系数预算并补照片大图验收」（18 files changed、698 insertions、15 deletions）。沙箱内.git只读，add/commit/push按规则提升同一条命令执行，未绕开沙箱约束；0f4fcfd..5f68448  dev -> dev已同步origin/dev，本地与远端一致。
+- 沿用本轮已完成验证（pnpm check：159项前端、44项核心单元、全部核心集成、113项桌面与2项doctest、34份语料及全目标Clippy；jpeg:core:check含新2MP成功与超限拒绝；jpeg:acceptance:check照片/大图与17张并发抽测；17:53:33新MSI及包内资源jpeg:bundle:check复验）；本次未改业务代码，不重复构建或测试。真实安装/视觉矩阵、无开发工具环境与新SHA三平台结果仍待验收，不据此声明通过。
