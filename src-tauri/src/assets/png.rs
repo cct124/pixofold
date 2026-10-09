@@ -1,4 +1,4 @@
-//! 仅用于识别图片的静态PNG小预览，不参与压缩、色彩保真判断或最终输出。
+//! PNG预览解码，以及PNG/JPEG共用的有界方向采样和小PNG编码。
 //! 单次受文件/尺寸/解码预算约束，跳过文本/ICC解压；不改变源文件和凭据。
 
 use super::{AssetError, ThumbnailDto};
@@ -8,9 +8,9 @@ pub(super) const MAX_WIDTH: u32 = 128;
 pub(super) const MAX_HEIGHT: u32 = 96;
 pub(super) const MAX_PNG_BYTES: usize = 65_536;
 pub(super) const MAX_INPUT_BYTES: u64 = 16 * 1024 * 1024;
-const MAX_PIXELS: u64 = 8 * 1024 * 1024;
-const DECODE_BYTES: usize = 32 * 1024 * 1024;
-const MAX_EDGE: u32 = 16_384;
+pub(super) const MAX_PIXELS: u64 = 8 * 1024 * 1024;
+pub(super) const DECODE_BYTES: usize = 32 * 1024 * 1024;
+pub(super) const MAX_EDGE: u32 = 16_384;
 
 pub(super) fn decode(input: &[u8]) -> Result<ThumbnailDto, AssetError> {
     if input.len() as u64 > MAX_INPUT_BYTES {
@@ -73,6 +73,40 @@ pub(super) fn decode(input: &[u8]) -> Result<ThumbnailDto, AssetError> {
         png::ColorType::Rgba => 4,
         png::ColorType::Indexed => return Err(AssetError::DecodeFailed),
     };
+    from_pixels(&pixels[..frame.buffer_size()], width, height, channels, 1)
+}
+
+/// 输入必须为紧密排列的8位灰度/灰度alpha/RGB/RGBA；Exif方向只作用于预览。
+pub(super) fn from_pixels(
+    pixels: &[u8],
+    source_width: u32,
+    source_height: u32,
+    channels: usize,
+    orientation: u8,
+) -> Result<ThumbnailDto, AssetError> {
+    if source_width == 0
+        || source_height == 0
+        || !(1..=4).contains(&channels)
+        || !(1..=8).contains(&orientation)
+    {
+        return Err(AssetError::DecodeFailed);
+    }
+    let pixel_count = u64::from(source_width) * u64::from(source_height);
+    if source_width > MAX_EDGE
+        || source_height > MAX_EDGE
+        || pixel_count > MAX_PIXELS
+        || pixel_count * channels as u64 > DECODE_BYTES as u64
+    {
+        return Err(AssetError::ResourceLimit);
+    }
+    if pixel_count * channels as u64 != pixels.len() as u64 {
+        return Err(AssetError::DecodeFailed);
+    }
+    let (width, height) = if orientation >= 5 {
+        (source_height, source_width)
+    } else {
+        (source_width, source_height)
+    };
     let scale = (f64::from(MAX_WIDTH) / f64::from(width))
         .min(f64::from(MAX_HEIGHT) / f64::from(height))
         .min(1.0);
@@ -86,7 +120,18 @@ pub(super) fn decode(input: &[u8]) -> Result<ThumbnailDto, AssetError> {
             let mut count = 0_u64;
             for sy in y * height / out_height..(y + 1) * height / out_height {
                 for sx in x * width / out_width..(x + 1) * width / out_width {
-                    let offset = sy as usize * frame.line_size + sx as usize * channels;
+                    let (source_x, source_y) = match orientation {
+                        1 => (sx, sy),
+                        2 => (source_width - 1 - sx, sy),
+                        3 => (source_width - 1 - sx, source_height - 1 - sy),
+                        4 => (sx, source_height - 1 - sy),
+                        5 => (sy, sx),
+                        6 => (sy, source_height - 1 - sx),
+                        7 => (source_width - 1 - sy, source_height - 1 - sx),
+                        _ => (source_width - 1 - sy, sx),
+                    };
+                    let offset =
+                        (source_y as usize * source_width as usize + source_x as usize) * channels;
                     let pixel = &pixels[offset..offset + channels];
                     let (r, g, b, a) = match channels {
                         1 => (pixel[0], pixel[0], pixel[0], 255),

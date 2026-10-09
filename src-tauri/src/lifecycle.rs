@@ -35,7 +35,9 @@ impl Drop for DesktopRuntime {
 impl DesktopTasks {
     pub(crate) fn new(runtime: TaskRuntime) -> Result<Self, std::io::Error> {
         let subscriptions = SubscriptionRuntime::new(runtime.control())?;
-        let assets = Arc::new(crate::assets::AssetService::default());
+        let assets = Arc::new(crate::assets::AssetService::new(
+            runtime.control().engines(),
+        ));
         Ok(Self {
             control: runtime.control(),
             subscriptions: subscriptions.control(),

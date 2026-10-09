@@ -4,6 +4,7 @@ import {
   TASK_PROTOCOL_VERSION,
   type TaskPageRequest,
   type TaskSnapshotDto,
+  type JobDto,
 } from './tasks.generated';
 import { getTaskSnapshot, parseDecimalU64, TaskSnapshotReader } from './tasks';
 
@@ -28,6 +29,7 @@ function deferred<T>() {
 function snapshot(revision = '0'): TaskSnapshotDto {
   return {
     protocolVersion: TASK_PROTOCOL_VERSION,
+    supportedFormats: ['png'],
     revision,
     selectionId: null,
     phase: 'idle',
@@ -37,6 +39,64 @@ function snapshot(revision = '0'): TaskSnapshotDto {
     page: { kind: 'jobs', offset: 0, total: 0, items: [] },
   };
 }
+
+it('validates actual format capabilities and JPEG reports at the IPC boundary', async () => {
+  vi.mocked(invoke).mockReset();
+  vi.mocked(isTauri).mockReturnValue(true);
+  const job: JobDto = {
+    id: 1,
+    attempt: 1,
+    format: 'jpeg',
+    sourceName: { text: 'sample.JPG', lossy: false, truncated: false, sanitized: false },
+    mode: { kind: 'lossy', quality: 0 },
+    inputBytes: '1000',
+    state: {
+      kind: 'no_gain',
+      report: {
+        inputBytes: '1000',
+        outputBytes: '1000',
+        elapsedMs: '4',
+        outputName: null,
+        backupName: null,
+        contentCredentialsRemoved: false,
+        processing: {
+          format: 'jpeg',
+          details: { kind: 'lossy', mappingVersion: 1, nativeQuality: 1 },
+        },
+      },
+    },
+  };
+  const response: TaskSnapshotDto = {
+    ...snapshot(),
+    supportedFormats: ['png', 'jpeg'],
+    page: { kind: 'jobs', offset: 0, total: 1, items: [job] },
+  };
+  vi.mocked(invoke).mockResolvedValue(response);
+  await expect(getTaskSnapshot(request())).resolves.toEqual(response);
+  for (const formats of [undefined, [], ['jpeg'], ['png', 'png'], ['png', 'gif'], ['png']]) {
+    vi.mocked(invoke).mockResolvedValue({ ...response, supportedFormats: formats });
+    await expect(getTaskSnapshot(request())).rejects.toThrow('image contract');
+  }
+  if (job.state.kind !== 'no_gain') throw new Error('fixture');
+  for (const processing of [
+    { format: 'png', details: { kind: 'lossless' } },
+    { format: 'jpeg', details: { kind: 'lossy', mappingVersion: 1, nativeQuality: 0 } },
+    { format: 'jpeg', details: { kind: 'lossy', mappingVersion: 1, measuredQuality: 80 } },
+    {
+      format: 'jpeg',
+      details: {
+        kind: 'lossless_fallback',
+        mappingVersion: 1,
+        nativeQuality: 1,
+        reason: { kind: 'transparency_guard' },
+      },
+    },
+  ]) {
+    const row = { ...job, state: { ...job.state, report: { ...job.state.report, processing } } };
+    vi.mocked(invoke).mockResolvedValue({ ...response, page: { ...response.page, items: [row] } });
+    await expect(getTaskSnapshot(request())).rejects.toThrow('image contract');
+  }
+});
 
 describe('read-only task IPC', () => {
   beforeEach(() => {

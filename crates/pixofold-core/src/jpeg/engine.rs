@@ -191,11 +191,35 @@ impl JpegEngine {
         limits: JpegLimits,
         cancel: &CancellationToken,
     ) -> Result<DecodedColor, JpegError> {
+        self.pixels(input, parsed, limits, cancel, false)
+            .map(|(_, color)| color)
+    }
+
+    pub(super) fn preview_pixels(
+        &self,
+        input: &[u8],
+        parsed: &Parsed<'_>,
+        limits: JpegLimits,
+        cancel: &CancellationToken,
+    ) -> Result<Vec<u8>, JpegError> {
+        let (mut result, _) = self.pixels(input, parsed, limits, cancel, true)?;
+        result.bytes.drain(..21);
+        Ok(result.bytes)
+    }
+
+    fn pixels(
+        &self,
+        input: &[u8],
+        parsed: &Parsed<'_>,
+        limits: JpegLimits,
+        cancel: &CancellationToken,
+        keep: bool,
+    ) -> Result<(process::Capture, DecodedColor), JpegError> {
         parsed.check_pixel_budget(limits)?;
         let info = &parsed.info;
         let channels = if info.components == 1 { 1 } else { 3 };
         let length = 21 + u64::from(info.width) * u64::from(info.height) * channels;
-        let result = self.execute(Operation::Pixels, input, length, false, limits, cancel)?;
+        let result = self.execute(Operation::Pixels, input, length, keep, limits, cancel)?;
         if result.length != length || result.prefix.len() != 21 || &result.prefix[..5] != b"PFJP1" {
             return Err(JpegError::ValidationFailed);
         }
@@ -212,12 +236,13 @@ impl JpegEngine {
             return Err(JpegError::ValidationFailed);
         }
         // 固定libjpeg ABI的J_COLOR_SPACE值；其他枚举不进入普通有损像素路径。
-        match (channels, field(3)) {
-            (1, 1) => Ok(DecodedColor::Gray),
-            (3, 2) => Ok(DecodedColor::Rgb),
-            (3, 3) => Ok(DecodedColor::Ycbcr),
-            _ => Err(JpegError::ValidationFailed),
-        }
+        let color = match (channels, field(3)) {
+            (1, 1) => DecodedColor::Gray,
+            (3, 2) => DecodedColor::Rgb,
+            (3, 3) => DecodedColor::Ycbcr,
+            _ => return Err(JpegError::ValidationFailed),
+        };
+        Ok((result, color))
     }
 }
 

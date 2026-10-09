@@ -5,7 +5,11 @@ use crate::{
     jpeg::{JpegEngine, JpegError, JpegInfo, JpegLimits, JpegMode, JpegReport, JpegRequest},
     model::*,
 };
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 /// 共用无损/有损输入；保留既有PngMode名称和序列化契约，质量映射仍由格式决定。
 pub use crate::model::PngMode as CompressionMode;
@@ -38,6 +42,10 @@ impl ImageEngines {
     /// 查询已配置能力，不执行I/O；工具运行前仍会重新检查身份。
     pub fn supports(&self, format: ImageKind) -> bool {
         format == ImageKind::Png || self.jpeg.is_some()
+    }
+    /// 借用已验证的同一JPEG引擎；用于宿主有界预览，执行仍复查工具身份。
+    pub fn jpeg(&self) -> Option<&JpegEngine> {
+        self.jpeg.as_deref()
     }
     pub(super) fn accepts(&self, other: &Self) -> bool {
         match (&self.jpeg, &other.jpeg) {
@@ -192,6 +200,35 @@ pub enum ImageError {
     Jpeg(JpegError),
 }
 impl ImageError {
+    /// 沿清理错误查找实际提交失败留下的备份；不猜测文件名、不执行I/O。
+    pub fn recovery_backup(&self) -> Option<&Path> {
+        let mut file = match self {
+            Self::Png(error) => Some(error),
+            Self::Jpeg(error) => {
+                let mut current = Some(error);
+                let mut found = None;
+                while let Some(error) = current {
+                    match error {
+                        JpegError::File(error) => {
+                            found = Some(error);
+                            break;
+                        }
+                        JpegError::Cleanup { original, .. } => current = original.as_deref(),
+                        _ => break,
+                    }
+                }
+                found
+            }
+        };
+        while let Some(error) = file {
+            match error {
+                ProcessingError::CommitFailed { backup, .. } => return Some(backup),
+                ProcessingError::CleanupFailed { original, .. } => file = original.as_deref(),
+                _ => break,
+            }
+        }
+        None
+    }
     pub fn png(&self) -> Option<&ProcessingError> {
         match self {
             Self::Png(e) => Some(e),

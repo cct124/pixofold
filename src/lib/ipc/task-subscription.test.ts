@@ -41,6 +41,7 @@ function ticket(id = '1', revision = bridge.revision): TaskChangeNotice {
 function snapshot(revision = bridge.revision): TaskSnapshotDto {
   return {
     protocolVersion: TASK_PROTOCOL_VERSION,
+    supportedFormats: ['png'],
     revision,
     selectionId: null,
     phase: 'idle',

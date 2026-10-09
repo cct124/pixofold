@@ -26,6 +26,41 @@ pub(crate) fn run_process_for_test(
 }
 pub use quality::{JpegLossyFallbackReason, JpegMode, JpegProcessing, JpegQualityMapping};
 
+/// 受限预览像素：灰度单通道或RGB三通道，无元数据；orientation为1–8的Exif方向。
+/// 不承诺ICC色彩管理，只用于宿主生成缩略图。宿主仍须限制并发和缓存。
+pub struct JpegPreview {
+    pub width: u32,
+    pub height: u32,
+    pub channels: u8,
+    pub orientation: u8,
+    pub pixels: Vec<u8>,
+}
+
+/// 用同一可信引擎解码预览，不改写输入或输出文件。
+/// # Errors
+/// 配置/输入/资源/工具错误、超时或取消返回错误；ICC、四分量和不明确颜色拒绝预览。
+/// 取消/错误仍先回收子进程、管道和临时目录再返回，方向由宿主在缩放时应用。
+pub fn decode_preview(
+    input: &[u8],
+    engine: &JpegEngine,
+    limits: JpegLimits,
+    cancel: &CancellationToken,
+) -> Result<JpegPreview, JpegError> {
+    limits.validate()?;
+    cancel.check()?;
+    let parsed = format::inspect(input, limits)?;
+    let orientation = parsed.preview_orientation()?;
+    let pixels = engine.preview_pixels(input, &parsed, limits, cancel)?;
+    cancel.check()?;
+    Ok(JpegPreview {
+        width: parsed.info.width,
+        height: parsed.info.height,
+        channels: if parsed.info.components == 1 { 1 } else { 3 },
+        orientation,
+        pixels,
+    })
+}
+
 /// 只检查压缩结构/元数据与声明的资源，不调用原生工具或解码像素。
 pub(crate) fn inspect_structure(bytes: &[u8], limits: JpegLimits) -> Result<JpegInfo, JpegError> {
     limits.validate()?;

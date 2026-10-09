@@ -15,6 +15,7 @@ let Actions: typeof import('./task-actions').TaskActions;
 let session = 0;
 const snapshot = {
   protocolVersion: TASK_PROTOCOL_VERSION,
+  supportedFormats: ['png'],
   revision: '0',
   selectionId: null,
   phase: 'idle',

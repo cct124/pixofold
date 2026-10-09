@@ -1,6 +1,6 @@
 # JPEG 核心与混合批次（J1a / J1b）
 
-本目录的 helper 与 `pixofold_core::jpeg` 提供无损与保守有损核心，现已接入纯Rust PNG/JPEG混合批次、共用worker和资源预约。当前桌面工作台仍仅支持静态PNG；J2第一段已接可信随包加载和隔离验证，JPEG的IPC/缩略图与混合工作流属于J2第二段，实际安装/平台结果另见开发记录。
+本目录的 helper 与 `pixofold_core::jpeg` 提供无损与保守有损核心，现已接入PNG/JPEG混合批次、共用worker和资源预约。桌面v10在可信随包引擎可用时开放JPEG导入、实际报告与受限方向缩略图；实际安装/GUI/平台结果分别见[J2桌面记录](../../docs/devlog/_plan/261009/jpeg-desktop-workflow.md)。
 
 ## 构建和真实回归
 
@@ -19,15 +19,15 @@ pnpm jpeg:core:check
 - 扫描按内容识别，保留原有条目/累计字节/取消上限，不解码像素或启动helper。JPEG须为jpg/jpeg原扩展名（大小写保留）；误命名为.jpg的真实PNG继续按PNG处理。保护元数据/坏结构进入扫描问题，坏像素仍可能在执行时失败。
 - 一个固定池处理两种格式及PNG凭据确认；格式请求、报告、质量映射和错误为显式分支，共用状态/统计/输出层。重试保留行ID和未选行，JPEG拒绝PNG凭据移除策略。副本保留原名，目标冲突逐行隔离，全部冲突仍返回Finished批次。
 - 核心Rust字面量迁移：`BatchItem`增加 `format`，`BatchRequest`增加 `engines`，`BatchParameters`增加 `jpeg`，`ScanOptions`增加 `jpeg_limits`；默认参数可用结构更新语法。行请求改为 `ImageRequest`，报告/错误/候选属性/质量映射分别由 `ImageReport`、`ImageError`、`ImportedImage`、`QualityMapping`区分格式；共用输入模式为 `CompressionMode`（沿用既有PngMode输入契约）。单文件API不变。
-- 桌面内部调用方已迁移，v9的DTO/生成TS形状保持；转换器明确拒绝JPEG专属行与错误，直至J2正式演进协议和实际能力。
+- 桌面TaskRuntime::with_engines将同一实例贯穿扫描/规划/执行/预览，默认构造仍PNG-only。v10快照公开supportedFormats、行format及格式专属processing联合；JPEG工具/保护/恢复错误完整转换，不用PNG量化测量或caBX确认替代。旧v9页面须更新重载。
 
 ## 模式、质量与兼容性
 
 - `JpegRequest::new` 保持核心默认无损/备份覆盖。使用 `JpegMode::Lossy { quality: QualityValue::default() }` 显式选择有损80；调用方仍负责输出策略与总并发准入。
 - 映射版本1将质量0转为原生1，其余1–100保持原值。固定 FASTEST 配置、整数 ISLOW DCT 与优化 Huffman，不启用 trellis/SIMD；保持原颜色空间、分量ID、采样和基线/渐进类别。YCbCr逐行解码和重采样仍会改变像素，100仍属有损，不承诺跨格式相同质量数值或固定体积收益。
 - `JpegReport.processing` 区分 Lossless、Lossy 与带明确原因的 LosslessFallback，并保留输入质量/映射版本/原生质量。它描述候选的处理方式；只有 outcome=Optimized 才提交，NoGain保留原图且不产生备份/副本。
-- ICC、CMYK/YCCK、JFIF嵌入缩略图或不明确的三分量颜色标记进入现有系数无损验证路径。复杂Exif/XMP/未知APP/APP11仍拒绝，不能以无损回退绕开保护。方向tag原样保留、像素不旋转；本阶段不提供桌面方向预览。
-- 未发布的核心请求结构新增 mode，报告新增 processing；结构字面量调用方需补 mode，使用 new 的调用方仍默认无损。此变更未进入 IPC，桌面协议继续v9。
+- ICC、CMYK/YCCK、JFIF嵌入缩略图或不明确的三分量颜色标记进入现有系数无损验证路径。复杂Exif/XMP/未知APP/APP11仍拒绝，不能以无损回退绕开保护。压缩保留方向tag、不旋转文件像素；桌面仅在缩略图中应用方向。
+- 未发布的核心请求结构新增 mode，报告新增 processing；结构字面量调用方需补 mode，使用 new 的调用方仍默认无损。桌面v10共用模式沿用PngMode的无损/有损输入形状，格式专属质量映射通过processing分别表达。
 
 ## 格式和元数据边界
 
@@ -41,7 +41,7 @@ pnpm jpeg:core:check
 ## 资源、生命周期和文件安全
 
 - 默认输入/候选各最多 64 MiB、16 Mi 像素、单边 16384、系数预算 128 MiB；绝对配置上限为输入 64 MiB、16 Mi 像素、单边 65535、工作集 512 MiB。最多 64 次扫描、4096 个标记和 1 MiB 元数据（含每标记计费）；系数按 MCU 对齐预检并计入源/编码工作集及元数据副本。
-- native的source/destination各设置一半工作集参数，系数分配前再次检查实际头和对齐预算；关闭backing store的上游构建超预算时失败，不回退磁盘。批次按执行上限预约8份输入/候选缓冲、2份原生工作集及32MiB固定余量，覆盖同时存活的source/candidate/stored、源/备份复查、管道增长、helper和I/O线程开销。最多2MiB标记前缀只用于收紧尺寸和预算；坏头保留原上限，执行时真实复查。限额不是RSS硬配额，桌面尚未开放JPEG。
+- native的source/destination各设置一半工作集参数，系数分配前再次检查实际头和对齐预算；关闭backing store的上游构建超预算时失败，不回退磁盘。批次按执行上限预约8份输入/候选缓冲、2份原生工作集及32MiB固定余量，覆盖同时存活的source/candidate/stored、源/备份复查、管道增长、helper和I/O线程开销。最多2MiB标记前缀只用于收紧尺寸和预算；坏头保留原上限，执行时真实复查。限额不是RSS硬配额。
 - 有损/像素验证额外保守计入两份全尺寸像素工作区；Rust预检及helper实际头都复查此上限。native从总工作集扣除该余量，再将剩余预算分给解码/编码虚拟数组；仍不代表对所有库分配的RSS硬限制。
 - 单图片顺序调用三次原生工具：无损为源系数/优化/候选系数，有损为源像素/重编码/候选像素；默认每次30秒，可设1ms–120s。单次一个单线程原生进程，父进程限制输入、stdout字节/精确系数或像素长度和16KiB stderr；stderr只计数、不展示/记录。三个I/O线程只搬运管道，不是嵌套编码线程池。
 - 每次创建独占临时工作目录，清空继承环境，仅保留 Windows 系统目录和固定临时目录/locale。工具只收发字节，没有用户路径或最终文件写权限接口；可信 helper 不派生子进程。取消、超时、管道错误先终结并 wait 自有进程，再 join I/O、清理目录；清理失败有结构化恢复上下文。该超时不包含整个文件 I/O/工具身份哈希，也不是 OS 级实时保证。
@@ -49,5 +49,9 @@ pnpm jpeg:core:check
 - JPEG 入口要求源扩展名为 jpg/jpeg（不区分大小写），备份使用精确原始 OS stem + `-backup-` + 6 位 ASCII 随机标识 + 原扩展名/大小写。PNG 入口继续固定 `.png` 备份，即使源文件扩展名误写为 jpg 也不受影响。新 JPEG 保留名纳入扫描排除，副本策略仍不覆盖已有目标。
 
 ## 待验收与许可
+
+`decode_preview`借用同一已校验引擎执行现有pixels操作，返回无元数据的灰度/RGB像素和已验证方向；不修改helper配方。宿主将预览限制在16 MiB输入、8 Mi像素、32 MiB工作集与5秒单次进程期限，单解码在途，最终仅发送128×96以内的小PNG。ICC、四分量/不明确颜色和保护元数据拒绝预览；Exif仅支持上述单Orientation结构，1–8方向由有界采样应用。图片任务预约和预览预算独立，均不是RSS硬限制。取消/失效复用进程回收，真实返回前不释放许可。
+
+`pnpm jpeg:bundle:check`在仓库外的受限开发环境复用生产加载器和桌面后端，验收混合扫描/任务/报告/冻结重试/NoGain/冲突/备份/目录与11张实际缩略图，再用djpeg/coeffdump独立核对JPEG输出。它不启动GUI、不分发到默认安装包，也不代替真实选择/拖放/亮暗中英/正常退出及安装验收。
 
 平台执行结果分别见 [J1a记录](../../docs/devlog/_fin/261009/jpeg-lossless-core.md)、[J1b有损记录](../../docs/devlog/_fin/261009/jpeg-lossy-core.md)与[J2随包记录](../../docs/devlog/_plan/261009/jpeg-desktop-bundle.md)；新代码不能沿用旧SHA的三平台结果。helper使用相同静态MozJPEG，版权/许可来源见[第三方说明](../../THIRD_PARTY_NOTICES.md)。J2生成资源包含许可正文/IJG致谢/来源，正式发行仍需完整对应源码资料、安装运行及签名后身份验证。

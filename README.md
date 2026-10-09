@@ -2,7 +2,7 @@
 
 基于 Tauri、React 和 Rust 的本地批量图片压缩工具，计划支持 PNG、JPEG、GIF 和 APNG，由 png-palettes 重构演进。
 
-当前已接通 **静态 PNG 真实工作台**：Tauri 2 + React 界面经受控原生选择/拖放、应用级任务协调和有界快照驱动独立 Rust 无损/有损核心，支持文件/目录导入、批量处理、可选备份覆盖、同目录或指定目录副本、重试与清除记录。指定目录可选保留输入目录结构，授权仅本次连接有效。启动后不提供主动取消操作，退出时仍保留底层安全收尾。大小、状态和进度均来自实际任务。**已接入结果/备份定位与可见终态行的真实缩略图；仅支持静态 PNG，其他格式尚未接入。** compressionAvailable=true仅表示已有一种可用压缩格式，不表示全部plannedFormats已实现。含原生选择入口的584d1e9曾通过三平台CI；当前代码验证见[开发记录](docs/devlog/_plan/260922/png-batch-desktop.md)，不沿用旧GUI/CI作为新代码证据。
+当前已接通 **静态 PNG / JPEG 混合工作台**：Tauri 2 + React 界面经受控原生选择/拖放、应用级任务协调和有界快照驱动独立 Rust 无损/有损核心，支持文件/目录导入、批量处理、可选备份覆盖、同目录或指定目录副本、重试与清除记录。指定目录可选保留输入目录结构，授权仅本次连接有效。启动后不提供主动取消操作，退出时仍保留底层安全收尾。大小、状态和进度均来自实际任务，结果/备份定位与可见终态行缩略图已接入。**JPEG 仅在随包引擎通过身份校验后开放；GIF/APNG 尚未接入。** compressionAvailable=true不表示全部plannedFormats已实现，实际启动能力由v10快照supportedFormats提供。JPEG暂仅接受8位Huffman基线/渐进及已支持的元数据，复杂Exif/XMP/APP11等保留原图并拒绝，具体边界见[JPEG说明](native/jpeg/README.md)。本段自动验证、GUI/安装和新SHA平台结果分别见[开发记录](docs/devlog/_plan/261009/jpeg-desktop-workflow.md)，不沿用旧GUI/CI作为新代码证据。
 
 UI 设计与可交互 HTML 原型保留作为实现依据：质量采用 0–100 连续滑块和精细输入，默认 80；当前质量描述以纯文字显示在标题行右侧。
 
@@ -82,14 +82,14 @@ pnpm desktop:dev
 
 Windows 可执行文件位于 `target/release/pixofold.exe`，安装包位于 `target/release/bundle/`。安装包工具可能需要首次联网下载；签名、自动更新与正式发行尚未配置。
 
-JPEG 开发实验的版本、构建参数和限制见 [实验入口说明](tools/jpeg-lab/README.md)，实际结果与后续接入门槛见 [JPEG实验记录](docs/devlog/_fin/260930/jpeg-engine-lab.md)。实验工具留在 `.tools/`，语料与报告留在独立的 `target/jpeg-lab-*/`；当前产品仍只开放静态 PNG。CI 的三平台实验配置须以实际运行结果验收。
+JPEG 开发实验的版本、构建参数和限制见 [实验入口说明](tools/jpeg-lab/README.md)，历史结果见 [JPEG实验记录](docs/devlog/_fin/260930/jpeg-engine-lab.md)。实验工具留在 `.tools/`，语料与报告留在独立的 `target/jpeg-lab-*/`；桌面使用固定随包资源。CI 的三平台实验配置须以实际运行结果验收。
 
-独立的 `pixofold_core::jpeg` 已提供无损与保守有损入口，受控字节helper复用可靠输出层；纯Rust批次现已支持PNG/JPEG共用模型、worker与工作集预约，**尚未开放桌面JPEG**。可信宿主用 `BatchService::with_engines` 配合 `scan_with_engines` 注入同一引擎能力，默认服务与扫描仍为PNG-only。模式/质量映射、元数据保护/回退、资源、工具信任及Rust API迁移见[JPEG核心说明](native/jpeg/README.md)。可信工具随包已在J2第一段接入；JPEG凭据移除和桌面混合工作流留待后续。应用统一检查不自动下载/构建JPEG工具，真实核心回归由上述显式命令和三平台JPEG job执行，实际平台结果见[开发日志](docs/devlog/README.md)。
+独立的 `pixofold_core::jpeg` 提供无损与保守有损入口，受控字节helper复用可靠输出层；PNG/JPEG共用模型、worker与工作集预约。桌面通过 `TaskRuntime::with_engines` 将同一能力注入扫描、规划、批次和受限预览；默认服务与扫描仍为PNG-only。模式/质量映射、元数据保护/回退、资源、工具信任及Rust API迁移见[JPEG核心说明](native/jpeg/README.md)。JPEG凭据移除尚未开放。应用统一检查不自动下载/构建JPEG工具，真实核心回归由上述显式命令和三平台JPEG job执行，实际平台结果见[开发日志](docs/devlog/README.md)。
 
 ## JPEG随包资源（J2第一段）
 
 - 桌面dev/build钩子先运行pnpm jpeg:bundle:prepare，复用固定MozJPEG配方生成资源、目标身份及许可资料。构建需CMake 3.15+、C编译器和tar；首次下载固定归档，之后复核归档与源码缓存。CMake可在PATH或通过CMAKE指定，Windows还会查询Visual Studio安装位置。安装后的应用无需开发工具。
-- 固定资源映射至应用资源目录的jpeg/runtime，Rust内嵌构建时验证的SHA256，运行时旁置manifest不能改变信任。Windows helper使用静态CRT；缺工具/被替换时记录稳定类别并保留PNG功能，不自动下载或搜索PATH。桌面JPEG入口仍待J2第二段。
+- 固定资源映射至应用资源目录的jpeg/runtime，Rust内嵌构建时验证的SHA256，运行时旁置manifest不能改变信任。Windows helper使用静态CRT；启动缺工具/被替换时记录稳定类别并保留PNG功能，不自动下载或搜索PATH。先加载能力/创建任务与展示服务，再创建main窗口，首次握手即可取得实际能力；运行中工具身份变化仍拒绝执行并显示工具错误。
 - 普通无工具debug检查可保持PNG-only；正式release构建必须先prepare，资源缺失/过期/目标不匹配即失败。脚本只构建Rust原生目标，不隐式交叉编译；已有暂存资源失效时需重新prepare。
 - pnpm jpeg:bundle:check在仓库外/中文空格路径/无开发PATH环境，复用生产加载器验证真实无损、有损、NoGain、预取消与缺失/替换拒绝，结果经独立工具复验。可传--resources后接已解包绝对资源根目录。程序受bundle-check特性控制，不随默认安装包分发。
 - Windows产物仍位于target/release/bundle；安装/启动/卸载、其他平台和签名发行分别验收，详见[连续记录](docs/devlog/_plan/261009/jpeg-desktop-bundle.md)。签名若改变helper字节，须先确定最终字节再生成可信身份。
@@ -172,7 +172,8 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 
 [桌面IPC模块](src-tauri/src/ipc/mod.rs) 与 [前端适配器](src/lib/ipc/tasks.ts) 复用唯一 TaskControl。主窗口可调用 get_task_snapshot 查询状态；该查询本身不启动导入、重试或压缩，也不创建第二个任务服务。P4工作台通过订阅复用此有界查询。
 
-- Rust DTO 与协议常量为权威来源，生成 [tasks.generated.ts](src/lib/ipc/tasks.generated.ts)；原有核心 generated.ts 和 get_app_info 契约保持不变。协议版本当前为 9，前后端须使用同一构建。
+- Rust DTO 与协议常量为权威来源，生成 [tasks.generated.ts](src/lib/ipc/tasks.generated.ts)；原有核心 generated.ts 和 get_app_info 契约保持不变。协议版本当前为 10，前后端须使用同一构建。快照supportedFormats来自启动时已验证的引擎；候选/任务携带format，processing以format/details区分PNG/JPEG报告，前端校验能力、行格式和实际报告的一致性。
+- JPEG报告分别提供无损、有损、保守无损回退，以及映射版本/原生质量；不把JPEG编码质量当作PNG量化测量。tool_identity/tool_io/tool_exit/timed_out完整到达界面，APP11保护拒绝为unsupported_jpeg_credentials，不提供PNG凭据移除提示；嵌套清理/提交失败保留安全显示名和原始错误类别。旧v9页面须更新重载，后台已接纳任务不重跑。
 - `JobErrorDto` 的 `unsupported_content_credentials` / `unsupported_metadata` 分别表示 caBX 与其他不支持安全改写的元数据；嵌套恢复原因使用同样类别，真正的产物验证错误仍为 `validation`。不能仅凭错误代码授予移除权限：v3的confirmations集合仅包含完整解码/元数据检查通过且唯一不支持类别是caBX的直接失败行，清理失败或其他未知块不入选。
 - 应用/批次 revision、selection/batch ID、字节数、elapsedMs 均为规范 u64 十进制字符串，前端用 BigInt 比较；不经过 Number。毫秒向下取整，异常溢出返回 invalid_snapshot；未知大小保留 null。行 ID、候选/问题索引、attempt 与数量使用检查过的整数；行身份由 selection/batch/id/attempt 共同界定，不是文件名。
 - 查询指定 jobs、candidates、issues或confirmations，limit 为 1–100。offset=0、expectedRevision=null 读取最新版本；后续页必须带该 revision。一次响应的摘要与行来自同一份 Arc 快照；版本不匹配返回 stale_snapshot/currentRevision，应丢弃旧分页并从第一页重新读取，不拼接不同版本，也不保存无限历史快照。确认集合带安全父目录标签和稳定行ID区分同名图片，批次摘要带全量confirmationCount，不以当前页数量冒充总数。
@@ -199,7 +200,7 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 
 - select_native_import只接受files/folder与subscriptionId，通过Rust侧tauri-plugin-dialog 2.7.3打开主窗口所属原生对话框。最多一个物理对话框；等待由有界占位后的后台任务承担，不持服务锁或阻塞UI。取消/空选择返回null，不建任务；SDK也可能把系统对话框失败表示为null，不能解读为成功处理。插件未提供显式关闭对话框API，重载不释放物理占位；应用退出先撤销接纳/授权，晚到结果不启动任务，原生退出行为待GUI验收。
 - 路径只留Rust，前端仅得到grantId/rootCount（不是扫描数量、展示名或路径凭据）。授权绑定订阅会话，最多1000根、原生路径编码长度总和不超过1 MiB，5分钟惰性过期；新选择替换旧授权，成功导入消费一次，忙状态拒绝不消费。根数和重试行数上限随Rust DTO生成；路径身份、内容及输出安全继续由核心复查。
-- apply_task_mutation接收可辨识操作联合。import使用授权及固定settings；settings=null只扫描，非null完整扫描后自动启动。start仅用于Ready清单修正。模式复用严格PngMode；协议v7保留overwrite（备份覆盖）/overwrite_without_backup/copy_beside字符串，并增加`{ copy_to: { directoryId, preserveStructure } }`，只接受同会话的原生输出目录授权。桌面默认发送overwrite_without_backup；不接受任意路径或资源预算覆盖。旧前后端握手版本不一致时须更新重载。
+- apply_task_mutation接收可辨识操作联合。import使用授权及固定settings；settings=null只扫描，非null完整扫描后自动启动。start仅用于Ready清单修正。共用模式沿用严格PngMode的输入形状（无损/有损及0–100质量），每种格式执行自己的质量映射；协议v7保留overwrite（备份覆盖）/overwrite_without_backup/copy_beside字符串，并增加`{ copy_to: { directoryId, preserveStructure } }`，只接受同会话的原生输出目录授权。桌面默认发送overwrite_without_backup；不接受任意路径或资源预算覆盖。旧前后端握手版本不一致时须更新重载。
 - clear/start携带当前selectionId；retry额外要求expectedBatchRevision和最多1000个唯一失败/取消行ID（不是数组/页码索引），沿用Rust原行输出目标，仅修改模式，成功/无收益项不重跑。clear只清非活动记录，不删除原图、结果或备份；UI须先展示需保留的恢复信息。
 - 自协议v4引入的confirm_content_credentials携带selectionId、expectedBatchRevision、显式行ID、模式/质量、remove_content_credentials同意和确认专用输出枚举copy_beside/overwrite_with_backup/overwrite_without_backup；v7增加上述copy_to对象。确认按钮即同意，不另设勾选框；拒绝旧v3的overwriteConfirmed字段和含糊的overwrite值。来源路径/属性/SHA256仍由Rust保管并在执行前复查。普通retry沿用原行输出位置与备份策略，但不继承移除许可。成功报告contentCredentialsRemoved明确标记实际移除；无收益保留源文件且标记false。旧版前后端混用须更新并重载。
 - 确认UI不分页：通过唯一分页查询器顺序获取每段最多100项的同revision数据，完整加载后一次呈现全部列表（受桌面当前批次1000项上限约束），默认全选且可取消个别选择；不拼接不同revision。关闭、重载或版本变动废弃在途旧数据，分段失败不允许提交部分清单，重试只读加载。
@@ -226,7 +227,7 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 - jobs/candidates/issues每页50项；状态更新时回到首屏，额外分页最多一个在途查询。过期页不拼接，按最新revision恢复。未知大小显示“—”，精确字节按bigint计算；进度为processed/total，取消不冒充100%成功。
 - 重试只接纳当前同revision可见页内失败/取消行的稳定ID，使用草稿模式但保留原输出位置；清除需确认，仅清记录，不删除文件。结果展示实际回退原因、输出/备份名及失败恢复信息；展示名不是可访问路径，截断或替换明确标注。
 - main页面Started生命周期在同一订阅锁域撤销会话与授权，不清除或重跑任务；尚未关闭的物理对话框仍占槽，晚到结果拒绝后才释放。非main或Finished事件不撤销新会话，不依赖unload必达。
-- 浏览器仅预览布局，不读取图片或模拟业务。桌面拖放接入上述受控入口；缩略图和结果定位使用下文的任务绑定窄命令，未开放高级编码参数、新格式和通用fs/dialog/event/opener权限。自选输出目录使用下节的窄命令，原生GUI覆盖范围按开发记录独立验收。
+- 浏览器仅预览布局，不读取图片或模拟业务。桌面拖放接入上述受控入口；缩略图和结果定位使用下文的任务绑定窄命令，未开放高级编码参数或通用fs/dialog/event/opener权限。v10按实际能力开放PNG/JPEG混合输入，自选输出目录使用下节的窄命令，原生GUI覆盖范围按开发记录独立验收。
 
 ## 指定输出目录（P5，协议v7）
 
@@ -237,16 +238,16 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 - caBX弹窗固定打开时的目录/布局，只给选中行授权移除；使用Rust保存的导入来源和同一个`ImportOutput::outputs_for`规划目标，不把所有普通成功项搬到新目录。指定目录副本同样不显示备份模块，目标存在则拒绝覆盖。
 - 默认扁平输出，保留原文件名；保留结构时映射为`目标/导入根名/相对父目录/原文件名`，单独选择的文件放目标根。目标已存在或冲突只使相关图片失败，其他任务继续；普通重试保留原目标、caBX确认同样逐项检查，均不自动编号或覆盖已有副本。无收益不生成副本，失败/无收益可能留下空结构目录。输出位于输入树内时只在完整扫描后写入；历史_compressed文件仍是普通候选，不一律排除。此命名/错误语义更新不改变协议v7形状；显式核心Copy目标路径不被改名。
 
-## 结果定位、批次目录与真实缩略图（协议v9）
+## 结果定位、批次目录与真实缩略图（协议v10）
 
 - 任务表最右侧“操作”列常显“详情”和“在文件夹中查看”。详情悬停或键盘聚焦即弹出非模态浮层，不展开表格行；鼠标可移入面板阅读，Tab可访问其中的真实备份定位，Escape、外部点击、来源列表滚动或行失效会关闭。实际结果可直接定位；无收益定位保留原图，没有可用结果的行禁用查看。成功备份或失败恢复报告确有备份才在浮层内显示“定位备份”。文件被移动、删除或包含链接时拒绝，不从显示名拼接路径。
 - 底部“打开输出目录”仅在本批结束且至少一张成功时显示，不在结束时自动打开。指定目录打开各成功行实际采用的根目录（保留结构也从根进入），覆盖打开结果所在目录；不使用当前设置草稿。多个目录按成功行顺序去重，显示目录名、代表任务ID/样例文件和结果数量，用户逐次选择；菜单每页最多50个目录，不同时打开多个窗口。全失败/全无收益不伪造新结果入口。
 - get_output_directories/open_output_directory绑定已ACK会话、selectionId、batchId及batchRevision，打开再指定代表成功行ID；后端解析路径，重试/清除/换批/断连后拒绝旧请求。分组在后台且不持状态锁，仅转换当前页名称；查询和打开与文件定位共享单在途许可，退出等待真实返回。打开前复查目录存在/父链，指定输出根另核对原生授权身份，被删除或同名替换不重新授权；覆盖结果父目录沿用路径级检查，不宣称文件系统CAS。不创建目录、不执行任意命令，也不自动重发打开请求。v9扩展命令与生成DTO，旧页面须更新重载。
-- `reveal_task_file`和`get_task_thumbnail`自协议v8引入，只接收已ACK的subscriptionId、selectionId、jobId、attempt、expectedState，定位再选择result/backup。Rust按当前权威终态行解析；拒绝旧会话/清单/尝试、运行行及清除/重试准备/关闭状态。不沿用批次revision作图片版本，以免其他行进度更新使已完成预览反复失效。当前协议v9，旧页面须更新重载；既有输出与确认策略不变。
+- `reveal_task_file`和`get_task_thumbnail`自协议v8引入，只接收已ACK的subscriptionId、selectionId、jobId、attempt、expectedState，定位再选择result/backup。Rust按当前权威终态行解析；拒绝旧会话/清单/尝试、运行行及清除/重试准备/关闭状态。不沿用批次revision作图片版本，以免其他行进度更新使已完成预览反复失效。当前协议v10，两种格式均只解析真实结果或恢复备份；旧页面须更新重载。
 - 定位复用固定版本tauri-plugin-opener的Rust API，不安装其JS插件或授予通用路径权限；每次最多一个定位请求，Requested仅表示已请求文件管理器，系统可能只打开目录而非选中文件。macOS非UTF-8路径明确拒绝，避免其API有损转换到另一文件。Windows/macOS/Linux真实系统行为分别验收。
-- 每张图处理结束后，仅可见任务行按需申请缩略图。成功项读取当前结果文件，其余终态读取当前源文件；无备份覆盖后不会声称仍有原图预览。未处理、损坏、超限或不支持的图片回退图标/提示，不影响压缩。仅用于识别，不承诺ICC色彩管理、EXIF方向应用或压缩前后保真对比；扫描候选/问题列表仍用文字。
-- 单解码在途、无后端等待队列；文件最多16 MiB、8,388,608像素、单边16,384，解码输出与png内部预算各32 MiB。图片缩放到最多128×96、不放大小图，透明度使用预乘alpha采样；只编码像素到最多65,536 bytes的PNG，不回传原始图片、凭据或元数据。限额不是进程RSS硬上限，所有读/解码均在后台且不持服务锁。
-- Rust缓存最多64项/4 MiB，命中也复查文件存在、大小和时间，读取前后再检查路径/文件身份；检测到变化拒绝，不宣称文件系统CAS或持续监视外部修改。前端最多64项/一个读取在途，IntersectionObserver按可见区域申请，离屏/翻页释放Blob URL；清除、换批、重载/断开及退出回收缓存，迟到响应丢弃。Busy只对读取有限退避，定位不自动重发。
+- 每张图处理结束后，仅可见任务行按需申请缩略图。成功项读取当前结果文件，其余终态读取当前源文件；无备份覆盖后不会声称仍有原图预览。未处理、损坏、超限或不支持的图片回退图标/提示，不影响压缩。JPEG复用可信引擎，应用已支持的Exif方向1–8；ICC、CMYK/YCCK、不明确颜色及不支持的元数据拒绝预览。仅用于识别，不承诺ICC色彩管理或压缩前后保真对比；扫描候选/问题列表仍用文字。
+- 单解码在途、无后端等待队列；文件最多16 MiB、8,388,608像素、单边16,384，像素输出与各格式解码工作集各32 MiB。JPEG另按对齐系数/像素工作集收紧准入，单次helper期限5秒；这不包含整个文件I/O和工具身份检查耗时。图片缩放到最多128×96、不放大小图，透明度使用预乘alpha采样，方向在采样时应用而不复制全尺寸旋转图；只编码像素到最多65,536 bytes的PNG，不回传原始图片、凭据或元数据。限额不是进程RSS硬上限，所有读/解码均在后台且不持服务锁。
+- Rust缓存最多64项/4 MiB，命中也复查文件存在、大小和时间，读取前后再检查路径/文件身份；检测到变化拒绝，不宣称文件系统CAS或持续监视外部修改。前端最多64项/一个读取在途，IntersectionObserver按可见区域申请，离屏/翻页释放Blob URL；清除、换批、重载/断开及退出回收缓存，迟到响应丢弃。撤销同时取消JPEG预览，真实回收前不释放许可，退出等待在途解码返回。Busy只对读取有限退避，定位不自动重发。
 - CSP仅增加img-src的blob:，不启用任意本地asset协议、data:或远程图片源。JSONL只记录任务数字身份、展示操作、耗时和无路径错误类别，不记录缩略图/原图/文件名/路径。
 
 ## 本地诊断日志

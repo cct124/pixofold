@@ -62,6 +62,7 @@ export function Workspace({
     };
   }, [controller]);
   const snapshot = view.snapshot;
+  const jpegAvailable = snapshot?.supportedFormats.includes('jpeg') ?? false;
   const summary = snapshot?.batch?.summary;
   const canChange = controller.canChange;
   const clearable =
@@ -255,7 +256,13 @@ export function Workspace({
               <p className={styles.dropTitle}>{t('emptyTitle')}</p>
               <div className={styles.formats}>
                 <span>PNG</span>
-                {['JPG', 'GIF', 'APNG'].map((format) => (
+                <span
+                  aria-disabled={!jpegAvailable}
+                  title={jpegAvailable ? undefined : t('jpegUnavailable')}
+                >
+                  JPEG
+                </span>
+                {['GIF', 'APNG'].map((format) => (
                   <span key={format} aria-disabled="true" title={t('formatUnavailable')}>
                     {format}
                   </span>
@@ -263,7 +270,7 @@ export function Workspace({
               </div>
               <div className={styles.importActions}>{importButtons(false)}</div>
               <p className={styles.dropHint}>{t('emptyHint')}</p>
-              <p className={styles.scope}>{t('scope')}</p>
+              <p className={styles.scope}>{t(jpegAvailable ? 'scopeMixed' : 'scope')}</p>
             </div>
           )}
         </div>

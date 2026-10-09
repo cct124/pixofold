@@ -11,6 +11,26 @@ pub(super) struct Parsed<'a> {
 }
 
 impl Parsed<'_> {
+    pub fn preview_orientation(&self) -> Result<u8, JpegError> {
+        if matches!(
+            self.lossy_fallback(),
+            Some(
+                JpegLossyFallbackReason::ColorProfile
+                    | JpegLossyFallbackReason::FourComponentColor
+                    | JpegLossyFallbackReason::AmbiguousColor
+            )
+        ) || self.ambiguous_color()
+        {
+            // 预览不做ICC/CMYK转换，不将不明确的颜色解释伪装成正常预览。
+            return Err(JpegError::UnsupportedJpeg);
+        }
+        Ok(self
+            .metadata
+            .iter()
+            .find(|(marker, _)| *marker == 0xe1)
+            .and_then(|(_, data)| exif_orientation(data))
+            .unwrap_or(1))
+    }
     pub fn same_image_and_metadata(&self, other: &Parsed<'_>) -> bool {
         self.info == other.info
             && self.sample_layout == other.sample_layout
@@ -32,6 +52,12 @@ impl Parsed<'_> {
         if jfif.is_some_and(|data| data[12] != 0 || data[13] != 0) {
             return Some(JpegLossyFallbackReason::EmbeddedThumbnail);
         }
+        self.ambiguous_color()
+            .then_some(JpegLossyFallbackReason::AmbiguousColor)
+    }
+
+    fn ambiguous_color(&self) -> bool {
+        let jfif = self.metadata.iter().any(|(marker, _)| *marker == 0xe0);
         let adobe = self
             .metadata
             .iter()
@@ -42,14 +68,10 @@ impl Parsed<'_> {
             .iter()
             .map(|component| component[0])
             .collect();
-        if self.info.components == 3
+        self.info.components == 3
             && (adobe == Some(2)
-                || (jfif.is_some() && adobe == Some(0))
-                || (jfif.is_none() && adobe.is_none() && ids != [1, 2, 3] && ids != b"RGB"))
-        {
-            return Some(JpegLossyFallbackReason::AmbiguousColor);
-        }
-        None
+                || (jfif && adobe == Some(0))
+                || (!jfif && adobe.is_none() && ids != [1, 2, 3] && ids != b"RGB"))
     }
 
     pub fn check_pixel_budget(&self, limits: JpegLimits) -> Result<(), JpegError> {
@@ -308,7 +330,7 @@ fn check_metadata(marker: u8, data: &[u8], previous: &[(u8, &[u8])]) -> Result<(
                 && data.len() >= 14
                 && data.len() == 14 + usize::from(data[12]) * usize::from(data[13]) * 3
         }
-        0xe1 => orientation_exif(data),
+        0xe1 => exif_orientation(data).is_some(),
         0xe2 => {
             data.starts_with(b"ICC_PROFILE\0")
                 && data.len() > 14
@@ -327,15 +349,15 @@ fn check_metadata(marker: u8, data: &[u8], previous: &[(u8, &[u8])]) -> Result<(
 }
 
 /// 首版只接收单IFD、单Orientation项。MakerNote/缩略图/外部偏移等不能仅靠原样复制宣称安全。
-fn orientation_exif(data: &[u8]) -> bool {
+fn exif_orientation(data: &[u8]) -> Option<u8> {
     if data.len() != 32 || !data.starts_with(b"Exif\0\0") {
-        return false;
+        return None;
     }
     let tiff = &data[6..];
     let little = match &tiff[..2] {
         b"II" => true,
         b"MM" => false,
-        _ => return false,
+        _ => return None,
     };
     let u16_at = |i| {
         if little {
@@ -351,7 +373,7 @@ fn orientation_exif(data: &[u8]) -> bool {
             u32::from_be_bytes([tiff[i], tiff[i + 1], tiff[i + 2], tiff[i + 3]])
         }
     };
-    u16_at(2) == 42
+    (u16_at(2) == 42
         && u32_at(4) == 8
         && u16_at(8) == 1
         && u16_at(10) == 0x112
@@ -359,7 +381,8 @@ fn orientation_exif(data: &[u8]) -> bool {
         && u32_at(14) == 1
         && (1..=8).contains(&u16_at(18))
         && u16_at(20) == 0
-        && u32_at(22) == 0
+        && u32_at(22) == 0)
+        .then_some(u16_at(18) as u8)
 }
 
 fn validate_icc(metadata: &[(u8, &[u8])]) -> Result<(), JpegError> {
@@ -416,6 +439,34 @@ mod tests {
         }
     }
     #[test]
+    fn embedded_thumbnail_cannot_hide_conflicting_color_markers_from_preview() {
+        let mut jfif = b"JFIF".to_vec();
+        jfif.extend_from_slice(&[0, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0]);
+        let adobe = &[b'A', b'd', b'o', b'b', b'e', 0, 100, 0, 0, 0, 0, 0];
+        let mut parsed = Parsed {
+            info: JpegInfo {
+                width: 8,
+                height: 8,
+                components: 3,
+                progressive: false,
+            },
+            coefficient_bytes: 0,
+            working_bytes: 0,
+            sample_layout: vec![[1, 0], [2, 0], [3, 0]],
+            metadata: vec![(0xe0, &jfif), (0xee, adobe)],
+        };
+        assert_eq!(
+            parsed.lossy_fallback(),
+            Some(JpegLossyFallbackReason::EmbeddedThumbnail)
+        );
+        assert!(matches!(
+            parsed.preview_orientation(),
+            Err(JpegError::UnsupportedJpeg)
+        ));
+        parsed.metadata.pop();
+        assert_eq!(parsed.preview_orientation().unwrap(), 1);
+    }
+    #[test]
     fn credentials_and_unknown_apps_are_never_silently_preserved() {
         for marker in [0xe3, 0xeb, 0xed] {
             assert!(
@@ -445,9 +496,9 @@ mod tests {
                     });
                 }
                 data.extend_from_slice(&tiff);
-                assert!(orientation_exif(&data));
+                assert_eq!(exif_orientation(&data), Some(orientation as u8));
                 data[31] = 1; // 非零next IFD指针不能作为安全的方向-only Exif。
-                assert!(!orientation_exif(&data));
+                assert!(exif_orientation(&data).is_none());
             }
         }
     }

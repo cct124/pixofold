@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 
 pub(super) const MAX_PAGE_SIZE: u16 = 100;
 pub(super) const MAX_DISPLAY_CHARS: usize = 240;
-// v9增加完成批次的目录分页查询/打开；沿用同一Channel与ACK/背压契约。
-pub(crate) const TASK_PROTOCOL_VERSION: u32 = 9;
+// v10增加实际格式能力和PNG/JPEG专属报告；旧页面须更新重载，ACK/背压契约沿用。
+pub(crate) const TASK_PROTOCOL_VERSION: u32 = 10;
 
 /// 无符号64位十进制字符串；拒绝数字JSON、符号、空白、前导零及溢出。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -163,6 +163,7 @@ wire_enum!(
     pixofold_core::batch::BatchPhase,
     [Running, Cancelling, Finished]
 );
+wire_enum!(ImageKindDto, pixofold_core::batch::ImageKind, [Png, Jpeg]);
 wire_enum!(
     StageDto,
     pixofold_core::model::ProcessingStage,
@@ -181,6 +182,7 @@ pub(crate) enum JobErrorDto {
     UnsupportedFormat,
     UnsupportedAnimation,
     UnsupportedContentCredentials,
+    UnsupportedJpegCredentials,
     UnsupportedMetadata,
     ResourceLimit,
     Decode,
@@ -193,6 +195,10 @@ pub(crate) enum JobErrorDto {
     CleanupFailed,
     WorkerPanicked,
     ServiceFault,
+    ToolIdentity,
+    ToolIo,
+    ToolExit,
+    TimedOut,
 }
 impl TryFrom<pixofold_core::batch::JobErrorCode> for JobErrorDto {
     type Error = QueryError;
@@ -215,9 +221,10 @@ impl TryFrom<pixofold_core::batch::JobErrorCode> for JobErrorDto {
             C::CleanupFailed => Self::CleanupFailed,
             C::WorkerPanicked => Self::WorkerPanicked,
             C::ServiceFault => Self::ServiceFault,
-            C::ToolIdentity | C::ToolIo | C::ToolExit | C::TimedOut => {
-                return Err(QueryError::InvalidSnapshot);
-            }
+            C::ToolIdentity => Self::ToolIdentity,
+            C::ToolIo => Self::ToolIo,
+            C::ToolExit => Self::ToolExit,
+            C::TimedOut => Self::TimedOut,
         })
     }
 }
@@ -378,7 +385,7 @@ pub(crate) enum FallbackDto {
     rename_all_fields = "camelCase"
 )]
 #[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
-pub(crate) enum ProcessingDto {
+pub(crate) enum PngProcessingDto {
     Lossless,
     Lossy {
         mapping_version: u32,
@@ -388,6 +395,45 @@ pub(crate) enum ProcessingDto {
         mapping_version: u32,
         reason: FallbackDto,
     },
+}
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) enum JpegFallbackDto {
+    ColorProfile,
+    FourComponentColor,
+    EmbeddedThumbnail,
+    AmbiguousColor,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) enum JpegProcessingDto {
+    Lossless,
+    Lossy {
+        mapping_version: u32,
+        native_quality: u8,
+    },
+    LosslessFallback {
+        mapping_version: u32,
+        native_quality: u8,
+        reason: JpegFallbackDto,
+    },
+}
+
+/// 格式是可辨识联合的一部分；JPEG原生质量不能解释为PNG量化测量值。
+#[derive(Debug, Serialize)]
+#[serde(tag = "format", content = "details", rename_all = "snake_case")]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) enum ProcessingDto {
+    Png(PngProcessingDto),
+    Jpeg(JpegProcessingDto),
 }
 
 #[derive(Debug, Serialize)]
@@ -444,6 +490,7 @@ pub(crate) enum JobStateDto {
 #[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
 pub(crate) struct JobDto {
     pub id: u32,
+    pub format: ImageKindDto,
     pub attempt: u32,
     pub source_name: DisplayName,
     pub mode: PngMode,
@@ -456,6 +503,7 @@ pub(crate) struct JobDto {
 #[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
 pub(crate) struct CandidateDto {
     pub index: u32,
+    pub format: ImageKindDto,
     pub source_name: DisplayName,
     pub input_bytes: DecimalU64,
     pub width: u32,
@@ -517,6 +565,7 @@ pub(crate) enum TaskPageDto {
 #[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
 pub(crate) struct TaskSnapshotDto {
     pub protocol_version: u32,
+    pub supported_formats: Vec<ImageKindDto>,
     pub revision: DecimalU64,
     pub selection_id: Option<DecimalU64>,
     pub phase: TaskPhaseDto,
@@ -551,6 +600,7 @@ pub(super) fn declarations() -> String {
         DisplayName,
         TaskPhaseDto,
         BatchPhaseDto,
+        ImageKindDto,
         StageDto,
         ScanLimitDto,
         JobErrorDto,
@@ -565,6 +615,9 @@ pub(super) fn declarations() -> String {
         BatchSummaryDto,
         BatchOverviewDto,
         FallbackDto,
+        PngProcessingDto,
+        JpegFallbackDto,
+        JpegProcessingDto,
         ProcessingDto,
         ReportDto,
         ConfirmationDto,

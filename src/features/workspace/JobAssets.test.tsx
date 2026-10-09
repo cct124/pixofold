@@ -17,13 +17,14 @@ const report: ReportDto = {
   inputBytes: '1000',
   outputBytes: '500',
   elapsedMs: '10',
-  processing: { kind: 'lossless' },
+  processing: { format: 'png', details: { kind: 'lossless' } },
   outputName: name('result.png'),
   backupName: null,
   contentCredentialsRemoved: false,
 };
 const job: JobDto = {
   id: 1,
+  format: 'png',
   attempt: 1,
   sourceName: name('image.png'),
   inputBytes: '1000',

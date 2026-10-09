@@ -75,9 +75,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     if fs::read_dir(output)?.count() != 2 {
         return Err("存在意外输出或临时残留".into());
     }
+    let desktop = pixofold_desktop_lib::bundle_check::verify(
+        engine,
+        source.parent().ok_or("缺少样本目录")?,
+        &output.join("desktop"),
+    )?;
     println!(
         "{}",
-        serde_json::json!({"result":"passed","outputs":checks,"noGain":true,"cancelled":true})
+        serde_json::json!({"result":"passed","outputs":checks,"noGain":true,"cancelled":true,"desktop":desktop})
     );
     Ok(())
 }

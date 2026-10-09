@@ -13,6 +13,7 @@
     "windows": [
       {
         "label": "main",
+        "create": false,
         "title": "PixoFold · 轻图",
         "width": 1180,
         "height": 780,

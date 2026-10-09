@@ -1,6 +1,8 @@
 //! 桌面装配层：注册窗口权限与薄 IPC 命令，不执行图片处理。
 
 pub(crate) mod assets;
+#[cfg(feature = "bundle-check")]
+pub mod bundle_check;
 mod commands;
 pub(crate) mod diagnostics;
 pub(crate) mod ingress;
@@ -78,9 +80,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn run_application() -> Result<(), Box<dyn std::error::Error>> {
-    let runtime = tasks::TaskRuntime::new(resources::task_config())?;
     let builder = tauri::Builder::default()
-        .manage(lifecycle::DesktopTasks::new(runtime)?)
         .setup(|app| {
             let loaded = app.path().resource_dir()
                 .map_err(|_| "resource_directory")
@@ -98,8 +98,13 @@ fn run_application() -> Result<(), Box<dyn std::error::Error>> {
                     pixofold_core::batch::ImageEngines::default()
                 }
             };
-            // 应用持有可信能力；v9工作流仍PNG-only，避免不完整DTO接受JPEG任务。
-            app.manage(engines);
+            let runtime = tasks::TaskRuntime::with_engines(resources::task_config(), engines)?;
+            app.manage(lifecycle::DesktopTasks::new(runtime)?);
+            // 配置禁用自动建窗；服务和能力先就绪，首个page-load/IPC才可到达。
+            let window = app.config().app.windows.iter()
+                .find(|window| window.label == "main")
+                .cloned().ok_or("缺少main窗口配置")?;
+            tauri::WebviewWindowBuilder::from_config(app.handle(), &window)?.build()?;
             Ok(())
         });
     let app = configure_app(builder).build(app_context())?;

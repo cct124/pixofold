@@ -98,7 +98,7 @@ impl worker::ImportBackend for PausedImport {
         if self.point == Point::Scan {
             self.gate.stop();
         }
-        worker::NativeImport.scan(roots, options, cancel, &mut |p| {
+        worker::NativeImport::default().scan(roots, options, cancel, &mut |p| {
             progress(p);
             if self.point == Point::Candidate && p.accepted == 1 {
                 self.gate.stop();
@@ -113,7 +113,7 @@ impl worker::ImportBackend for PausedImport {
         if self.point == Point::Plan {
             self.gate.stop();
         }
-        worker::NativeImport.plan(scan, settings)
+        worker::NativeImport::default().plan(scan, settings)
     }
 }
 struct Paused {
@@ -528,7 +528,7 @@ impl worker::ImportBackend for PanickingImport {
         scan: &ImportScan,
         settings: &TaskSettings,
     ) -> Result<pixofold_core::batch::BatchRequest, ImportError> {
-        worker::ImportBackend::plan(&worker::NativeImport, scan, settings)
+        worker::ImportBackend::plan(&worker::NativeImport::default(), scan, settings)
     }
 }
 

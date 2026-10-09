@@ -23,7 +23,8 @@ pub(super) trait ImportBackend: Send + Sync {
     fn plan(&self, scan: &ImportScan, settings: &TaskSettings)
     -> Result<BatchRequest, ImportError>;
 }
-pub(super) struct NativeImport;
+#[derive(Default)]
+pub(super) struct NativeImport(pub ImageEngines);
 impl ImportBackend for NativeImport {
     fn scan(
         &self,
@@ -32,7 +33,7 @@ impl ImportBackend for NativeImport {
         cancel: &CancellationToken,
         progress: &mut dyn FnMut(&ScanProgress),
     ) -> Result<ImportScan, ImportError> {
-        import::scan(roots, options, cancel, progress)
+        import::scan_with_engines(roots, options, cancel, progress, &self.0)
     }
     fn plan(
         &self,

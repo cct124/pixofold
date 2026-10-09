@@ -7,6 +7,7 @@ import { WorkspaceRows } from './WorkspaceRows';
 const name = (text: string) => ({ text, truncated: false, lossy: false, sanitized: false });
 const job: JobDto = {
   id: 1,
+  format: 'png',
   attempt: 1,
   sourceName: name('source.png'),
   inputBytes: '1000',
@@ -17,7 +18,7 @@ const job: JobDto = {
       inputBytes: '1000',
       outputBytes: '500',
       elapsedMs: '42',
-      processing: { kind: 'lossless' },
+      processing: { format: 'png', details: { kind: 'lossless' } },
       outputName: name('result.png'),
       backupName: name('source-backup-abc123.png'),
       contentCredentialsRemoved: false,
@@ -26,6 +27,54 @@ const job: JobDto = {
 };
 const access = { assets: new TaskAssets(() => null), selectionId: '1', enabled: true };
 const page: TaskPageDto = { kind: 'jobs', offset: 0, total: 1, items: [job] };
+
+it.each(['zh-CN', 'en'] as const)(
+  'shows mixed formats and JPEG fallback honestly in %s',
+  (language) => {
+    if (job.state.kind !== 'succeeded') throw new Error('fixture');
+    const jpeg: JobDto = {
+      ...job,
+      id: 2,
+      format: 'jpeg',
+      sourceName: name('photo.JPG'),
+      mode: { kind: 'lossy', quality: 80 },
+      state: {
+        kind: 'succeeded',
+        report: {
+          ...job.state.report,
+          processing: {
+            format: 'jpeg',
+            details: {
+              kind: 'lossless_fallback',
+              mappingVersion: 1,
+              nativeQuality: 80,
+              reason: { kind: 'color_profile' },
+            },
+          },
+          outputName: name('photo.JPG'),
+          backupName: null,
+        },
+      },
+    };
+    render(
+      <WorkspaceRows
+        page={{ kind: 'jobs', offset: 0, total: 2, items: [job, jpeg] }}
+        language={language}
+        access={access}
+      />,
+    );
+    expect(screen.getByText('PNG · #1')).toBeVisible();
+    expect(screen.getByText('JPEG · #2')).toBeVisible();
+    const details = language === 'en' ? 'Details' : '详情';
+    fireEvent.mouseEnter(screen.getAllByRole('button', { name: details })[1]!);
+    expect(screen.getByRole('dialog')).toHaveTextContent(
+      language === 'en'
+        ? 'Lossless fallback · ICC color profile protection'
+        : '回退无损 · ICC 色彩配置保护',
+    );
+    expect(screen.queryByText(/measured|量化评估/)).not.toBeInTheDocument();
+  },
+);
 afterEach(() => {
   vi.useRealTimers();
   access.assets.reset();

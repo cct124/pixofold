@@ -139,6 +139,7 @@ fn idle_query_has_stable_contract_and_never_starts_or_cancels_work() {
             wire(query(&control, request(TaskCollection::Jobs)).unwrap()),
             json!({
                 "protocolVersion": TASK_PROTOCOL_VERSION, "revision": before.revision.to_string(), "selectionId": null,
+                "supportedFormats": ["png"],
                 "phase": "idle", "scan": null, "error": null, "batch": null,
                 "page": {"kind": "jobs", "offset": 0, "total": 0, "items": []},
             })
@@ -521,8 +522,8 @@ fn lossy_fallback_mapping_and_elapsed_milliseconds_come_from_actual_report() {
     assert_eq!(wire_report["elapsedMs"], "1234");
     assert_eq!(
         wire_report["processing"],
-        json!({"kind": "lossless_fallback", "mappingVersion": 3,
-        "reason": {"kind": "quality_below_target", "measured": 69}})
+        json!({"format":"png", "details":{"kind": "lossless_fallback", "mappingVersion": 3,
+        "reason": {"kind": "quality_below_target", "measured": 69}}})
     );
     let JobState::Succeeded(pixofold_core::batch::ImageReport::Png(report)) =
         &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0].state
@@ -537,30 +538,111 @@ fn lossy_fallback_mapping_and_elapsed_milliseconds_come_from_actual_report() {
 }
 
 #[test]
-fn protocol_v9_rejects_jpeg_rows_and_tool_errors_without_inventing_png_results() {
+fn protocol_v10_preserves_jpeg_formats_errors_and_quality_without_png_semantics() {
     use pixofold_core::{
         batch::{FormatOptions, ImageError, JobErrorCode, JobFailure},
-        jpeg::JpegError,
+        jpeg::{
+            JpegError, JpegInfo, JpegLossyFallbackReason, JpegProcessing, JpegQualityMapping,
+            JpegReport,
+        },
     };
     let (_dir, _runtime, mut snapshot) = completed();
     let job = &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0];
-    let original = job.request.options.clone();
     job.request.options = FormatOptions::Jpeg(Default::default());
     job.state = JobState::Queued;
-    assert_eq!(
-        convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).unwrap_err(),
-        QueryError::InvalidSnapshot
-    );
-    let job = &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0];
-    job.request.options = original;
-    job.state = JobState::Failed(JobFailure {
-        code: JobErrorCode::TimedOut,
-        cause: Some(Arc::new(ImageError::Jpeg(JpegError::Timeout))),
-    });
-    assert_eq!(
-        convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).unwrap_err(),
-        QueryError::InvalidSnapshot
-    );
+    snapshot.supported_formats.push(ImageKind::Jpeg);
+    let result = wire(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).unwrap());
+    assert_eq!(result["supportedFormats"], json!(["png", "jpeg"]));
+    assert_eq!(result["page"]["items"][0]["format"], "jpeg");
+    for (code, error, expected) in [
+        (JobErrorCode::TimedOut, JpegError::Timeout, "timed_out"),
+        (
+            JobErrorCode::ToolIdentity,
+            JpegError::ToolIdentity,
+            "tool_identity",
+        ),
+        (
+            JobErrorCode::ToolIo,
+            JpegError::ToolIo {
+                operation: "private op",
+                source: io::Error::other("private path"),
+            },
+            "tool_io",
+        ),
+        (
+            JobErrorCode::ToolExit,
+            JpegError::ToolExit(Some(2)),
+            "tool_exit",
+        ),
+        (
+            JobErrorCode::UnsupportedContentCredentials,
+            JpegError::ProtectedMetadata(0xeb),
+            "unsupported_jpeg_credentials",
+        ),
+    ] {
+        Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0].state =
+            JobState::Failed(JobFailure {
+                code,
+                cause: Some(Arc::new(ImageError::Jpeg(error))),
+            });
+        let result = wire(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).unwrap());
+        assert_eq!(
+            result["page"]["items"][0]["state"]["failure"]["code"],
+            expected
+        );
+        assert_eq!(result["batch"]["confirmationCount"], 0);
+        assert!(!result.to_string().contains("private"));
+    }
+    let parameters = JpegQualityMapping::new(QualityValue::new(0).unwrap());
+    for processing in [
+        JpegProcessing::Lossless,
+        JpegProcessing::Lossy { parameters },
+        JpegProcessing::LosslessFallback {
+            parameters,
+            reason: JpegLossyFallbackReason::ColorProfile,
+        },
+        JpegProcessing::LosslessFallback {
+            parameters,
+            reason: JpegLossyFallbackReason::FourComponentColor,
+        },
+        JpegProcessing::LosslessFallback {
+            parameters,
+            reason: JpegLossyFallbackReason::EmbeddedThumbnail,
+        },
+        JpegProcessing::LosslessFallback {
+            parameters,
+            reason: JpegLossyFallbackReason::AmbiguousColor,
+        },
+    ] {
+        let job = &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0];
+        job.state = JobState::NoGain(ImageReport::Jpeg(JpegReport {
+            image: JpegInfo {
+                width: 2,
+                height: 3,
+                components: 3,
+                progressive: false,
+            },
+            processing,
+            input_bytes: ByteCount(1000),
+            output_bytes: ByteCount(1000),
+            elapsed: Duration::from_millis(3),
+            outcome: ProcessingOutcome::NoGain,
+        }));
+        let result = wire(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).unwrap());
+        let report = &result["page"]["items"][0]["state"]["report"];
+        assert_eq!(report["processing"]["format"], "jpeg");
+        assert_eq!(report["contentCredentialsRemoved"], false);
+        assert!(report["outputName"].is_null());
+        assert!(
+            report["processing"]["details"]
+                .get("measuredQuality")
+                .is_none()
+        );
+        if !matches!(processing, JpegProcessing::Lossless) {
+            assert_eq!(report["processing"]["details"]["nativeQuality"], 1);
+            assert_eq!(report["processing"]["details"]["mappingVersion"], 1);
+        }
+    }
 }
 
 #[test]
@@ -587,6 +669,38 @@ fn scan_limit_and_error_remain_visible_without_batch() {
     assert_eq!(result["error"]["code"], "incomplete_scan");
     assert!(result["batch"].is_null());
     runtime.shutdown().unwrap();
+}
+
+#[test]
+fn jpeg_nested_cleanup_keeps_recovery_names_and_private_errors_stay_in_rust() {
+    use pixofold_core::jpeg::JpegError;
+    let (_dir, _runtime, mut snapshot) = completed();
+    let job = &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0];
+    job.request.options = FormatOptions::Jpeg(Default::default());
+    job.state = JobState::Failed(JobFailure {
+        code: JobErrorCode::CleanupFailed,
+        cause: Some(Arc::new(ImageError::Jpeg(JpegError::Cleanup {
+            temporary: Path::new("private-parent").join("workspace"),
+            source: io::Error::other("private error"),
+            original: Some(Box::new(JpegError::File(ProcessingError::CleanupFailed {
+                temporary: Path::new("private-parent").join("inner-temp"),
+                source: io::Error::other("private error"),
+                original: Some(Box::new(ProcessingError::CommitFailed {
+                    backup: Path::new("private-parent").join("saved-backup-123abc.JPG"),
+                    source: io::Error::other("private error"),
+                })),
+            }))),
+        }))),
+    });
+    let value = wire(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).unwrap());
+    let recovery = &value["page"]["items"][0]["state"]["failure"]["recovery"];
+    assert_eq!(recovery["backupName"]["text"], "saved-backup-123abc.JPG");
+    assert_eq!(recovery["temporaryName"]["text"], "workspace");
+    assert_eq!(
+        recovery["originalError"],
+        json!({"kind":"failed", "code":"commit_failed"})
+    );
+    assert!(!value.to_string().contains("private"));
 }
 
 #[test]

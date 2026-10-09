@@ -2,7 +2,12 @@
 
 use super::dto::*;
 use crate::tasks::{TaskError, TaskSnapshot};
-use pixofold_core::{batch::*, import::*, model::*};
+use pixofold_core::{
+    batch::*,
+    import::*,
+    jpeg::{JpegError, JpegLossyFallbackReason, JpegProcessing},
+    model::*,
+};
 use std::path::Path;
 
 type Result<T> = std::result::Result<T, QueryError>;
@@ -71,21 +76,55 @@ fn recovery_cause(error: &ProcessingError) -> RecoveryCauseDto {
     };
     RecoveryCauseDto::Failed { code }
 }
+fn jpeg_cause(error: &JpegError) -> RecoveryCauseDto {
+    let code = match error {
+        JpegError::InvalidLimits | JpegError::InvalidJpeg(_) => JobErrorDto::InvalidInput,
+        JpegError::UnsupportedJpeg => JobErrorDto::UnsupportedFormat,
+        JpegError::ProtectedMetadata(0xeb) => JobErrorDto::UnsupportedJpegCredentials,
+        JpegError::ProtectedMetadata(_) => JobErrorDto::UnsupportedMetadata,
+        JpegError::ResourceLimit(_) => JobErrorDto::ResourceLimit,
+        JpegError::ToolIdentity => JobErrorDto::ToolIdentity,
+        JpegError::ToolIo { .. } => JobErrorDto::ToolIo,
+        JpegError::ToolExit(_) => JobErrorDto::ToolExit,
+        JpegError::Timeout => JobErrorDto::TimedOut,
+        JpegError::Cancelled => return RecoveryCauseDto::Cancelled,
+        JpegError::ValidationFailed => JobErrorDto::Validation,
+        JpegError::File(error) => return recovery_cause(error),
+        JpegError::Cleanup { .. } => JobErrorDto::CleanupFailed,
+    };
+    RecoveryCauseDto::Failed { code }
+}
+
 fn failure(value: &JobFailure) -> Result<JobFailureDto> {
-    // v9只声明PNG能力；JPEG错误保持在领域层，不能折叠成误导的PNG wire响应。
-    if value
-        .cause
-        .as_deref()
-        .is_some_and(|e| matches!(e, ImageError::Jpeg(_)))
-    {
-        return Err(QueryError::InvalidSnapshot);
-    }
     let mut recovery = RecoveryDto {
         backup_name: None,
         temporary_name: None,
         original_error: None,
     };
     let mut cause = value.cause.as_deref().and_then(ImageError::png);
+    if let Some(ImageError::Jpeg(error)) = value.cause.as_deref() {
+        let mut current = Some(error);
+        while let Some(error) = current {
+            match error {
+                JpegError::File(error) => {
+                    cause = Some(error);
+                    break;
+                }
+                JpegError::Cleanup {
+                    temporary,
+                    original,
+                    ..
+                } => {
+                    if recovery.temporary_name.is_none() {
+                        recovery.temporary_name = Some(name(temporary));
+                    }
+                    recovery.original_error = original.as_deref().map(jpeg_cause);
+                    current = original.as_deref();
+                }
+                _ => break,
+            }
+        }
+    }
     while let Some(error) = cause {
         match error {
             ProcessingError::CommitFailed { backup, .. } => {
@@ -107,7 +146,14 @@ fn failure(value: &JobFailure) -> Result<JobFailureDto> {
         }
     }
     Ok(JobFailureDto {
-        code: value.code.try_into()?,
+        code: if matches!(
+            value.cause.as_deref(),
+            Some(ImageError::Jpeg(JpegError::ProtectedMetadata(0xeb)))
+        ) {
+            JobErrorDto::UnsupportedJpegCredentials
+        } else {
+            value.code.try_into()?
+        },
         recovery: (recovery.backup_name.is_some() || recovery.temporary_name.is_some())
             .then_some(recovery),
     })
@@ -202,17 +248,17 @@ fn summary(s: &BatchSummary) -> Result<BatchSummaryDto> {
         saved_bytes: bytes(s.saved_bytes),
     })
 }
-fn processing(value: PngProcessing) -> ProcessingDto {
+fn png_processing(value: PngProcessing) -> PngProcessingDto {
     match value {
-        PngProcessing::Lossless => ProcessingDto::Lossless,
+        PngProcessing::Lossless => PngProcessingDto::Lossless,
         PngProcessing::Lossy {
             mapping,
             measured_quality,
-        } => ProcessingDto::Lossy {
+        } => PngProcessingDto::Lossy {
             mapping_version: mapping.version,
             measured_quality,
         },
-        PngProcessing::LosslessFallback { mapping, reason } => ProcessingDto::LosslessFallback {
+        PngProcessing::LosslessFallback { mapping, reason } => PngProcessingDto::LosslessFallback {
             mapping_version: mapping.version,
             reason: match reason {
                 LossyFallbackReason::HighBitDepth => FallbackDto::HighBitDepth,
@@ -227,33 +273,65 @@ fn processing(value: PngProcessing) -> ProcessingDto {
         },
     }
 }
+fn jpeg_processing(value: JpegProcessing) -> JpegProcessingDto {
+    match value {
+        JpegProcessing::Lossless => JpegProcessingDto::Lossless,
+        JpegProcessing::Lossy { parameters } => JpegProcessingDto::Lossy {
+            mapping_version: parameters.version,
+            native_quality: parameters.native_quality,
+        },
+        JpegProcessing::LosslessFallback { parameters, reason } => {
+            JpegProcessingDto::LosslessFallback {
+                mapping_version: parameters.version,
+                native_quality: parameters.native_quality,
+                reason: match reason {
+                    JpegLossyFallbackReason::ColorProfile => JpegFallbackDto::ColorProfile,
+                    JpegLossyFallbackReason::FourComponentColor => {
+                        JpegFallbackDto::FourComponentColor
+                    }
+                    JpegLossyFallbackReason::EmbeddedThumbnail => {
+                        JpegFallbackDto::EmbeddedThumbnail
+                    }
+                    JpegLossyFallbackReason::AmbiguousColor => JpegFallbackDto::AmbiguousColor,
+                },
+            }
+        }
+    }
+}
 fn report(value: &ImageReport) -> Result<ReportDto> {
-    let value = value.png().ok_or(QueryError::InvalidSnapshot)?;
-    let (output_name, backup_name) = match &value.outcome {
+    let (elapsed, processing) = match value {
+        ImageReport::Png(report) => (
+            report.elapsed,
+            ProcessingDto::Png(png_processing(report.processing)),
+        ),
+        ImageReport::Jpeg(report) => (
+            report.elapsed,
+            ProcessingDto::Jpeg(jpeg_processing(report.processing)),
+        ),
+    };
+    let (output_name, backup_name) = match value.outcome() {
         ProcessingOutcome::Optimized { output, backup } => {
             (Some(name(output)), backup.as_deref().map(name))
         }
         ProcessingOutcome::NoGain => (None, None),
     };
     Ok(ReportDto {
-        input_bytes: DecimalU64(value.input_bytes.0),
-        output_bytes: DecimalU64(value.output_bytes.0),
+        input_bytes: DecimalU64(value.input_bytes().0),
+        output_bytes: DecimalU64(value.output_bytes().0),
         // 毫秒向下取整；异常超范围返回契约错误，不截断/钳制成另一个耗时。
         elapsed_ms: DecimalU64(
-            u64::try_from(value.elapsed.as_millis()).map_err(|_| QueryError::InvalidSnapshot)?,
+            u64::try_from(elapsed.as_millis()).map_err(|_| QueryError::InvalidSnapshot)?,
         ),
-        processing: processing(value.processing),
+        processing,
         output_name,
         backup_name,
-        content_credentials_removed: value.content_credentials_removed,
+        content_credentials_removed: value.credentials_removed(),
     })
 }
 fn job(value: &JobSnapshot) -> Result<JobDto> {
-    if value.request.format() != ImageKind::Png {
-        return Err(QueryError::InvalidSnapshot);
-    }
     Ok(JobDto {
         id: count(value.id.get())?,
+        format: value.request.format().into(),
         attempt: value.attempt,
         source_name: name(&value.request.source),
         mode: value.request.mode,
@@ -342,15 +420,17 @@ pub(super) fn snapshot(value: &TaskSnapshot, request: &TaskPageRequest) -> Resul
             let items = range(files.len(), request)?
                 .map(|index| {
                     let file = &files[index];
-                    let ImportedImage::Png(image) = &file.image else {
-                        return Err(QueryError::InvalidSnapshot);
+                    let (width, height) = match &file.image {
+                        ImportedImage::Png(image) => (image.width, image.height),
+                        ImportedImage::Jpeg(image) => (image.width, image.height),
                     };
                     Ok(CandidateDto {
                         index: count(index)?,
+                        format: file.image.format().into(),
                         source_name: name(&file.source),
                         input_bytes: DecimalU64(file.input_bytes.0),
-                        width: image.width,
-                        height: image.height,
+                        width,
+                        height,
                     })
                 })
                 .collect::<Result<_>>()?;
@@ -392,6 +472,12 @@ pub(super) fn snapshot(value: &TaskSnapshot, request: &TaskPageRequest) -> Resul
     };
     Ok(TaskSnapshotDto {
         protocol_version: TASK_PROTOCOL_VERSION,
+        supported_formats: value
+            .supported_formats
+            .iter()
+            .copied()
+            .map(Into::into)
+            .collect(),
         revision: DecimalU64(value.revision),
         selection_id: value.selection.map(|s| DecimalU64(s.get())),
         phase: value.phase.into(),

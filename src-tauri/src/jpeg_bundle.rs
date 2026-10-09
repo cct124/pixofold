@@ -1,5 +1,5 @@
 //! 固定资源布局与构建期可信身份；应用和无GUI部署验收共用，不搜索PATH。
-//! 保持一个已验证引擎实例；桌面格式开放/扫描注入由J2第二段完成。
+//! 加载后由应用共享同一引擎实例，贯穿能力、扫描、任务及受限预览。
 
 use pixofold_core::jpeg::{JpegEngine, JpegError};
 use std::{fs, path::Path};

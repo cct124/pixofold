@@ -35,6 +35,8 @@ cpSync(path.join(root, 'target/release/jpeg-bundle-check' + extension), checker)
 const sampleDirectory = path.join(isolated, 'samples');
 mkdirSync(sampleDirectory);
 const { samples } = createSamples({ root, tools, directory: sampleDirectory });
+for (const [name, bytes] of samples)
+  writeFileSync(path.join(sampleDirectory, name + '.jpg'), bytes, { flag: 'wx' });
 const original = samples.find(([name]) => name === 'baseline-420')[1];
 const source = path.join(sampleDirectory, 'input.jpg');
 writeFileSync(source, original, { flag: 'wx' });
@@ -75,6 +77,23 @@ for (const { file } of report.outputs) {
     assert.equal(before.status, 0);
     assert.equal(after.status, 0);
     assert.deepEqual(after.stdout, before.stdout, '无损系数改变');
+  }
+}
+assert.equal(report.desktop.protocolVersion, 10);
+assert.equal(report.desktop.result, 'passed');
+assert.equal(report.desktop.previews, 11);
+for (const item of report.desktop.outputs) {
+  if (item.format !== 'jpeg') continue;
+  const bytes = readFileSync(path.join(output, 'desktop', item.file));
+  const source = readFileSync(path.join(output, 'desktop', item.source));
+  assert.equal(execute(tools.djpeg, ['-strict', '-ppm'], bytes).status, 0, '桌面JPEG独立解码失败');
+  assert.deepEqual(extraMarkers(bytes), extraMarkers(source));
+  if (item.lossless) {
+    const before = execute(tools.coefficients, [], source);
+    const after = execute(tools.coefficients, [], bytes);
+    assert.equal(before.status, 0);
+    assert.equal(after.status, 0);
+    assert.deepEqual(after.stdout, before.stdout, '桌面JPEG无损系数改变');
   }
 }
 const runtime = path.join(install, 'jpeg/runtime');

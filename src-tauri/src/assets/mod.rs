@@ -6,6 +6,7 @@ mod dto;
 pub(crate) use directories::{directory_page, resolve_directory, validate_batch};
 #[cfg(test)]
 mod directory_tests;
+mod jpeg;
 mod png;
 #[cfg(test)]
 mod tests;
@@ -13,8 +14,8 @@ pub(crate) use dto::*;
 
 use crate::tasks::{TaskPhase, TaskSnapshot};
 use pixofold_core::{
-    batch::JobState,
-    model::{ProcessingError, ProcessingOutcome},
+    batch::{ImageEngines, JobState},
+    model::{CancellationToken, ProcessingOutcome},
 };
 use std::{
     collections::VecDeque,
@@ -33,12 +34,14 @@ struct State {
     closed: bool,
     generation: u64,
     thumbnail_busy: bool,
+    thumbnail_cancel: Option<CancellationToken>,
     reveal_busy: bool,
     cache: VecDeque<CacheEntry>,
     cache_bytes: usize,
 }
 #[derive(Default)]
 pub(crate) struct AssetService {
+    engines: ImageEngines,
     state: Mutex<State>,
     idle: Condvar,
 }
@@ -51,6 +54,7 @@ pub(crate) struct Permit {
     owner: Arc<AssetService>,
     generation: u64,
     operation: Operation,
+    cancel: CancellationToken,
 }
 impl Drop for Permit {
     fn drop(&mut self) {
@@ -60,7 +64,10 @@ impl Drop for Permit {
             .lock()
             .unwrap_or_else(|error| error.into_inner());
         match self.operation {
-            Operation::Thumbnail => state.thumbnail_busy = false,
+            Operation::Thumbnail => {
+                state.thumbnail_busy = false;
+                state.thumbnail_cancel = None;
+            }
             Operation::Reveal => state.reveal_busy = false,
         }
         self.owner.idle.notify_all();
@@ -90,6 +97,12 @@ pub(crate) struct PreparedThumbnail {
 type CacheEntry = PreparedThumbnail;
 
 impl AssetService {
+    pub(crate) fn new(engines: ImageEngines) -> Self {
+        Self {
+            engines,
+            ..Self::default()
+        }
+    }
     pub(crate) fn reserve(self: &Arc<Self>, operation: Operation) -> Result<Permit, AssetError> {
         let mut state = self.state.lock().map_err(|_| AssetError::ServiceFault)?;
         if state.closed {
@@ -103,10 +116,15 @@ impl AssetService {
             return Err(AssetError::Busy);
         }
         *busy = true;
+        let cancel = CancellationToken::default();
+        if matches!(operation, Operation::Thumbnail) {
+            state.thumbnail_cancel = Some(cancel.clone());
+        }
         Ok(Permit {
             owner: self.clone(),
             generation: state.generation,
             operation,
+            cancel,
         })
     }
 
@@ -114,6 +132,9 @@ impl AssetService {
     pub(crate) fn invalidate(&self) {
         let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
         state.generation = state.generation.wrapping_add(1);
+        if let Some(cancel) = &state.thumbnail_cancel {
+            cancel.cancel();
+        }
         state.cache.clear();
         state.cache_bytes = 0;
     }
@@ -192,7 +213,11 @@ impl AssetService {
                 if reader.read(&mut [0_u8; 1]).map_err(io_error)? != 0 {
                     return Err(AssetError::FileChanged);
                 }
-                png::decode(&input)?
+                if input.starts_with(&[0xff, 0xd8]) {
+                    jpeg::decode(&input, &self.engines, &permit.cancel)?
+                } else {
+                    png::decode(&input)?
+                }
             }
         };
         // 不是文件系统CAS：拒绝观测到的路径替换、符号链接及读期间变化。
@@ -288,20 +313,12 @@ pub(crate) fn resolve(
             _ => Err(AssetError::Unavailable),
         },
         (JobState::NoGain(_), None | Some(RevealTarget::Result)) => Ok(job.request.source.clone()),
-        (JobState::Failed(failure), Some(RevealTarget::Backup)) => {
-            let mut cause = failure
-                .cause
-                .as_deref()
-                .and_then(pixofold_core::batch::ImageError::png);
-            while let Some(error) = cause {
-                match error {
-                    ProcessingError::CommitFailed { backup, .. } => return Ok(backup.clone()),
-                    ProcessingError::CleanupFailed { original, .. } => cause = original.as_deref(),
-                    _ => break,
-                }
-            }
-            Err(AssetError::Unavailable)
-        }
+        (JobState::Failed(failure), Some(RevealTarget::Backup)) => failure
+            .cause
+            .as_deref()
+            .and_then(pixofold_core::batch::ImageError::recovery_backup)
+            .map(Path::to_owned)
+            .ok_or(AssetError::Unavailable),
         (JobState::Failed(_) | JobState::Cancelled, None) => Ok(job.request.source.clone()),
         _ => Err(AssetError::Unavailable),
     }

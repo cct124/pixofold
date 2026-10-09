@@ -1,4 +1,5 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
+import { validateImages } from './image-contract';
 import type { DecimalU64, QueryError, TaskPageRequest, TaskSnapshotDto } from './tasks.generated';
 import { MAX_TASK_PAGE_SIZE, TASK_PROTOCOL_VERSION } from './tasks.generated';
 
@@ -45,9 +46,10 @@ export async function getTaskSnapshot(request: TaskPageRequest): Promise<TaskSna
   const fixed = { ...request };
   validateRequest(fixed);
   const snapshot = await invoke<TaskSnapshotDto>('get_task_snapshot', { request: fixed });
-  // 完整行由本机Rust序列化/生成类型保证；在适配边界额外验证协议和版本/分页信封。
+  // Rust生成类型；运行时仍验证协议、分页及格式专属报告，未知响应不能进入交互。
   if (snapshot.protocolVersion !== TASK_PROTOCOL_VERSION)
     throw new Error('Unsupported task protocol version');
+  validateImages(snapshot);
   parseDecimalU64(snapshot.revision);
   if (snapshot.selectionId !== null) parseDecimalU64(snapshot.selectionId);
   if (

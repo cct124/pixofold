@@ -8,7 +8,7 @@ mod worker;
 pub use model::*;
 
 use pixofold_core::{
-    batch::{BatchId, BatchService, RetryRequest},
+    batch::{BatchId, BatchService, ImageEngines, ImageKind, RetryRequest},
     import::ImportScan,
     model::CancellationToken,
 };
@@ -72,6 +72,7 @@ impl State {
     }
 }
 struct Shared {
+    engines: ImageEngines,
     state: Mutex<State>,
     changed: Condvar,
 }
@@ -115,6 +116,10 @@ pub struct TaskControl {
     shared: Arc<Shared>,
 }
 impl TaskControl {
+    pub(crate) fn engines(&self) -> ImageEngines {
+        self.shared.engines.clone()
+    }
+
     /// 接纳一份导入。settings=None保留完整清单等待修正，Some则扫描完成后自动规划启动。
     /// 只投递单槽后台命令，不执行文件I/O；冻结传入设置，不读取后续UI草稿。
     /// # Errors
@@ -285,16 +290,40 @@ impl TaskRuntime {
     /// # Errors
     /// 配置或线程创建失败，已创建线程会收尾。
     pub fn new(config: TaskConfig) -> Result<Self, TaskError> {
-        Self::with_backend(config, Arc::new(worker::NativeImport))
+        Self::with_engines(config, ImageEngines::default())
     }
+    /// 共享可信宿主已校验的引擎，贯穿扫描、规划和唯一批次服务。
+    /// # Errors
+    /// 配置或线程创建失败，已创建线程会收尾；不执行图片I/O。
+    pub fn with_engines(config: TaskConfig, engines: ImageEngines) -> Result<Self, TaskError> {
+        Self::with_backend_and_engines(
+            config,
+            Arc::new(worker::NativeImport(engines.clone())),
+            engines,
+        )
+    }
+    #[cfg(test)]
     fn with_backend(
         config: TaskConfig,
         backend: Arc<dyn worker::ImportBackend>,
     ) -> Result<Self, TaskError> {
-        let service = BatchService::new(config.batch)?;
+        Self::with_backend_and_engines(config, backend, ImageEngines::default())
+    }
+    fn with_backend_and_engines(
+        config: TaskConfig,
+        backend: Arc<dyn worker::ImportBackend>,
+        engines: ImageEngines,
+    ) -> Result<Self, TaskError> {
+        let service = BatchService::with_engines(config.batch, engines.clone())?;
+        let supported_formats = [ImageKind::Png, ImageKind::Jpeg]
+            .into_iter()
+            .filter(|format| engines.supports(*format))
+            .collect();
         let shared = Arc::new(Shared {
+            engines,
             state: Mutex::new(State {
                 view: TaskSnapshot {
+                    supported_formats,
                     revision: 0,
                     selection: None,
                     phase: TaskPhase::Idle,

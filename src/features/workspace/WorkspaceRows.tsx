@@ -29,11 +29,17 @@ function JobResult({ job, language }: { job: JobDto; language: Language }) {
       {(state.kind === 'succeeded' || state.kind === 'no_gain') && (
         <>
           <small>
-            {t(state.report.processing.kind)}
-            {state.report.processing.kind === 'lossless_fallback' &&
-              ' · ' + t(state.report.processing.reason.kind)}{' '}
+            {t(state.report.processing.details.kind)}
+            {state.report.processing.details.kind === 'lossless_fallback' &&
+              ' · ' + t(state.report.processing.details.reason.kind)}{' '}
             · {state.report.elapsedMs} ms
           </small>
+          {state.report.processing.format === 'jpeg' &&
+            state.report.processing.details.kind === 'lossy' && (
+              <small>
+                {t('jpegNativeQuality')}: {state.report.processing.details.nativeQuality}
+              </small>
+            )}
           {state.report.outputName && (
             <small>
               {t('outputName')}: <Name value={state.report.outputName} t={t} />
@@ -129,7 +135,9 @@ export function WorkspaceRows({
                     />
                     <div className={styles.fileText}>
                       <Name value={job.sourceName} t={t} />
-                      <small>PNG · #{job.id}</small>
+                      <small>
+                        {job.format.toUpperCase()} · #{job.id}
+                      </small>
                     </div>
                   </div>
                 </td>
@@ -187,7 +195,7 @@ export function WorkspaceRows({
               </td>
               <td data-label={t('before')}>{formatBytes(item.inputBytes)}</td>
               <td>
-                {item.width} × {item.height} · PNG
+                {item.width} × {item.height} · {item.format.toUpperCase()}
               </td>
             </tr>
           ))}

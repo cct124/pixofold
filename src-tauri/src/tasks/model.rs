@@ -1,7 +1,7 @@
 //! 应用任务契约；不是IPC DTO。路径、核心错误和快照不直接跨WebView边界。
 
 use pixofold_core::{
-    batch::{BatchConfig, BatchError, BatchParameters, BatchSnapshot},
+    batch::{BatchConfig, BatchError, BatchParameters, BatchSnapshot, ImageKind},
     import::{ImportError, ImportOutput, ImportScan, ScanOptions, ScanProgress},
     model::{PngMode, QualityValue},
 };
@@ -65,6 +65,8 @@ pub enum TaskPhase {
 /// revision覆盖整个应用会话；批次内部revision及attempt仍由核心维护。
 #[derive(Debug, Clone)]
 pub struct TaskSnapshot {
+    /// 本应用已注入的能力；引擎每次执行仍复查身份，失败不会扩张此列表。
+    pub supported_formats: Vec<ImageKind>,
     pub revision: u64,
     pub selection: Option<SelectionId>,
     pub phase: TaskPhase,

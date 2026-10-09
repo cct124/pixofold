@@ -37,6 +37,7 @@ function deferred<T>() {
 function snapshot(): TaskSnapshotDto {
   return {
     protocolVersion: TASK_PROTOCOL_VERSION,
+    supportedFormats: ['png'],
     revision: '0',
     selectionId: null,
     phase: 'idle',
@@ -180,6 +181,16 @@ function credentialsSnapshot(count = 2): TaskSnapshotDto {
 }
 
 describe('native drop import workflow', () => {
+  it('uses configured capabilities and preserves mixed mode across reconnection', async () => {
+    current.supportedFormats = ['png', 'jpeg'];
+    await mount();
+    expect(screen.getByText('JPEG')).toHaveAttribute('aria-disabled', 'false');
+    expect(screen.getByText('支持静态 PNG 与 JPEG；GIF 和 APNG 尚未接入。')).toBeVisible();
+    await act(async () => controller.reconnect());
+    await waitFor(() => expect(controller.getSnapshot().connection).toBe('connected'));
+    expect(screen.getByText('JPEG')).toHaveAttribute('aria-disabled', 'false');
+    expect(writes()).toHaveLength(0);
+  });
   const originalPoint = Object.getOwnPropertyDescriptor(document, 'elementFromPoint');
   const originalScale = Object.getOwnPropertyDescriptor(window, 'devicePixelRatio');
   const hit = vi.fn<(_: number, __: number) => Element | null>();
@@ -483,6 +494,7 @@ describe('session-bound custom output folders', () => {
           id: 7,
           attempt: 1,
           sourceName: name('failed.png'),
+          format: 'png',
           mode: { kind: 'lossless' },
           inputBytes: '2048',
           state: { kind: 'failed', failure: { code: 'io', recovery: null } },
@@ -695,6 +707,7 @@ describe('content credentials confirmation workflow', () => {
           id: 7,
           attempt: 2,
           sourceName: name('credentials.png'),
+          format: 'png',
           mode: { kind: 'lossless' },
           inputBytes: '2048',
           state: {
@@ -703,7 +716,7 @@ describe('content credentials confirmation workflow', () => {
               inputBytes: '2048',
               outputBytes: '1024',
               elapsedMs: '5',
-              processing: { kind: 'lossless' },
+              processing: { format: 'png', details: { kind: 'lossless' } },
               outputName: name('credentials_compressed.png'),
               backupName: null,
               contentCredentialsRemoved: true,
@@ -890,6 +903,7 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
               id: 1,
               attempt: 1,
               sourceName: name('running.png'),
+              format: 'png',
               mode: { kind: 'lossy', quality: 80 },
               inputBytes: '2048',
               state: { kind: 'running', stage: 'optimizing', cancelRequested: false },
@@ -1042,6 +1056,7 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
               id: 1,
               attempt: 1,
               sourceName: name('PixoFold-亮色.png'),
+              format: 'png',
               mode: { kind: 'lossy', quality: 68 },
               inputBytes: '1030066',
               state: { kind: 'failed', failure: { code, recovery: null } },
@@ -1244,6 +1259,7 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
             id: 7,
             attempt: 1,
             sourceName: name('failed.png'),
+            format: 'png',
             mode: { kind: 'lossless' },
             inputBytes: '2048',
             state: {
@@ -1262,6 +1278,7 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
             id: 42,
             attempt: 2,
             sourceName: name('cancelled.png'),
+            format: 'png',
             mode: { kind: 'lossless' },
             inputBytes: '2048',
             state: { kind: 'cancelled' },
@@ -1333,6 +1350,7 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
               id: 1,
               attempt: 1,
               sourceName: name('image.png'),
+              format: 'png',
               inputBytes: '1000',
               mode: { kind: 'lossless' },
               state: {
@@ -1341,7 +1359,7 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
                   inputBytes: '1000',
                   outputBytes: '500',
                   elapsedMs: '1',
-                  processing: { kind: 'lossless' },
+                  processing: { format: 'png', details: { kind: 'lossless' } },
                   outputName: succeeded ? name('image.png') : null,
                   backupName: null,
                   contentCredentialsRemoved: false,

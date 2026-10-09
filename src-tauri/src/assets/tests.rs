@@ -7,6 +7,7 @@ use crate::{
 use pixofold_core::{
     batch::{BatchParameters, JobErrorCode, JobFailure},
     import::ImportOutput,
+    model::ProcessingError,
 };
 use std::{
     fs,
@@ -108,6 +109,69 @@ fn png_variants_decode_to_small_sanitized_previews_without_mutating_input() {
             offset += length + 12;
         }
     }
+}
+
+#[test]
+fn preview_applies_all_eight_orientations_without_a_second_full_size_buffer() {
+    let original = [1, 2, 3, 4, 5, 6];
+    let expected = [
+        [1, 2, 3, 4, 5, 6],
+        [2, 1, 4, 3, 6, 5],
+        [6, 5, 4, 3, 2, 1],
+        [5, 6, 3, 4, 1, 2],
+        [1, 3, 5, 2, 4, 6],
+        [5, 3, 1, 6, 4, 2],
+        [6, 4, 2, 5, 3, 1],
+        [2, 4, 6, 1, 3, 5],
+    ];
+    for (index, expected) in expected.iter().enumerate() {
+        let image = png::from_pixels(&original, 2, 3, 1, index as u8 + 1).unwrap();
+        assert_eq!(
+            (image.width, image.height),
+            if index < 4 { (2, 3) } else { (3, 2) }
+        );
+        let mut reader = ::png::Decoder::new(Cursor::new(&image.png))
+            .read_info()
+            .unwrap();
+        let mut pixels = vec![0; reader.output_buffer_size().unwrap()];
+        reader.next_frame(&mut pixels).unwrap();
+        reader.finish().unwrap();
+        let expected: Vec<_> = expected.iter().flat_map(|n| [*n, *n, *n, 255]).collect();
+        assert_eq!(pixels, expected, "orientation {}", index + 1);
+    }
+    assert_eq!(
+        png::from_pixels(&original, 2, 3, 1, 0).unwrap_err(),
+        AssetError::DecodeFailed
+    );
+    assert_eq!(
+        png::from_pixels(&original, 2, 3, 1, 9).unwrap_err(),
+        AssetError::DecodeFailed
+    );
+    assert_eq!(
+        png::from_pixels(&original, 3, 3, 1, 1).unwrap_err(),
+        AssetError::DecodeFailed
+    );
+    assert_eq!(
+        png::from_pixels(&[], u32::MAX, u32::MAX, 4, 1).unwrap_err(),
+        AssetError::ResourceLimit
+    );
+}
+
+#[test]
+fn invalidation_cancels_the_active_preview_without_releasing_its_permit_early() {
+    let service = Arc::new(AssetService::default());
+    let permit = service.reserve(Operation::Thumbnail).unwrap();
+    service.invalidate();
+    assert!(permit.cancel.is_cancelled());
+    assert!(matches!(
+        service.reserve(Operation::Thumbnail),
+        Err(AssetError::Busy)
+    ));
+    drop(permit);
+    let next = service.reserve(Operation::Thumbnail).unwrap();
+    assert!(!next.cancel.is_cancelled());
+    service.close();
+    assert!(next.cancel.is_cancelled());
 }
 
 #[test]
@@ -295,6 +359,36 @@ fn failed_commit_can_locate_its_recovery_backup_but_not_a_fake_result() {
         resolve(&snapshot, &req, Some(RevealTarget::Result)),
         Err(AssetError::Unavailable)
     );
+    // JPEG既有进程清理层，也可能包裹通用文件清理层；只定位实际CommitFailed备份。
+    let job = &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0];
+    job.request.options = pixofold_core::batch::FormatOptions::Jpeg(Default::default());
+    job.state = JobState::Failed(JobFailure {
+        code: JobErrorCode::CleanupFailed,
+        cause: Some(Arc::new(pixofold_core::batch::ImageError::Jpeg(
+            pixofold_core::jpeg::JpegError::Cleanup {
+                original: Some(Box::new(pixofold_core::jpeg::JpegError::File(
+                    ProcessingError::CleanupFailed {
+                        original: Some(Box::new(ProcessingError::CommitFailed {
+                            backup: backup.clone(),
+                            source: std::io::Error::other("private"),
+                        })),
+                        temporary: dir.path().join("private-temp"),
+                        source: std::io::Error::other("private"),
+                    },
+                ))),
+                temporary: dir.path().join("private-workspace"),
+                source: std::io::Error::other("private"),
+            },
+        ))),
+    });
+    assert_eq!(
+        resolve(&snapshot, &req, Some(RevealTarget::Backup)).unwrap(),
+        backup
+    );
+    assert!(matches!(
+        resolve(&snapshot, &req, Some(RevealTarget::Result)),
+        Err(AssetError::Unavailable)
+    ));
 }
 
 #[test]
