@@ -51,6 +51,39 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  gif-lab:
+    name: GIF lossless lab (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-24.04, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+      - name: Install pinned Rust toolchain for independent GIF validator
+        run: rustup show
+      - name: Build pinned single-threaded Gifsicle
+        run: node tools/gif-lab.mjs build
+      - name: Check generated corpus, playback and real lossless optimization
+        run: node tools/gif-lab.mjs check
+      - name: Build pinned JPEG helper for three-format core acceptance
+        run: node tools/jpeg-lab.mjs build
+      - name: Check real GIF core and PNG JPEG GIF mixed batches
+        run: node tools/gif-lab.mjs core-check
+      - name: Retain GIF experiment and source license evidence
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: gif-lab-${{ matrix.os }}
+          path: |
+            target/gif-lab-*/
+            target/gif-core-*/
+          if-no-files-found: ignore
+          retention-days: 14
+
   jpeg-lab:
     name: JPEG engine lab (${{ matrix.os }})
     strategy:

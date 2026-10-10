@@ -64,6 +64,7 @@ pub fn scan_with_engines(
         || options.max_read_bytes.0 == 0
         || options.probe_limits.validate().is_err()
         || (engines.supports(ImageKind::Jpeg) && options.jpeg_limits.validate().is_err())
+        || (engines.supports(ImageKind::Gif) && options.gif_limits.validate().is_err())
     {
         return Err(ImportError::InvalidOptions);
     }
@@ -245,6 +246,26 @@ impl<F: FnMut(&ScanProgress)> Scanner<'_, F> {
         }
         let image = if bytes.starts_with(SIGNATURE) {
             ImportedImage::Png(probe::inspect_structure(&bytes, self.options.probe_limits)?)
+        } else if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
+            let extension = path
+                .extension()
+                .and_then(|name| name.to_str())
+                .unwrap_or("");
+            let inspected = if extension.eq_ignore_ascii_case("gif") {
+                crate::gif::inspect_structure(&bytes, self.options.gif_limits, self.cancel)
+            } else {
+                Err(crate::gif::GifError::UnsupportedGif)
+            };
+            match inspected {
+                Ok(info) => ImportedImage::Gif(info),
+                Err(error) => {
+                    self.issue(
+                        path,
+                        ImportIssueKind::Failure(JobFailure::image(error.into())),
+                    );
+                    return Ok(());
+                }
+            }
         } else {
             let extension = path.extension().and_then(|n| n.to_str()).unwrap_or("");
             let inspected = if extension.eq_ignore_ascii_case("jpg")
@@ -310,6 +331,7 @@ impl<F: FnMut(&ScanProgress)> Scanner<'_, F> {
             return Err(ProcessingError::InvalidPath);
         }
         let jpeg_available = self.report.engines.supports(ImageKind::Jpeg);
+        let gif_available = self.report.engines.supports(ImageKind::Gif);
         let max_input = if jpeg_available {
             self.options
                 .probe_limits
@@ -318,6 +340,11 @@ impl<F: FnMut(&ScanProgress)> Scanner<'_, F> {
                 .max(self.options.jpeg_limits.resources.max_input_bytes.0)
         } else {
             self.options.probe_limits.max_input_bytes.0
+        };
+        let max_input = if gif_available {
+            max_input.max(self.options.gif_limits.resources.max_input_bytes.0)
+        } else {
+            max_input
         };
         if before.len() > max_input {
             return Err(ProcessingError::ResourceLimit("导入单文件字节数"));
@@ -360,11 +387,14 @@ impl<F: FnMut(&ScanProgress)> Scanner<'_, F> {
                 first = false;
                 let png = bytes.starts_with(SIGNATURE);
                 let jpeg = bytes.starts_with(&[0xff, 0xd8, 0xff]);
-                if png || (jpeg && jpeg_available) {
+                let gif = bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a");
+                if png || (jpeg && jpeg_available) || (gif && gif_available) {
                     let limit = if png {
                         self.options.probe_limits.max_input_bytes
-                    } else {
+                    } else if jpeg {
                         self.options.jpeg_limits.resources.max_input_bytes
+                    } else {
+                        self.options.gif_limits.resources.max_input_bytes
                     };
                     if before.len() > limit.0 {
                         return Err(ProcessingError::ResourceLimit("导入单文件字节数"));

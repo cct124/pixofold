@@ -125,7 +125,17 @@ pub(super) fn prepare(
                 None
             }
         };
-        // 头探测只能收紧有效的配置，不能把非法JPEG上限钳制成可执行参数。
+        // 头探测只能收紧有效的配置，格式专属上限须在收紧前校验。
+        if let FormatOptions::Gif(options) = request.options {
+            if let Err(error) = options.limits(request.limits).validate() {
+                failure.get_or_insert_with(|| JobFailure::image(error.into()));
+            }
+            if !matches!(request.mode, PngMode::Lossless) {
+                failure.get_or_insert_with(|| {
+                    JobFailure::image(crate::gif::GifError::UnsupportedMode.into())
+                });
+            }
+        }
         if let FormatOptions::Jpeg(options) = request.options
             && let Err(error) = options.limits(request.limits).validate()
         {
@@ -137,6 +147,20 @@ pub(super) fn prepare(
             request.limits
         };
         let reservation = match request.options {
+            FormatOptions::Gif(options) => {
+                if !engines.supports(ImageKind::Gif) {
+                    failure.get_or_insert_with(|| {
+                        JobFailure::image(crate::gif::GifError::ToolIdentity.into())
+                    });
+                }
+                match options.limits(execution_limits).working_set() {
+                    Ok(bytes) => bytes,
+                    Err(error) => {
+                        failure.get_or_insert_with(|| JobFailure::image(error.into()));
+                        ByteCount(0)
+                    }
+                }
+            }
             FormatOptions::Png(_) => estimate_working_set(BatchParameters {
                 mode: request.mode,
                 limits: execution_limits,
@@ -162,12 +186,14 @@ pub(super) fn prepare(
                 JobFailure::processing(ProcessingError::ResourceLimit("批量工作集预算"))
             });
         }
-        let mapping = match request.mode {
-            PngMode::Lossless => None,
-            PngMode::Lossy { quality: q } => Some(match request.format() {
-                ImageKind::Png => QualityMapping::Png(quality::png_quality(q)),
-                ImageKind::Jpeg => QualityMapping::Jpeg(crate::jpeg::JpegQualityMapping::new(q)),
-            }),
+        let mapping = match (request.mode, request.format()) {
+            (PngMode::Lossy { quality: q }, ImageKind::Png) => {
+                Some(QualityMapping::Png(quality::png_quality(q)))
+            }
+            (PngMode::Lossy { quality: q }, ImageKind::Jpeg) => Some(QualityMapping::Jpeg(
+                crate::jpeg::JpegQualityMapping::new(q),
+            )),
+            _ => None,
         };
         jobs.push(Job {
             execution_limits,

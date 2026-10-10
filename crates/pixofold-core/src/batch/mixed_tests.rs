@@ -39,10 +39,12 @@ impl Runner for GateRunner {
             return Err(match request.format() {
                 ImageKind::Png => ProcessingError::Cancelled.into(),
                 ImageKind::Jpeg => JpegError::Cancelled.into(),
+                ImageKind::Gif => crate::gif::GifError::Cancelled.into(),
             });
         }
         let bytes = ByteCount(fs::metadata(&request.source).unwrap().len());
         Ok(match request.format() {
+            ImageKind::Gif => return Err(crate::gif::GifError::UnsupportedGif.into()),
             ImageKind::Jpeg => ImageReport::Jpeg(JpegReport {
                 image: JpegInfo {
                     width: 16,
@@ -95,9 +97,16 @@ impl Harness {
         };
         let bytes = b"identity fixture; never executed";
         fs::write(dir.path().join(name), bytes).unwrap();
+        let gif_name = if cfg!(windows) {
+            "pixofold-gif-helper.exe"
+        } else {
+            "pixofold-gif-helper"
+        };
+        fs::write(dir.path().join(gif_name), bytes).unwrap();
         let engines = ImageEngines::with_jpeg(
             JpegEngine::load(dir.path(), Sha256::digest(bytes).into()).unwrap(),
-        );
+        )
+        .add_gif(crate::gif::GifEngine::load(dir.path(), Sha256::digest(bytes).into()).unwrap());
         let (send, entered) = mpsc::channel();
         let runner = Arc::new(GateRunner {
             entered: send,
@@ -129,13 +138,19 @@ impl Harness {
             .map(|(i, &format)| {
                 let source = self.dir.path().join(format!(
                     "{i}.{}",
-                    if format == ImageKind::Png {
-                        "png"
-                    } else {
-                        "jpg"
+                    match format {
+                        ImageKind::Png => "png",
+                        ImageKind::Jpeg => "jpg",
+                        ImageKind::Gif => "gif",
                     }
                 ));
-                let bytes = if format == ImageKind::Jpeg {
+                let bytes = if format == ImageKind::Gif {
+                    fs::read(
+                        Path::new(env!("CARGO_MANIFEST_DIR"))
+                            .join("../../tests/fixtures/gif/static87.gif"),
+                    )
+                    .unwrap()
+                } else if format == ImageKind::Jpeg {
                     header(16)
                 } else {
                     fs::read(
@@ -177,6 +192,45 @@ fn header(size: u16) -> Vec<u8> {
         0xff, 0xd9,
     ]);
     b
+}
+#[test]
+fn gif_growth_after_admission_uses_frozen_limits_and_format_replacement_is_rejected() {
+    for replacement in ["gif/larger-pattern.gif", "png/rgb8.png"] {
+        let harness = Harness::new(512 * 1024 * 1024, true);
+        let request = harness.request(&[ImageKind::Gif]);
+        let source = request.items[0].source.clone();
+        let id = harness.service.start(request).unwrap();
+        let frozen = harness.entered();
+        assert_eq!(frozen.format(), ImageKind::Gif);
+        assert_eq!(frozen.limits.max_pixels, 6);
+        let bytes = fs::read(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures")
+                .join(replacement),
+        )
+        .unwrap();
+        fs::write(&source, &bytes).unwrap();
+        let running = harness.service.snapshot().unwrap();
+        assert_eq!(running.active_workers, 1);
+        assert!(running.reserved_working_bytes.0 > 0);
+        harness.runner.release(1);
+        let done = harness.service.wait(id, WAIT).unwrap();
+        assert_eq!(done.active_workers, 0);
+        assert_eq!(done.reserved_working_bytes, ByteCount(0));
+        let JobState::Failed(error) = &done.jobs[0].state else {
+            panic!("必须拒绝源变化");
+        };
+        assert_eq!(
+            error.code,
+            if replacement.starts_with("gif") {
+                JobErrorCode::ResourceLimit
+            } else {
+                JobErrorCode::InvalidInput
+            }
+        );
+        assert!(matches!(error.cause.as_deref(), Some(ImageError::Gif(_))));
+        assert_eq!(fs::read(&source).unwrap(), bytes);
+    }
 }
 
 #[test]

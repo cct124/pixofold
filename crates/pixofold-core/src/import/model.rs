@@ -19,6 +19,8 @@ pub struct ScanOptions {
     pub probe_limits: ResourceLimits,
     /// JPEG结构预检的独立上限；仍共用max_read_bytes，扫描不派生工具。
     pub jpeg_limits: JpegLimits,
+    /// GIF完整结构/帧预算；扫描只读结构，像素有效性仍由执行阶段独立验证。
+    pub gif_limits: crate::gif::GifLimits,
     /// 显式选择true才包含PixoFold保留名的临时/备份文件；普通_compressed图片不排除。
     pub include_artifacts: bool,
 }
@@ -35,6 +37,7 @@ impl Default for ScanOptions {
             max_read_bytes: ByteCount(1024 * 1024 * 1024),
             probe_limits: ResourceLimits::default(),
             jpeg_limits: JpegLimits::default(),
+            gif_limits: crate::gif::GifLimits::default(),
             include_artifacts: false,
         }
     }

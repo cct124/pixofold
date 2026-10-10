@@ -72,7 +72,11 @@ pnpm desktop:dev
 | `pnpm tauri build --no-bundle --ci` | 构建桌面可执行文件，不生成安装包 |
 | `pnpm desktop:build` | 构建当前平台的应用和安装包 |
 | `cargo test -p pixofold-core --locked` | 独立测试核心，不需要 GUI |
-| `pnpm fixtures:check` | 只读重生成并核对 PNG 语料与 SHA256 清单 |
+| `pnpm fixtures:check` | 只读重生成并核对 PNG / GIF 语料、预期与 SHA256 清单 |
+| `pnpm gif:fixtures:generate` / `pnpm gif:fixtures:check` | 生成 / 只读核对 GIF 首轮语料和人工画布、时间轴预期 |
+| `pnpm gif:lab:build` | 下载并校验固定 Gifsicle 1.96 源码，独立构建开发实验工具；Windows 使用 MSVC 与 CMake |
+| `pnpm gif:lab:check` | 独立 GIF 播放验证、真实 Gifsicle 六组无损配方与隔离输出实验；须先 build |
+| `pnpm gif:core:check` | 真实 GIF 无损核心、原图安全和 PNG/JPEG/GIF 混合批次验收；须先构建固定 GIF/JPEG 工具 |
 | `pnpm jpeg:lab:build` | 下载并校验固定 MozJPEG 源码，独立构建开发实验工具；需要 CMake 和 C 编译器 |
 | `pnpm jpeg:lab:check` | 用自生成语料检查 JPEG 系数无损、有损重编码、元数据和错误/资源边界 |
 | `pnpm jpeg:core:check` | 运行 JPEG 无损/保守有损及真实 PNG/JPEG 混合批次、独立解码比对和安全输出回归；须先构建固定工具 |
@@ -85,7 +89,13 @@ Windows 可执行文件位于 `target/release/pixofold.exe`，安装包位于 `t
 
 JPEG 开发实验的版本、构建参数和限制见 [实验入口说明](tools/jpeg-lab/README.md)，历史结果见 [JPEG实验记录](docs/devlog/_fin/260930/jpeg-engine-lab.md)。实验工具留在 `.tools/`，语料与报告留在独立的 `target/jpeg-lab-*/`；桌面使用固定随包资源。CI 的三平台实验配置须以实际运行结果验收。
 
+GIF 第一阶段提供 [独立实验入口](tools/gif-lab/README.md) 和 [45项确定性语料](tests/fixtures/gif/manifest.json)，逐帧合成、精确厘秒时间轴及循环接缝由 Rust gif/weezl 路径核对。实验结果保留于独立的 `target/gif-lab-*/`，只作为后续 GIF 无损核心的参数和拒绝边界依据；桌面 GIF/APNG 支持仍待后续接入。实际本机结果及三平台待验项见 [动画开发记录](docs/devlog/_plan/261009/animation-foundation.md)。
+
 独立的 `pixofold_core::jpeg` 提供无损与保守有损入口，受控字节helper复用可靠输出层；PNG/JPEG共用模型、worker与工作集预约。桌面通过 `TaskRuntime::with_engines` 将同一能力注入扫描、规划、批次和受限预览；默认服务与扫描仍为PNG-only。模式/质量映射、元数据保护/回退、资源、工具信任及Rust API迁移见[JPEG核心说明](native/jpeg/README.md)。JPEG凭据移除尚未开放。应用统一检查不自动下载/构建JPEG工具，真实核心回归由上述显式命令和三平台JPEG job执行，实际平台结果见[开发日志](docs/devlog/README.md)。
+
+## GIF无损核心开发入口
+
+独立Rust GIF核心已提供无损优化、严格播放验证、安全输出和三格式混合批次。固定Gifsicle helper采用有界分配，验证与原生额度分别计费；命令、范围和迁移见 [GIF核心说明](native/gif/README.md)。桌面v10仍开放PNG/JPEG，GIF随包/协议/预览/安装在下一阶段验收。真实核心命令为 `pnpm gif:core:check`，须先构建固定GIF与JPEG工具；平台证据见 [开发记录](docs/devlog/_plan/261009/animation-foundation.md)。
 
 ## JPEG随包资源（J2第一段）
 

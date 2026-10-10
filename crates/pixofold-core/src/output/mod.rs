@@ -115,6 +115,10 @@ impl Source {
     pub(crate) fn use_jpeg_backup_suffix(&mut self) {
         self.backup_suffix = paths::backup_suffix(&self.path);
     }
+    /// GIF入口保持原始扩展名及大小写；静态PNG仍使用既有.png规则。
+    pub(crate) fn use_gif_backup_suffix(&mut self) {
+        self.backup_suffix = paths::backup_suffix(&self.path);
+    }
 
     pub fn verify_unchanged(&self, limits: ResourceLimits) -> Result<(), ProcessingError> {
         let current = Self::read(&self.path, limits).map_err(|error| match error {

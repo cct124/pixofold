@@ -8,6 +8,8 @@ description = "PixoFold 独立图片处理核心"
 publish = false
 
 [dependencies]
+gif = { version = "=0.14.2", default-features = false, features = ["std"] }
+weezl = { version = "=0.1.12", default-features = false, features = ["std"] }
 crc32fast.workspace = true
 imagequant.workspace = true
 oxipng.workspace = true

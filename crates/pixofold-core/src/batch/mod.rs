@@ -204,6 +204,17 @@ impl Runner for PipelineRunner {
         stage: &mut dyn FnMut(ProcessingStage),
     ) -> Result<ImageReport, ImageError> {
         match &request.options {
+            FormatOptions::Gif(_) => {
+                let gif = request.gif()?;
+                let engine = self
+                    .0
+                    .gif
+                    .as_deref()
+                    .ok_or(crate::gif::GifError::ToolIdentity)?;
+                crate::gif::optimize_gif(&gif, engine, cancel, stage)
+                    .map(ImageReport::Gif)
+                    .map_err(ImageError::Gif)
+            }
             FormatOptions::Png(_) => {
                 let png = request.png().ok_or(ProcessingError::InvalidLimits)?;
                 crate::pipeline::optimize_png(&png, cancel, stage)
@@ -517,6 +528,12 @@ impl BatchService {
             requests[i].mode = request.parameters.mode;
             requests[i].limits = request.parameters.limits;
             requests[i].options = match requests[i].options {
+                FormatOptions::Gif(_) => {
+                    if !matches!(retry.metadata, PngMetadataPolicy::Preserve) {
+                        return Err(BatchError::InvalidRetry);
+                    }
+                    FormatOptions::Gif(request.parameters.gif)
+                }
                 FormatOptions::Png(_) => FormatOptions::Png(retry.metadata),
                 FormatOptions::Jpeg(_) => {
                     if !matches!(retry.metadata, PngMetadataPolicy::Preserve) {

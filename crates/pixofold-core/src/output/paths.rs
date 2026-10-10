@@ -20,10 +20,12 @@ pub(super) fn backup_prefix(source: &Path) -> Result<OsString, ProcessingError> 
     Ok(prefix)
 }
 
-/// JPEG保持原始ASCII扩展名大小写；PNG既有备份命名保持.png不变。
+/// JPEG/GIF保持原始ASCII扩展名大小写；PNG既有备份命名保持.png不变。
 pub(super) fn backup_suffix(source: &Path) -> OsString {
     if let Some(extension) = source.extension().and_then(OsStr::to_str)
-        && (extension.eq_ignore_ascii_case("jpg") || extension.eq_ignore_ascii_case("jpeg"))
+        && (extension.eq_ignore_ascii_case("jpg")
+            || extension.eq_ignore_ascii_case("jpeg")
+            || extension.eq_ignore_ascii_case("gif"))
     {
         let mut suffix = OsString::from(".");
         suffix.push(extension);
@@ -113,7 +115,7 @@ pub(crate) fn is_artifact(path: &Path) -> bool {
     {
         return true;
     }
-    let jpeg_suffix = [b".jpg".as_slice(), b".jpeg".as_slice()]
+    let original_suffix = [b".jpg".as_slice(), b".jpeg".as_slice(), b".gif".as_slice()]
         .into_iter()
         .find(|suffix| {
             name.len() >= suffix.len()
@@ -121,7 +123,7 @@ pub(crate) fn is_artifact(path: &Path) -> bool {
         });
     let Some(stem) = name
         .strip_suffix(b".png")
-        .or_else(|| jpeg_suffix.map(|s| &name[..name.len() - s.len()]))
+        .or_else(|| original_suffix.map(|s| &name[..name.len() - s.len()]))
     else {
         return false;
     };

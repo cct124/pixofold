@@ -1,0 +1,11 @@
+{
+  "name": "Gifsicle",
+  "version": "1.96",
+  "archive": "https://www.lcdf.org/gifsicle/gifsicle-1.96.tar.gz",
+  "sha256": "fd23d279681a6dfe3c15264e33f344045b3ba473da4d19f49e67a50994b077fb",
+  "directory": "gifsicle-1.96",
+  "license": "GPL-2.0-only",
+  "decoder": "gif 0.14.2 (MIT OR Apache-2.0)",
+  "threads": false,
+  "simd": false
+}

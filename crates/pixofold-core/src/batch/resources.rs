@@ -58,6 +58,34 @@ pub(super) fn image_limits(
     request: &ImageRequest,
     input_bytes: Option<ByteCount>,
 ) -> ResourceLimits {
+    if let FormatOptions::Gif(options) = request.options {
+        let original = options.limits(request.limits).resources;
+        let mut header = [0; 13];
+        let pixels = File::open(&request.source)
+            .and_then(|mut file| file.read_exact(&mut header))
+            .ok()
+            .and_then(|()| {
+                if !header.starts_with(b"GIF87a") && !header.starts_with(b"GIF89a") {
+                    return None;
+                }
+                let width = u16::from_le_bytes([header[6], header[7]]) as u64;
+                let height = u16::from_le_bytes([header[8], header[9]]) as u64;
+                let pixels = width * height;
+                (width > 0 && height > 0 && pixels <= original.max_pixels)
+                    .then_some((width, height, pixels))
+            });
+        return pixels.map_or(original, |(width, height, pixels)| ResourceLimits {
+            max_pixels: original.max_pixels.min(pixels),
+            max_dimension: original.max_dimension.min(width.max(height) as u32),
+            max_decoded_bytes: ByteCount(
+                original
+                    .max_decoded_bytes
+                    .0
+                    .min(pixels * 9 + original.max_input_bytes.0 * 2 + BUFFER_MARGIN),
+            ),
+            ..original
+        });
+    }
     let FormatOptions::Jpeg(options) = request.options else {
         return request
             .png()

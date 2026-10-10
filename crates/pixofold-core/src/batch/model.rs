@@ -33,6 +33,7 @@ pub struct BatchParameters {
     pub mode: CompressionMode,
     pub limits: ResourceLimits,
     pub jpeg: JpegOptions,
+    pub gif: GifOptions,
 }
 
 /// 已选定的一个源及其显式输出策略；P1 不扫描目录或自动生成副本名。
@@ -61,6 +62,7 @@ impl BatchParameters {
             options: match item.format {
                 ImageKind::Png => FormatOptions::Png(PngMetadataPolicy::Preserve),
                 ImageKind::Jpeg => FormatOptions::Jpeg(self.jpeg),
+                ImageKind::Gif => FormatOptions::Gif(self.gif),
             },
         }
     }
@@ -166,6 +168,33 @@ impl JobFailure {
     }
     pub(crate) fn image(error: ImageError) -> Self {
         let code = match &error {
+            ImageError::Gif(crate::gif::GifError::File(error)) => Self::processing_code(error),
+            ImageError::Gif(error) => {
+                use crate::gif::{GifError as G, GifValidationCode as C};
+                match error {
+                    G::InvalidLimits => JobErrorCode::InvalidInput,
+                    G::UnsupportedGif | G::UnsupportedMode => JobErrorCode::UnsupportedFormat,
+                    G::Validation(error) => match error.code {
+                        C::InvalidGif => JobErrorCode::InvalidInput,
+                        C::Decode => JobErrorCode::Decode,
+                        C::UnsupportedMetadata => JobErrorCode::UnsupportedMetadata,
+                        C::UnsupportedInteraction | C::UnsupportedTiming => {
+                            JobErrorCode::UnsupportedAnimation
+                        }
+                        C::ResourceLimit => JobErrorCode::ResourceLimit,
+                        C::TimedOut => JobErrorCode::TimedOut,
+                        C::Cancelled => JobErrorCode::ServiceFault,
+                    },
+                    G::ResourceLimit(_) => JobErrorCode::ResourceLimit,
+                    G::ToolIdentity => JobErrorCode::ToolIdentity,
+                    G::ToolIo { .. } => JobErrorCode::ToolIo,
+                    G::ToolExit(_) => JobErrorCode::ToolExit,
+                    G::Timeout => JobErrorCode::TimedOut,
+                    G::ValidationFailed => JobErrorCode::Validation,
+                    G::Cleanup { .. } => JobErrorCode::CleanupFailed,
+                    G::Cancelled | G::File(_) => JobErrorCode::ServiceFault,
+                }
+            }
             ImageError::Png(e) | ImageError::Jpeg(JpegError::File(e)) => Self::processing_code(e),
             ImageError::Jpeg(e) => match e {
                 JpegError::InvalidLimits | JpegError::InvalidJpeg(_) => JobErrorCode::InvalidInput,

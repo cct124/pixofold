@@ -166,6 +166,7 @@ pub(crate) fn mutate(
                             mode,
                             limits: batch.parameters.limits,
                             jpeg: batch.parameters.jpeg,
+                            gif: batch.parameters.gif,
                         },
                     },
                 )
@@ -277,6 +278,7 @@ pub(crate) fn mutate(
                             mode,
                             limits: batch.parameters.limits,
                             jpeg: batch.parameters.jpeg,
+                            gif: batch.parameters.gif,
                         },
                     },
                 )

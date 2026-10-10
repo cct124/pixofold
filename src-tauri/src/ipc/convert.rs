@@ -300,6 +300,7 @@ fn jpeg_processing(value: JpegProcessing) -> JpegProcessingDto {
 }
 fn report(value: &ImageReport) -> Result<ReportDto> {
     let (elapsed, processing) = match value {
+        ImageReport::Gif(_) => return Err(QueryError::InvalidSnapshot),
         ImageReport::Png(report) => (
             report.elapsed,
             ProcessingDto::Png(png_processing(report.processing)),
@@ -331,7 +332,7 @@ fn report(value: &ImageReport) -> Result<ReportDto> {
 fn job(value: &JobSnapshot) -> Result<JobDto> {
     Ok(JobDto {
         id: count(value.id.get())?,
-        format: value.request.format().into(),
+        format: value.request.format().try_into()?,
         attempt: value.attempt,
         source_name: name(&value.request.source),
         mode: value.request.mode,
@@ -423,10 +424,13 @@ pub(super) fn snapshot(value: &TaskSnapshot, request: &TaskPageRequest) -> Resul
                     let (width, height) = match &file.image {
                         ImportedImage::Png(image) => (image.width, image.height),
                         ImportedImage::Jpeg(image) => (image.width, image.height),
+                        ImportedImage::Gif(image) => {
+                            (u32::from(image.width), u32::from(image.height))
+                        }
                     };
                     Ok(CandidateDto {
                         index: count(index)?,
-                        format: file.image.format().into(),
+                        format: file.image.format().try_into()?,
                         source_name: name(&file.source),
                         input_bytes: DecimalU64(file.input_bytes.0),
                         width,
@@ -476,8 +480,8 @@ pub(super) fn snapshot(value: &TaskSnapshot, request: &TaskPageRequest) -> Resul
             .supported_formats
             .iter()
             .copied()
-            .map(Into::into)
-            .collect(),
+            .map(ImageKindDto::try_from)
+            .collect::<Result<_>>()?,
         revision: DecimalU64(value.revision),
         selection_id: value.selection.map(|s| DecimalU64(s.get())),
         phase: value.phase.into(),

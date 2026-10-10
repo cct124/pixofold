@@ -1,7 +1,7 @@
 # PNG/JPEG桌面混合工作流（J2第二段）
 
 - 创建日期：2026-10-09（Asia/Shanghai）。
-- 状态：0f4fcfd六个CI jobs全部success，用户确认此前功能正常及卸载，缺少WebView2的环境按其安排后置。阶段1有损预算修复、完整检查、真实2MP/照片/大图/工作集及新MSI部署复验已提交5f68448并推送origin/dev（0f4fcfd..5f68448）；新SHA三平台CI待核对。细分原生/视觉与无开发工具环境证据继续按实际范围记录。
+- 状态：阶段1预算修复5f68448与提交记录94dd86c已同步origin/dev，94dd86c的六个CI jobs全部success，代码/照片大图/工作集/MSI资源及新SHA平台门槛完成。用户确认此前功能正常及卸载，缺少WebView2的环境按其安排后置。新修复包实际安装/GUI、细分原生/视觉与无开发工具环境证据继续按实际范围记录，完整J2任务保持活动；下一主要开发为GIF无损实验。
 - 分支/基准：dev/d5bf44cf35579f1b4877954b2acca3200956b48f，已推送origin/dev。接手时保留J2第一段的提交结果补记；本轮先同步第一段和索引的真实CI进展。
 - 关联：[阶段计划](../260930/next-development-plan.md)、[可信工具随包及P0](jpeg-desktop-bundle.md)、[PNG原生收尾](../260922/png-batch-desktop.md)。
 
@@ -112,3 +112,11 @@
 - 用户要求根据工作区内容编写提交信息、提交并推送，无需执行其它任务。复核范围：18份文件（新增jpeg-acceptance-check.mjs、bundle_check/profile.rs与animation-foundation计划；其余为jpeg/preflight与mixed回归、bundle-check程序、package.json/README、native与实验说明、devlog索引与J2记录），无未暂存改动与未跟踪残留（照片等隔离语料留在target不入库），git diff --check通过。
 - 提交5f68448「fix: 收紧有损系数预算并补照片大图验收」（18 files changed、698 insertions、15 deletions）。沙箱内.git只读，add/commit/push按规则提升同一条命令执行，未绕开沙箱约束；0f4fcfd..5f68448  dev -> dev已同步origin/dev，本地与远端一致。
 - 沿用本轮已完成验证（pnpm check：159项前端、44项核心单元、全部核心集成、113项桌面与2项doctest、34份语料及全目标Clippy；jpeg:core:check含新2MP成功与超限拒绝；jpeg:acceptance:check照片/大图与17张并发抽测；17:53:33新MSI及包内资源jpeg:bundle:check复验）；本次未改业务代码，不重复构建或测试。真实安装/视觉矩阵、无开发工具环境与新SHA三平台结果仍待验收，不据此声明通过。
+
+## 2026-10-10 新SHA平台收口与下一开发入口
+
+- 用户询问下一步合理开发计划。开工dev/94dd86c28bd98796f89a0c721e8a7577a67113c3，工作区干净；本地origin/dev和GitHub分支只读查询一致。git祖先核对确认包含业务5f684484c877afd84b8ad4a27ef3eccf10721dec，94dd86c仅补前轮提交记录；旧18份未提交/等待平台状态已成为历史。
+- 本日约10:45（Asia/Shanghai）只读核对[CI run37917962797](https://github.com/cct124/pixofold/actions/runs/37917962797)，head_sha为94dd86c，2026-10-09 18:29:57创建、18:48:47 completed/success，六个jobs全部success。Check macOS/Ubuntu/Windows jobs113778790283/113778790691/113778790909于18:42:24/18:39:23/18:48:46完成，统一检查、桌面构建及随包部署关键步骤全绿；JPEG Windows/macOS/Ubuntu jobs113778790556/113778790597/113778791143于18:33:01/18:32:02/18:31:18完成，固定工具、实验和真实核心步骤全绿。本次没有重跑或用0f4fcfd结果替代。
+- 阶段1代码和平台门槛已收口；新MSI包内资源部署与照片/资源抽测沿用前节证据，不重复测试/构建。用户确认的原版功能正常/卸载保持原范围；新修复包实际GUI安装、无开发工具系统、主题/DPI等欠项单列，未安装WebView2的环境按用户安排后置，不能由CI推断已通过。
+- 下一主要开发按[动画任务本日细化](animation-foundation.md)首批实施：GIF可复现语料→有界独立合成/时间轴/循环验证→固定Gifsicle源码构建及无损实验；APNG完整实现及有损另分批。JPEG新增原图安全/授权/退出等明确故障优先处理，其他已后置验收不阻塞独立GIF实验。
+- 本轮仅平台复核和连续计划/索引维护，未实现新格式、安装依赖、运行GUI/测试/构建或提交推送。

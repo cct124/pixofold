@@ -163,7 +163,24 @@ wire_enum!(
     pixofold_core::batch::BatchPhase,
     [Running, Cancelling, Finished]
 );
-wire_enum!(ImageKindDto, pixofold_core::batch::ImageKind, [Png, Jpeg]);
+// v10仅开放PNG/JPEG；核心GIF扩展在桌面迁移完成前以可识别契约错误拒绝。
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) enum ImageKindDto {
+    Png,
+    Jpeg,
+}
+impl TryFrom<pixofold_core::batch::ImageKind> for ImageKindDto {
+    type Error = QueryError;
+    fn try_from(value: pixofold_core::batch::ImageKind) -> Result<Self, Self::Error> {
+        match value {
+            pixofold_core::batch::ImageKind::Png => Ok(Self::Png),
+            pixofold_core::batch::ImageKind::Jpeg => Ok(Self::Jpeg),
+            pixofold_core::batch::ImageKind::Gif => Err(QueryError::InvalidSnapshot),
+        }
+    }
+}
 wire_enum!(
     StageDto,
     pixofold_core::model::ProcessingStage,

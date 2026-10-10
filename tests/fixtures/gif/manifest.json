@@ -1,0 +1,1002 @@
+{
+  "schema": 1,
+  "origin": "PixoFold deterministic generated GIFs; GPL-3.0-or-later",
+  "generator": "tools/gif-lab/fixtures.mjs",
+  "samples": [
+    {
+      "file": "static87.gif",
+      "sha256": "826acdccd005853d44f8d930ba1d9c713d11e5b2fccca1c927016191b32d41b0",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 2,
+        "loopCount": null,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 0,
+            "sha256": "740049f70b7b05875e3af86ad17b9bf8c0b2927116e4864bfc95eb0a0bcea91d"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 0,
+            "sha256": "740049f70b7b05875e3af86ad17b9bf8c0b2927116e4864bfc95eb0a0bcea91d"
+          }
+        ]
+      }
+    },
+    {
+      "file": "static89.gif",
+      "sha256": "453cd34d7b0c8f3363f768d61e841115fe54ec5087b2ada84fbeb50160e0d067",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 2,
+        "loopCount": null,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 0,
+            "sha256": "740049f70b7b05875e3af86ad17b9bf8c0b2927116e4864bfc95eb0a0bcea91d"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 0,
+            "sha256": "740049f70b7b05875e3af86ad17b9bf8c0b2927116e4864bfc95eb0a0bcea91d"
+          }
+        ]
+      }
+    },
+    {
+      "file": "local-only.gif",
+      "sha256": "98339620e5638ddeb547ab025724ee90c157ca01371f86defb81787b214b85bf",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 2,
+        "loopCount": null,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 0,
+            "sha256": "740049f70b7b05875e3af86ad17b9bf8c0b2927116e4864bfc95eb0a0bcea91d"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 0,
+            "sha256": "740049f70b7b05875e3af86ad17b9bf8c0b2927116e4864bfc95eb0a0bcea91d"
+          }
+        ]
+      }
+    },
+    {
+      "file": "gray-two-colors.gif",
+      "sha256": "e3ccc2479d197dee59b1225f0a62bdd24c3f4171909adaa24c4e0f5c9ee2a12f",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 1,
+        "loopCount": null,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 0,
+            "sha256": "6246b19426ce5d907378bb081b36f84b7556c6772992f340e3163ff8f6399c88"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 0,
+            "sha256": "6246b19426ce5d907378bb081b36f84b7556c6772992f340e3163ff8f6399c88"
+          }
+        ]
+      }
+    },
+    {
+      "file": "transparent-overlay.gif",
+      "sha256": "dafcd63040c7c5a6f499fa785806361dd842e6e6ace9926fbc874f2dea4761fb",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 2,
+        "loopCount": null,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 5,
+            "sha256": "c773395b224984566fc1c2a1bc01ed83f5e89ea97e9c035b75d1a1c5ef48ff48"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "e776a4e9f64c04231be2cb3711fa67ce0a49ab6d88efe94bd63c7fd1260e90f7"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "53a95e47cae565efd75cdd31bda868629c1b42837d75511812dcf5de06b0db38"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 5,
+            "sha256": "c773395b224984566fc1c2a1bc01ed83f5e89ea97e9c035b75d1a1c5ef48ff48"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "e776a4e9f64c04231be2cb3711fa67ce0a49ab6d88efe94bd63c7fd1260e90f7"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "53a95e47cae565efd75cdd31bda868629c1b42837d75511812dcf5de06b0db38"
+          }
+        ]
+      }
+    },
+    {
+      "file": "offset-keep.gif",
+      "sha256": "93974327d8f1450b977e4055518ed469790db5cd32ff6a3b7639a24ff1147b9a",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 2,
+        "loopCount": null,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "22ba08dc38abc06ef00e9f02e4efa8316b806f5de16ecdc1fc805f40b9a4ef2d"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "3f71e63819f5b16ae37bda3ab56fed2321619b260e8c5a839d7a847219ca7766"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "22ba08dc38abc06ef00e9f02e4efa8316b806f5de16ecdc1fc805f40b9a4ef2d"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "3f71e63819f5b16ae37bda3ab56fed2321619b260e8c5a839d7a847219ca7766"
+          }
+        ]
+      }
+    },
+    {
+      "file": "local-palette-loop.gif",
+      "sha256": "5667dfc5e1003cbbaa2b7581a09467de9774ade3e199fe471fd30b8b06f494e5",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 2,
+        "loopCount": 0,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "52f405971868b3ce6ddd496d09a95b9af07102d8e3f449bd2f873ae84776246a"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "52f405971868b3ce6ddd496d09a95b9af07102d8e3f449bd2f873ae84776246a"
+          }
+        ]
+      }
+    },
+    {
+      "file": "dispose-background.gif",
+      "sha256": "548b35b14ccbb5a87126d6f1961bb4943f201d14bd2d46117b9f4e90d1e2bbcf",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 2,
+        "loopCount": null,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "22ba08dc38abc06ef00e9f02e4efa8316b806f5de16ecdc1fc805f40b9a4ef2d"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "eca9b15f907e70a55936cd359b4cfbbd985cd97e7cb06c166cc123fbc0ebdbf1"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "22ba08dc38abc06ef00e9f02e4efa8316b806f5de16ecdc1fc805f40b9a4ef2d"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "c0dd4a82d46efae7193014f2263cfd12c324e8dc725f8b78e18fffbf966577c7"
+          }
+        ]
+      }
+    },
+    {
+      "file": "dispose-previous.gif",
+      "sha256": "1e4227f20feaf09fcf98dd82331206aa64e127aa2520cb4fa46afb2440cf41b4",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 2,
+        "loopCount": null,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "f07ab2cd83b047571b116f569ceb6453a9813536cc997f8cc6db030bc5d925af"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "128c8af32f5d4712b21d36f22f269f1802e80dc5827affa030cdbd51bda8fd12"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "f07ab2cd83b047571b116f569ceb6453a9813536cc997f8cc6db030bc5d925af"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "128c8af32f5d4712b21d36f22f269f1802e80dc5827affa030cdbd51bda8fd12"
+          }
+        ]
+      }
+    },
+    {
+      "file": "first-previous.gif",
+      "sha256": "d084fa92bec38005e2a66ee9ede77dfdfa533e493c6395d2504a2e226624b607",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 2,
+        "loopCount": null,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "bfb522e9c067e2e56eab721eb644340dea54d59f88d6785146a591faf3df5202"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "13a3ab7f4b4400840c02426ae8eab6e8c3c090e3fb56dc37956c2609c1f7c649"
+          }
+        ]
+      }
+    },
+    {
+      "file": "initial-offset-background.gif",
+      "sha256": "ffc7b0b783e7a9cf515101e37a20fc01752cf25784ffa1b15f0566cb42b05d08",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 2,
+        "loopCount": null,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 5,
+            "sha256": "ea2dfed2a03e2ebfbb46a282e2a1f6ead54293edc7db78062075d061fa55f2a7"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 5,
+            "sha256": "c433f7366275539264ae6fbbc36972f8d8a97af697c8cdbcf48aaa452f192e2c"
+          }
+        ]
+      }
+    },
+    {
+      "file": "interlaced.gif",
+      "sha256": "6b68055886176aa3c06e2430e208d9ff90191ad6f2f22823ebafa5f7f4617651",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 7,
+        "loopCount": null,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 0,
+            "sha256": "22ebb382a015473a881a844b1a7ca8043a18c21a12e8c5a17dfd17efb3c63180"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 0,
+            "sha256": "22ebb382a015473a881a844b1a7ca8043a18c21a12e8c5a17dfd17efb3c63180"
+          }
+        ]
+      }
+    },
+    {
+      "file": "interlaced-dictionary.gif",
+      "sha256": "e5f934e4cfa8735e4d7cbcc4e84fb3171adb87406d72eaf06b6634f312dd790e",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 7,
+        "loopCount": null,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 0,
+            "sha256": "22ebb382a015473a881a844b1a7ca8043a18c21a12e8c5a17dfd17efb3c63180"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 0,
+            "sha256": "22ebb382a015473a881a844b1a7ca8043a18c21a12e8c5a17dfd17efb3c63180"
+          }
+        ]
+      }
+    },
+    {
+      "file": "unequal-delay-comment.gif",
+      "sha256": "6169e0062f7879f86c946fc7223c8135b515bca18e0de42db90f2ae84a18cade",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 2,
+        "loopCount": null,
+        "commentHex": [
+          "5069786f466f6c6400ff"
+        ],
+        "transparent": [
+          {
+            "delayCs": 2,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 19,
+            "sha256": "9b35f2646dff9f19fa0dd89f334e5800c4925f9294e1f825b0dfb61daa59d0a0"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 2,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 19,
+            "sha256": "9b35f2646dff9f19fa0dd89f334e5800c4925f9294e1f825b0dfb61daa59d0a0"
+          }
+        ]
+      }
+    },
+    {
+      "file": "no-loop.gif",
+      "sha256": "db0870409f9cac4ee310b67bf001630d16d5da78783bd6ff8cdea45ace136a9e",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 2,
+        "loopCount": null,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "62d7bf737bcbf3df90471f8fb00f6bcd5f1148b18327ee57943a1e80e7c06281"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "62d7bf737bcbf3df90471f8fb00f6bcd5f1148b18327ee57943a1e80e7c06281"
+          }
+        ]
+      }
+    },
+    {
+      "file": "finite-loop1.gif",
+      "sha256": "eb939f05b98f2d92eac0f309aa2e01d57a8e5cffdd55b570db7c899bab4ac1cb",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 2,
+        "loopCount": 1,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "62d7bf737bcbf3df90471f8fb00f6bcd5f1148b18327ee57943a1e80e7c06281"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "62d7bf737bcbf3df90471f8fb00f6bcd5f1148b18327ee57943a1e80e7c06281"
+          }
+        ]
+      }
+    },
+    {
+      "file": "finite-loop3.gif",
+      "sha256": "ad35977b5bb89ed6e605e51579d27757dec19257225cee23c1026be8ce04d2ba",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 2,
+        "loopCount": 3,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "62d7bf737bcbf3df90471f8fb00f6bcd5f1148b18327ee57943a1e80e7c06281"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "62d7bf737bcbf3df90471f8fb00f6bcd5f1148b18327ee57943a1e80e7c06281"
+          }
+        ]
+      }
+    },
+    {
+      "file": "infinite-loop.gif",
+      "sha256": "35fe5f8b7dd946742da56adbd9a2c88dce1aeaf8c4d73be660c259c62cf79491",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 2,
+        "loopCount": 0,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "62d7bf737bcbf3df90471f8fb00f6bcd5f1148b18327ee57943a1e80e7c06281"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "62d7bf737bcbf3df90471f8fb00f6bcd5f1148b18327ee57943a1e80e7c06281"
+          }
+        ]
+      }
+    },
+    {
+      "file": "duplicate-visible.gif",
+      "sha256": "4ab09e20ce0cbdeb7203063dbcadeb912755ccf5438f0df78777eae56acc613a",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 2,
+        "loopCount": 0,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 7,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 7,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          }
+        ]
+      }
+    },
+    {
+      "file": "duplicate-merged.gif",
+      "sha256": "120e2080330c2b959b108b0e92bbddc2dc8afdd93a2d672b2dd0a14b55452d1b",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 2,
+        "loopCount": 0,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 12,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 12,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          }
+        ]
+      }
+    },
+    {
+      "file": "empty-positive-delay.gif",
+      "sha256": "230af75e131d42a7904d1f3b18a5caa01081ee3e733ea0af6859322a797867d8",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 2,
+        "loopCount": 0,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 7,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "62d7bf737bcbf3df90471f8fb00f6bcd5f1148b18327ee57943a1e80e7c06281"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 7,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "62d7bf737bcbf3df90471f8fb00f6bcd5f1148b18327ee57943a1e80e7c06281"
+          }
+        ]
+      }
+    },
+    {
+      "file": "loop-seam-partial.gif",
+      "sha256": "a3350bb64e257857e96b49d0cea6c3214340a73444d48ac50d59b7e5ff16c525",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 2,
+        "loopCount": 0,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 5,
+            "sha256": "9e2211aaef474b119dbe0bd41f745a9dcba3ddc536fcc2d2feaddf33854fa3a5"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "8e127b98e16d50ecd4edee4c0cc74e314984e9ca5d4b38ed4265db2db4f77086"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 5,
+            "sha256": "5387611d4054a871580bb4329bfa5cc5912761aea4a76c351b1d4012f60ff8af"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "d8d26152a8b0f3cde110b20ade352d28ff07888ef2ba1f4846e745d4d18c6a9f"
+          }
+        ],
+        "transparentSecondCycle": [
+          {
+            "delayCs": 10,
+            "sha256": "8e127b98e16d50ecd4edee4c0cc74e314984e9ca5d4b38ed4265db2db4f77086"
+          }
+        ],
+        "logicalSecondCycle": [
+          {
+            "delayCs": 10,
+            "sha256": "d8d26152a8b0f3cde110b20ade352d28ff07888ef2ba1f4846e745d4d18c6a9f"
+          }
+        ]
+      }
+    },
+    {
+      "file": "larger-pattern.gif",
+      "sha256": "329fe8cb790327af9d1bab89160bda1ce194d6136ec8c3927c19ab962d09cea7",
+      "expect": "ok",
+      "expected": {
+        "width": 256,
+        "height": 128,
+        "loopCount": 0,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 7,
+            "sha256": "5fb4bdbc67599a782bbbd0dabce9cfc9edfff669cd0493dc22fb161d39c67426"
+          },
+          {
+            "delayCs": 11,
+            "sha256": "b75bb910d694c6fa1ee1fb69c169fd1923876a0d0db4bdfd116d6862e6993d75"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "5fb4bdbc67599a782bbbd0dabce9cfc9edfff669cd0493dc22fb161d39c67426"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 7,
+            "sha256": "5fb4bdbc67599a782bbbd0dabce9cfc9edfff669cd0493dc22fb161d39c67426"
+          },
+          {
+            "delayCs": 11,
+            "sha256": "b75bb910d694c6fa1ee1fb69c169fd1923876a0d0db4bdfd116d6862e6993d75"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "5fb4bdbc67599a782bbbd0dabce9cfc9edfff669cd0493dc22fb161d39c67426"
+          }
+        ]
+      }
+    },
+    {
+      "file": "changed-delay.gif",
+      "sha256": "6cfe6b6090911688a8d389a24cc407d70b6dfa41150c88756f79ffce0c233c43",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 2,
+        "loopCount": null,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 6,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "62d7bf737bcbf3df90471f8fb00f6bcd5f1148b18327ee57943a1e80e7c06281"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 6,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "62d7bf737bcbf3df90471f8fb00f6bcd5f1148b18327ee57943a1e80e7c06281"
+          }
+        ]
+      }
+    },
+    {
+      "file": "changed-offset.gif",
+      "sha256": "38b2bba13653a2ad8d266e3caf38f323563a2bc9547f4177479460f67a05267b",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 2,
+        "loopCount": null,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "2fdd04b091810994436ee8cd379fcad2f11bf3c58510695dcb7533b83b66157c"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "bd9c9434c80bfea1266dd1b87e9d748c978e67f8def301af7dd2ee5b91d34b80"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "2fdd04b091810994436ee8cd379fcad2f11bf3c58510695dcb7533b83b66157c"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "bd9c9434c80bfea1266dd1b87e9d748c978e67f8def301af7dd2ee5b91d34b80"
+          }
+        ]
+      }
+    },
+    {
+      "file": "changed-pixel.gif",
+      "sha256": "af9049f2abd1c38030d02a3fded9bd95af334f72d5c4a74ded8476f4fd7f8331",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 2,
+        "loopCount": null,
+        "commentHex": [],
+        "transparent": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "2ffe16c70bf361799d4e734c655b3e86172c3003a9ee2de163c0c79daba284ca"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 5,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 5,
+            "sha256": "2ffe16c70bf361799d4e734c655b3e86172c3003a9ee2de163c0c79daba284ca"
+          }
+        ]
+      }
+    },
+    {
+      "file": "changed-comment.gif",
+      "sha256": "17efe933c8194aa93bcf6c7de03605c541a9c22befa9e7a0dfc89d55ff81e2be",
+      "expect": "ok",
+      "expected": {
+        "width": 3,
+        "height": 2,
+        "loopCount": null,
+        "commentHex": [
+          "5069786f466f6c6400fe"
+        ],
+        "transparent": [
+          {
+            "delayCs": 2,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 19,
+            "sha256": "9b35f2646dff9f19fa0dd89f334e5800c4925f9294e1f825b0dfb61daa59d0a0"
+          }
+        ],
+        "logical": [
+          {
+            "delayCs": 2,
+            "sha256": "1308c8d07d8bd47a24e30b627caaf193042efa719622f09c65d5c97eaa9e4c3a"
+          },
+          {
+            "delayCs": 19,
+            "sha256": "9b35f2646dff9f19fa0dd89f334e5800c4925f9294e1f825b0dfb61daa59d0a0"
+          }
+        ]
+      }
+    },
+    {
+      "file": "truncated.gif",
+      "sha256": "de54858ec0a9baa3e795c49b02e9472b75bce5e8bd136bfb1ac4c998ff8a70de",
+      "expect": "InvalidGif"
+    },
+    {
+      "file": "trailing-data.gif",
+      "sha256": "cc4f38f7abb98dde6cae1ca880396f3572ec9e907b48053ee8cf03142c0a375a",
+      "expect": "InvalidGif"
+    },
+    {
+      "file": "zero-screen.gif",
+      "sha256": "774c5fbb1e2be4b1e95cf924871fcbe69980a037c16f284a5bb380b889ab090f",
+      "expect": "InvalidGif"
+    },
+    {
+      "file": "outside-frame.gif",
+      "sha256": "353bdf880ffffc327a251a47447f6707f6bc21cb5e3e0bdc231c9fa72de95d11",
+      "expect": "InvalidGif"
+    },
+    {
+      "file": "missing-palette.gif",
+      "sha256": "74c6418db4aa7fa65e023d6e3fda4bfaeb63f51df0344ff39a484d495d5d3b8f",
+      "expect": "InvalidGif"
+    },
+    {
+      "file": "reserved-dispose.gif",
+      "sha256": "10adbf141cc512d87446210084edc29fd4c6270a20337d9f468e97235e0c605a",
+      "expect": "InvalidGif"
+    },
+    {
+      "file": "user-input.gif",
+      "sha256": "cc0f37ce9706d3038616afe4606287ba9fe734f97962b83ec4ceb99c0a61468c",
+      "expect": "UnsupportedInteraction"
+    },
+    {
+      "file": "zero-delay-animation.gif",
+      "sha256": "ec2a6799bbcc5bc0dacb81de829a80cb57508b4cca9a22227fe45453818cf6a6",
+      "expect": "UnsupportedTiming"
+    },
+    {
+      "file": "unknown-application.gif",
+      "sha256": "d8e5659698cf98829c2591439ea380f9d948209954556e167e987b9e2d2f360f",
+      "expect": "UnsupportedMetadata"
+    },
+    {
+      "file": "invalid-palette-index.gif",
+      "sha256": "1e049f727d2296b5b7e155c401af554fd6da4218d9e5d350e04aa41a7a16ad9c",
+      "expect": "Decode"
+    },
+    {
+      "file": "bad-lzw.gif",
+      "sha256": "87ead800b1927ec03af0a3b238731a1cebbadcc16cd7d228dc7a86c5c2df2ff4",
+      "expect": "Decode"
+    },
+    {
+      "file": "missing-lzw-end.gif",
+      "sha256": "8d76f050f7df6278febdde3080e76202e0a392c855426e051f695eaa34adbb7d",
+      "expect": "Decode"
+    },
+    {
+      "file": "frame-budget.gif",
+      "sha256": "bb6e23c1676513b598aa561de1627391d7609fb20ab4aecbee6640dff604ef87",
+      "expect": "ResourceLimit",
+      "limits": {
+        "maxFrames": 1
+      }
+    },
+    {
+      "file": "canvas-budget.gif",
+      "sha256": "826acdccd005853d44f8d930ba1d9c713d11e5b2fccca1c927016191b32d41b0",
+      "expect": "ResourceLimit",
+      "limits": {
+        "maxCanvasPixels": 2
+      }
+    },
+    {
+      "file": "frame-pixel-budget.gif",
+      "sha256": "826acdccd005853d44f8d930ba1d9c713d11e5b2fccca1c927016191b32d41b0",
+      "expect": "ResourceLimit",
+      "limits": {
+        "maxFramePixels": 2
+      }
+    },
+    {
+      "file": "decoded-budget.gif",
+      "sha256": "826acdccd005853d44f8d930ba1d9c713d11e5b2fccca1c927016191b32d41b0",
+      "expect": "ResourceLimit",
+      "limits": {
+        "maxTotalDecodedBytes": 1
+      }
+    },
+    {
+      "file": "input-budget.gif",
+      "sha256": "826acdccd005853d44f8d930ba1d9c713d11e5b2fccca1c927016191b32d41b0",
+      "expect": "ResourceLimit",
+      "limits": {
+        "maxInputBytes": 10
+      }
+    },
+    {
+      "file": "metadata-budget.gif",
+      "sha256": "6169e0062f7879f86c946fc7223c8135b515bca18e0de42db90f2ae84a18cade",
+      "expect": "ResourceLimit",
+      "limits": {
+        "maxMetadataBytes": 2
+      }
+    }
+  ],
+  "comparisons": [
+    {
+      "left": "duplicate-visible.gif",
+      "right": "duplicate-merged.gif",
+      "equivalent": true
+    },
+    {
+      "left": "no-loop.gif",
+      "right": "changed-delay.gif",
+      "equivalent": false
+    },
+    {
+      "left": "no-loop.gif",
+      "right": "finite-loop1.gif",
+      "equivalent": false
+    },
+    {
+      "left": "finite-loop1.gif",
+      "right": "finite-loop3.gif",
+      "equivalent": false
+    },
+    {
+      "left": "no-loop.gif",
+      "right": "infinite-loop.gif",
+      "equivalent": false
+    },
+    {
+      "left": "offset-keep.gif",
+      "right": "changed-offset.gif",
+      "equivalent": false
+    },
+    {
+      "left": "no-loop.gif",
+      "right": "changed-pixel.gif",
+      "equivalent": false
+    },
+    {
+      "left": "unequal-delay-comment.gif",
+      "right": "changed-comment.gif",
+      "equivalent": false
+    }
+  ]
+}

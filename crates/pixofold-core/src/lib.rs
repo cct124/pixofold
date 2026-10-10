@@ -3,6 +3,7 @@
 
 pub mod batch;
 mod codecs;
+pub mod gif;
 pub mod import;
 pub mod jpeg;
 pub mod model;

@@ -19,6 +19,27 @@ fn request(collection: TaskCollection) -> TaskPageRequest {
         limit: 100,
     }
 }
+#[test]
+fn core_gif_snapshots_are_rejected_before_desktop_protocol_migration() {
+    assert!(matches!(
+        ImageKindDto::try_from(ImageKind::Gif),
+        Err(QueryError::InvalidSnapshot)
+    ));
+    let (_dir, _runtime, mut snapshot) = completed();
+    Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0]
+        .request
+        .options = FormatOptions::Gif(Default::default());
+    assert!(matches!(
+        convert::snapshot(&snapshot, &request(TaskCollection::Jobs)),
+        Err(QueryError::InvalidSnapshot)
+    ));
+    let (_dir, _runtime, mut snapshot) = completed();
+    snapshot.supported_formats.push(ImageKind::Gif);
+    assert!(matches!(
+        convert::snapshot(&snapshot, &request(TaskCollection::Jobs)),
+        Err(QueryError::InvalidSnapshot)
+    ));
+}
 fn wire(value: impl serde::Serialize) -> Value {
     serde_json::to_value(value).unwrap()
 }
