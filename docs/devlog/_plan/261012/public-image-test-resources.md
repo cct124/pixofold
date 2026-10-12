@@ -55,4 +55,10 @@
 ### 交接
 
 - 变更范围：.gitattributes、package.json、tools/manual-images.mjs、tests/manual-images整套原件与说明、README/THIRD_PARTY_NOTICES、开发索引及本连续记录；源码原件目录和脚本当前尚未跟踪，未暂存。
-- 本轮可审阅结果已就绪。按AGENTS.md的提交限制，得到明确提交/推送指令后再建立Git基准并同步其他电脑；此前可直接使用samples:prepare反复获得干净副本。
+- 用户随后要求提交推送，本轮结果已提交737f622并推送origin/dev（9cccc2a..737f622），其他电脑clone/pull即可复用；也可继续用samples:prepare反复获得干净副本。
+
+## 2026-10-12 编写提交信息、提交与推送
+
+- 用户要求根据工作区内容编写提交信息、提交并推送，无需执行其它任务。复核范围：46份文件（tests/manual-images 39份：32张图片/4份许可/SOURCES.json/SHA256SUMS.txt/README；新增tools/manual-images.mjs与本计划；.gitattributes、package.json、根README、第三方说明与索引），无未暂存改动与未跟踪残留，git diff --check通过。
+- 提交737f622「feat: 纳入手测公开图片素材与离线校验命令」（46 files changed、1727 insertions、1 deletion）。沙箱内.git只读，add/commit/push按规则提升同一条命令执行，未绕开沙箱约束；9cccc2a..737f622  dev -> dev已同步origin/dev，本地与远端一致。
+- 沿用本轮已完成验证（fixtures:check含34项PNG、45项GIF与32张手测图片/4份许可；两次prepare副本哈希与原件一致且互不覆盖；Oxlint/Prettier通过；此前collect.py的逐帧解码与Exif方向证据保留在上节）；本次未改业务代码，不重复下载、解码或构建。其他系统checkout与运行仍待后续CI/开发机验证，不据此声明通过。

@@ -1,6 +1,6 @@
 # 开发交接
 
-更新日期：2026-10-12（Asia/Shanghai）。当前dev/3bcfe6b已推送origin/dev；[GIF动画任务](_plan/261009/animation-foundation.md)第三阶段3A可信随包与3B/v11桌面闭环已通过本机统一检查、GIF桌面隔离部署、JPEG部署回归及GIF真实核心/三格式混合验收并入库；3C已接入三平台CI，Windows新MSI正式构建及包内资源校验通过。新代码的远端平台、安装与GUI结果继续独立验收；6209a23的9个绿色jobs只覆盖前序第一阶段与第二阶段A/B。[JPEG阶段1](_plan/261009/jpeg-desktop-workflow.md)的缺少WebView2环境按用户安排后置。
+更新日期：2026-10-12（Asia/Shanghai）。当前dev/737f622已推送origin/dev；前序[GIF动画任务](_plan/261009/animation-foundation.md)第三阶段3A可信随包与3B/v11桌面闭环已入库，3C的三平台CI与Windows新MSI证据待按新SHA核对；本轮[公开手测素材](_plan/261012/public-image-test-resources.md)已入库并接入统一语料检查。远端平台、安装与GUI结果继续独立验收；6209a23的9个绿色jobs只覆盖前序第一阶段与第二阶段A/B。[JPEG阶段1](_plan/261009/jpeg-desktop-workflow.md)的缺少WebView2环境按用户安排后置。
 
 ## 当前阶段
 
@@ -11,7 +11,7 @@
 
 ## 活动任务
 
-- 本机完成、待提交：[公开图片手测素材收集与版本管理](_plan/261012/public-image-test-resources.md)。tests/manual-images保存32张、18.18MiB原件及来源/许可；samples:check已接入统一语料检查，samples:prepare可离线创建全新工作副本。原件/副本哈希、重复准备及lint/格式检查通过，首次提交推送后可Git恢复与跨电脑复用。
+- 已入库：[公开图片手测素材收集与版本管理](_plan/261012/public-image-test-resources.md)。tests/manual-images保存32张、18.18MiB原件及来源/许可；samples:check已接入统一语料检查，samples:prepare可离线创建全新工作副本。已提交737f622并推送origin/dev（9cccc2a..737f622），clone/pull后可Git恢复原件与跨电脑复用。
 - P0完成、用户确认功能正常及卸载：[J2第一段平台基线](_plan/261009/jpeg-desktop-bundle.md)。0f4fcfd六个CI jobs通过；安装目录产物身份、启动/提交/退出已有日志证据，缺少WebView2的环境按用户安排后置，无开发工具隔离系统尚无独立证据。
 - 完成归档：[J1b第二段连续记录](_fin/261009/jpeg-mixed-batch.md)。7863652六个jobs全部通过，Windows最后于11:27:58完成，真实混合核心与共用资源准入阶段收口；此结果不覆盖本轮J2改动。
 - 阶段1代码及平台门槛完成：[J2第二段桌面混合工作流](_plan/261009/jpeg-desktop-workflow.md)。5f68448已入库；94dd86c六个jobs通过，照片/大图/工作集、新MSI及资源部署证据已具备。新修复包实际安装/GUI、无开发工具系统与细分视觉范围继续独立记录，完整J2任务保持活动。
