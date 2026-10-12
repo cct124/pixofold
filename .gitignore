@@ -8,6 +8,7 @@ coverage/
 *.tsbuildinfo
 src-tauri/gen/schemas/
 src-tauri/resources/jpeg/runtime/
+src-tauri/resources/gif/runtime/
 .env
 .env.*
 !.env.example

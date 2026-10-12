@@ -185,10 +185,22 @@ describe('native drop import workflow', () => {
     current.supportedFormats = ['png', 'jpeg'];
     await mount();
     expect(screen.getByText('JPEG')).toHaveAttribute('aria-disabled', 'false');
-    expect(screen.getByText('支持静态 PNG 与 JPEG；GIF 和 APNG 尚未接入。')).toBeVisible();
+    expect(screen.getByText('当前可处理：PNG / JPEG；APNG 尚未接入。')).toBeVisible();
     await act(async () => controller.reconnect());
     await waitFor(() => expect(controller.getSnapshot().connection).toBe('connected'));
     expect(screen.getByText('JPEG')).toHaveAttribute('aria-disabled', 'false');
+    expect(writes()).toHaveLength(0);
+  });
+  it('enables GIF independently and explains lossless mode before import', async () => {
+    current.supportedFormats = ['png', 'gif'];
+    await mount();
+    expect(screen.getByText('GIF')).toHaveAttribute('aria-disabled', 'false');
+    expect(screen.getByText('JPEG')).toHaveAttribute('aria-disabled', 'true');
+    expect(
+      screen.getByText('GIF 仅支持无损优化。有损模式下 GIF 会逐行失败；切换无损后可重试。'),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: '无损优化' }));
+    expect(screen.getByText('GIF 按无损处理，缩略图仅展示首幅画面。')).toBeVisible();
     expect(writes()).toHaveLength(0);
   });
   const originalPoint = Object.getOwnPropertyDescriptor(document, 'elementFromPoint');

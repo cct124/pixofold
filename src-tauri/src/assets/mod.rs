@@ -6,6 +6,7 @@ mod dto;
 pub(crate) use directories::{directory_page, resolve_directory, validate_batch};
 #[cfg(test)]
 mod directory_tests;
+mod gif;
 mod jpeg;
 mod png;
 #[cfg(test)]
@@ -215,6 +216,8 @@ impl AssetService {
                 }
                 if input.starts_with(&[0xff, 0xd8]) {
                     jpeg::decode(&input, &self.engines, &permit.cancel)?
+                } else if input.starts_with(b"GIF87a") || input.starts_with(b"GIF89a") {
+                    gif::decode(&input, &permit.cancel)?
                 } else {
                     png::decode(&input)?
                 }

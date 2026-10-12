@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 
 pub(super) const MAX_PAGE_SIZE: u16 = 100;
 pub(super) const MAX_DISPLAY_CHARS: usize = 240;
-// v10增加实际格式能力和PNG/JPEG专属报告；旧页面须更新重载，ACK/背压契约沿用。
-pub(crate) const TASK_PROTOCOL_VERSION: u32 = 10;
+// v11增加GIF无损报告与模式错误；旧页面须更新重载，ACK/背压契约沿用。
+pub(crate) const TASK_PROTOCOL_VERSION: u32 = 11;
 
 /// 无符号64位十进制字符串；拒绝数字JSON、符号、空白、前导零及溢出。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -163,13 +163,14 @@ wire_enum!(
     pixofold_core::batch::BatchPhase,
     [Running, Cancelling, Finished]
 );
-// v10仅开放PNG/JPEG；核心GIF扩展在桌面迁移完成前以可识别契约错误拒绝。
+// v11按启动验证后的实际引擎能力开放PNG/JPEG/GIF。
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
 pub(crate) enum ImageKindDto {
     Png,
     Jpeg,
+    Gif,
 }
 impl TryFrom<pixofold_core::batch::ImageKind> for ImageKindDto {
     type Error = QueryError;
@@ -177,7 +178,7 @@ impl TryFrom<pixofold_core::batch::ImageKind> for ImageKindDto {
         match value {
             pixofold_core::batch::ImageKind::Png => Ok(Self::Png),
             pixofold_core::batch::ImageKind::Jpeg => Ok(Self::Jpeg),
-            pixofold_core::batch::ImageKind::Gif => Err(QueryError::InvalidSnapshot),
+            pixofold_core::batch::ImageKind::Gif => Ok(Self::Gif),
         }
     }
 }
@@ -200,6 +201,7 @@ pub(crate) enum JobErrorDto {
     UnsupportedAnimation,
     UnsupportedContentCredentials,
     UnsupportedJpegCredentials,
+    UnsupportedGifMode,
     UnsupportedMetadata,
     ResourceLimit,
     Decode,
@@ -444,13 +446,28 @@ pub(crate) enum JpegProcessingDto {
     },
 }
 
-/// 格式是可辨识联合的一部分；JPEG原生质量不能解释为PNG量化测量值。
+#[derive(Debug, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) enum GifProcessingDto {
+    Lossless {
+        frames: u32,
+        loop_count: Option<u16>,
+    },
+}
+
+/// 格式是可辨识联合的一部分；GIF仅无损，JPEG原生质量不能解释为PNG量化测量值。
 #[derive(Debug, Serialize)]
 #[serde(tag = "format", content = "details", rename_all = "snake_case")]
 #[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
 pub(crate) enum ProcessingDto {
     Png(PngProcessingDto),
     Jpeg(JpegProcessingDto),
+    Gif(GifProcessingDto),
 }
 
 #[derive(Debug, Serialize)]
@@ -635,6 +652,7 @@ pub(super) fn declarations() -> String {
         PngProcessingDto,
         JpegFallbackDto,
         JpegProcessingDto,
+        GifProcessingDto,
         ProcessingDto,
         ReportDto,
         ConfirmationDto,

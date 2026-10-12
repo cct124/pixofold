@@ -44,8 +44,8 @@ J1a新增`native/jpeg/helper.c`及独立Rust核心适配，helper链接同一固
 
 J1b保守有损延用相同helper/静态库，没有新增引擎依赖。核心回归另使用固定上游源码中的testimages/testorig.jpg（SHA256 acc6ec555d41d15b368320edaa3b20958ee6fa97cb6e4a18d1213d5ae8bec73b）；原图不进入本仓库，回归证据包保留上游README.ijg、LICENSE.md及来源/衍生输出说明。该夹具不等同本项目原创图片，保留其原有版权和许可。
 
-2026-10-10核对GIF实验依赖。Gifsicle 1.96来自Eddie Kohler官方归档，来源与SHA256固定于 [engine.json](tools/gif-lab/engine.json)。上游README记载Copyright (C) 1997–2025 Eddie Kohler，GPL Version 2（仅Version 2）及替代条款，本实验按GPL-2.0-only使用独立CLI，未复制其实现到Rust代码。固定源码树保留全部版权，实验报告复制完整 `COPYING` 和 `README.md`，记录归档、源码树、构建配方与二进制身份；这两份原文与全部对应源码都不能用本表替代。若分发该CLI二进制，需按实际GPLv2分发方式提供完整对应源码、构建配方与许可通知，不能仅提供下载链接或SHA256。当前工具只在开发缓存与实验中使用，尚未分发到桌面资源。
+2026-10-10核对GIF实验依赖。Gifsicle 1.96来自Eddie Kohler官方归档，来源与SHA256固定于 [engine.json](tools/gif-lab/engine.json)。上游README记载Copyright (C) 1997–2025 Eddie Kohler，GPL Version 2（仅Version 2）及替代条款，本项目按GPL-2.0-only使用独立工具进程，未复制其实现到Rust代码。固定源码树保留全部版权，实验报告复制完整 `COPYING` 和 `README.md`，记录归档、源码树、构建配方与二进制身份；这两份原文与全部对应源码都不能用本表替代。2026-10-12第三阶段将有界helper纳入桌面gif/runtime资源，同时提供完整上游对应源码归档、封装、构建配方与许可原文，不能仅以下载链接或SHA256替代。
 
 独立验证器锁定crates.io的gif 0.14.2与weezl 0.1.12，第二阶段已迁入Rust生产依赖；gif关闭默认功能，仅开启std，weezl使用std有界缓冲接口，不引入其async功能。Cargo.lock保留版本与源码校验值。两者上游均允许MIT或Apache-2.0，本实验按MIT使用并保留 [gif完整MIT通知](tools/gif-lab/licenses/gif-LICENSE-MIT)（Copyright (c) 2015 nwin）及 [weezl完整MIT通知](tools/gif-lab/licenses/weezl-LICENSE-MIT)（Copyright (c) HeroicKatora 2020）；实验输出另复制这些通知。原始crate归档包含 `LICENSE-MIT`、`LICENSE-APACHE` 与源码，分别可从crates.io固定版本取得；后续若分发独立验证器，仍须根据其实际全部依赖收集通知。
 
-第二阶段新增native/gif封装另提供GPL-2.0-only OR GPL-3.0-or-later，独立helper按GPLv2与固定Gifsicle组合；既有Rust主体许可不变，Rust经GIF字节管道调用独立进程。分发时保留完整上游对应源码、本封装/配方及COPYING/README等原文。封装与当前执行范围见 [GIF核心说明](native/gif/README.md)。当前工具尚未进入桌面资源或安装包。
+第二阶段新增native/gif封装另提供GPL-2.0-only OR GPL-3.0-or-later，独立helper按GPLv2与固定Gifsicle组合；既有Rust主体许可不变，Rust经GIF字节管道调用独立进程。分发资源保留完整上游对应源码、本封装/配方及COPYING/README等原文，build.rs检查其完整性和身份。封装与当前执行范围见 [GIF核心说明](native/gif/README.md)，实际打包/安装证据见 [动画开发记录](docs/devlog/_plan/261009/animation-foundation.md)。

@@ -104,13 +104,19 @@ const copy = {
     '拖入图片或文件夹到此区域 · 导入后自动开始',
     'Drop images or folders here · Starts automatically',
   ],
-  scope: [
-    '当前可处理静态 PNG；JPEG 暂不可用，GIF 与 APNG 尚未接入。',
-    'Static PNG is available. JPEG is currently unavailable; GIF and APNG are not supported yet.',
+  scope: ['当前可处理：', 'Available formats: '],
+  scopeEnd: ['；APNG 尚未接入。', '. APNG is not supported yet.'],
+  gifUnavailable: [
+    'GIF 暂不可用，请使用包含 GIF 引擎的完整安装包。',
+    'GIF is unavailable. Use a complete installation with the GIF engine.',
   ],
-  scopeMixed: [
-    '支持静态 PNG 与 JPEG；GIF 和 APNG 尚未接入。',
-    'Static PNG and JPEG are available. GIF and APNG are not supported yet.',
+  gifLosslessOnly: [
+    'GIF 仅支持无损优化。有损模式下 GIF 会逐行失败；切换无损后可重试。',
+    'GIF supports lossless optimization only. GIF rows fail in lossy mode; switch to lossless to retry.',
+  ],
+  gifPreviewHint: [
+    'GIF 按无损处理，缩略图仅展示首幅画面。',
+    'GIF uses lossless processing. Thumbnails show only the first frame.',
   ],
   jpegUnavailable: [
     'JPEG 暂不可用，请使用包含 JPEG 引擎的完整安装包。',
@@ -306,14 +312,21 @@ const copy = {
     'JPEG 含受保护的 APP11 数据，原图已保留；暂不提供凭据移除。',
     'JPEG contains protected APP11 data. Original kept; credential removal is unavailable.',
   ],
-  tool_identity: [
-    'JPEG 引擎缺失或已变化，请重新安装完整应用。',
-    'JPEG engine is missing or changed. Reinstall the complete app.',
+  unsupported_gif_mode: [
+    'GIF 仅支持无损优化，原图已保留；切换到无损模式后重试。',
+    'GIF supports lossless optimization only. Original kept; switch to lossless and retry.',
   ],
-  tool_io: ['JPEG 引擎无法运行或通信失败。', 'Could not run or communicate with the JPEG engine.'],
+  tool_identity: [
+    '此格式的压缩引擎缺失或已变化，请重新安装完整应用。',
+    'The engine for this format is missing or changed. Reinstall the complete app.',
+  ],
+  tool_io: [
+    '压缩引擎无法运行或通信失败。',
+    'Could not run or communicate with the compression engine.',
+  ],
   tool_exit: [
-    'JPEG 引擎拒绝输入或异常退出。',
-    'JPEG engine rejected the input or exited unexpectedly.',
+    '压缩引擎拒绝输入或异常退出。',
+    'The compression engine rejected the input or exited unexpectedly.',
   ],
   timed_out: ['处理超时，未提交输出。', 'Processing timed out; no output was committed.'],
   target_conflict: ['输出目标已存在或冲突', 'Output target exists or conflicts'],
@@ -343,6 +356,10 @@ const copy = {
   embedded_thumbnail: ['内嵌缩略图保护', 'Embedded thumbnail protection'],
   ambiguous_color: ['颜色解释不明确', 'Ambiguous color interpretation'],
   jpegNativeQuality: ['JPEG 编码质量', 'JPEG encoding quality'],
+  gifFrames: ['GIF 帧数', 'GIF frames'],
+  gifLoopCount: ['循环扩展值', 'Loop extension value'],
+  gifNoLoop: ['无循环扩展', 'No loop extension'],
+  gifInfiniteLoop: ['无限循环', 'Infinite loop'],
   connecting: ['正在连接任务服务…', 'Connecting to tasks…'],
   connected: ['任务服务已连接', 'Task service connected'],
   disconnecting: ['正在释放连接…', 'Releasing connection…'],

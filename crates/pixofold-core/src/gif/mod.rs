@@ -1,7 +1,8 @@
 //! GIF无损核心：严格子集结构/独立播放验证、可信有界工具和安全输出提交。
-//! 核心只处理可信Rust宿主请求；GIF有损/桌面IPC和预览由后续阶段分别接入。
+//! 核心只处理可信Rust宿主请求；首帧预览独立受限，不代替完整动画验证。
 mod engine;
 mod playback;
+mod preview;
 mod process;
 mod structure;
 use crate::{
@@ -10,6 +11,7 @@ use crate::{
 };
 pub use engine::GifEngine;
 pub use playback::{Event as GifEvent, Playback as GifPlayback, normalize as normalize_timeline};
+pub use preview::{GifPreview, decode_preview};
 use std::{
     fmt, io,
     path::PathBuf,

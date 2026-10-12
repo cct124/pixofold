@@ -42,6 +42,16 @@ jobs:
         run: pnpm tauri build --no-bundle --ci
       - name: Verify bundled JPEG outside development environment
         run: pnpm jpeg:bundle:check
+      - name: Verify bundled GIF and desktop PNG JPEG GIF workflow
+        run: pnpm gif:bundle:check
+      - name: Retain bundled GIF and mixed desktop evidence
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: gif-bundle-${{ matrix.os }}
+          path: target/gif-bundle-*/
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Retain bundled JPEG evidence
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0

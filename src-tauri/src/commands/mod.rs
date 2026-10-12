@@ -72,16 +72,29 @@ pub(crate) async fn select_native_import<R: tauri::Runtime>(
         .control
         .engines()
         .supports(pixofold_core::batch::ImageKind::Jpeg);
+    let gif_available = tasks
+        .control
+        .engines()
+        .supports(pixofold_core::batch::ImageKind::Gif);
     // 单槽先占位才spawn；等待原生UI不占事件循环/异步executor线程，不持任何服务锁。
     tauri::async_runtime::spawn_blocking(move || {
         let dialog = window.dialog().file().set_parent(&window);
         let selected = match request.kind {
-            NativeSelectionKind::Files => if jpeg_available {
-                dialog.add_filter("PNG / JPEG", &["png", "jpg", "jpeg"])
-            } else {
-                dialog.add_filter("PNG", &["png"])
+            NativeSelectionKind::Files => {
+                let mut extensions = vec!["png"];
+                let mut labels = vec!["PNG"];
+                if jpeg_available {
+                    extensions.extend(["jpg", "jpeg"]);
+                    labels.push("JPEG");
+                }
+                if gif_available {
+                    extensions.push("gif");
+                    labels.push("GIF");
+                }
+                dialog
+                    .add_filter(labels.join(" / "), &extensions)
+                    .blocking_pick_files()
             }
-            .blocking_pick_files(),
             NativeSelectionKind::Folder => dialog.blocking_pick_folder().map(|path| vec![path]),
         };
         let paths = selected

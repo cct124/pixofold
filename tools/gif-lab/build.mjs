@@ -35,7 +35,7 @@ assert.ok(
   '只支持明确的原生目标',
 );
 const cache = path.join(root, '.tools/gif-lab');
-const archive = path.join(cache, 'gifsicle-' + engine.version + '.tar.gz');
+export const archive = path.join(cache, 'gifsicle-' + engine.version + '.tar.gz');
 const sourceRoot = path.join(cache, 'source-' + engine.sha256.slice(0, 16));
 export const source = path.join(sourceRoot, engine.directory);
 export const build = path.join(cache, 'build-' + engine.version + '-' + target);
@@ -43,7 +43,7 @@ export const binary = path.join(
   build,
   process.platform === 'win32' ? 'Release/gifsicle.exe' : 'src/gifsicle',
 );
-const definitions = [
+export const definitions = [
   'native/gif/budget.h',
   'native/gif/budget.c',
   'native/gif/entry.c',

@@ -5,9 +5,11 @@ pub(crate) mod assets;
 pub mod bundle_check;
 mod commands;
 pub(crate) mod diagnostics;
+pub(crate) mod engine_bundle;
+pub(crate) mod gif_bundle;
 pub(crate) mod ingress;
 pub(crate) mod ipc;
-mod jpeg_bundle;
+pub(crate) mod jpeg_bundle;
 pub(crate) mod lifecycle;
 pub(crate) mod resources;
 pub(crate) mod subscriptions;
@@ -80,33 +82,23 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn run_application() -> Result<(), Box<dyn std::error::Error>> {
-    let builder = tauri::Builder::default()
-        .setup(|app| {
-            let loaded = app.path().resource_dir()
-                .map_err(|_| "resource_directory")
-                .and_then(|root| jpeg_bundle::load(&root).map_err(|error| match error {
-                    pixofold_core::jpeg::JpegError::ToolIo { .. } => "tool_io",
-                    _ => "tool_identity",
-                }));
-            let engines = match loaded {
-                Ok(engine) => {
-                    tracing::info!(target: "pixofold", event = "jpeg_engine_verified");
-                    pixofold_core::batch::ImageEngines::with_jpeg(engine)
-                }
-                Err(code) => {
-                    tracing::warn!(target: "pixofold", event = "jpeg_engine_unavailable", error_code = code);
-                    pixofold_core::batch::ImageEngines::default()
-                }
-            };
-            let runtime = tasks::TaskRuntime::with_engines(resources::task_config(), engines)?;
-            app.manage(lifecycle::DesktopTasks::new(runtime)?);
-            // 配置禁用自动建窗；服务和能力先就绪，首个page-load/IPC才可到达。
-            let window = app.config().app.windows.iter()
-                .find(|window| window.label == "main")
-                .cloned().ok_or("缺少main窗口配置")?;
-            tauri::WebviewWindowBuilder::from_config(app.handle(), &window)?.build()?;
-            Ok(())
-        });
+    let builder = tauri::Builder::default().setup(|app| {
+        let root = app.path().resource_dir().ok();
+        let engines = engine_bundle::load(root.as_deref());
+        let runtime = tasks::TaskRuntime::with_engines(resources::task_config(), engines)?;
+        app.manage(lifecycle::DesktopTasks::new(runtime)?);
+        // 配置禁用自动建窗；服务和能力先就绪，首个page-load/IPC才可到达。
+        let window = app
+            .config()
+            .app
+            .windows
+            .iter()
+            .find(|window| window.label == "main")
+            .cloned()
+            .ok_or("缺少main窗口配置")?;
+        tauri::WebviewWindowBuilder::from_config(app.handle(), &window)?.build()?;
+        Ok(())
+    });
     let app = configure_app(builder).build(app_context())?;
     app.run(|app, event| {
         if let tauri::RunEvent::ExitRequested { api, code, .. } = event

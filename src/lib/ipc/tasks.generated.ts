@@ -1,6 +1,6 @@
 // 由 Rust 任务DTO生成；请运行 pnpm types:generate，勿手工编辑。
 import type { PngMode } from './generated';
-export const TASK_PROTOCOL_VERSION = 10;
+export const TASK_PROTOCOL_VERSION = 11;
 export const MAX_TASK_PAGE_SIZE = 100;
 export type DecimalU64 = string;
 export type TaskCollection = "jobs" | "candidates" | "issues" | "confirmations";
@@ -13,10 +13,10 @@ export type SubscriptionError = { "code": "closed" } | { "code": "stale_subscrip
 export type DisplayName = { text: string, truncated: boolean, lossy: boolean, sanitized: boolean, };
 export type TaskPhaseDto = "idle" | "scanning" | "ready" | "preparing" | "running" | "cancelling" | "finished" | "cancelled" | "rejected" | "clearing" | "closing" | "closed";
 export type BatchPhaseDto = "running" | "cancelling" | "finished";
-export type ImageKindDto = "png" | "jpeg";
+export type ImageKindDto = "png" | "jpeg" | "gif";
 export type StageDto = "reading" | "optimizing" | "validating" | "before_commit";
 export type ScanLimitDto = "entries" | "files" | "depth" | "read_bytes";
-export type JobErrorDto = "invalid_input" | "unsupported_format" | "unsupported_animation" | "unsupported_content_credentials" | "unsupported_jpeg_credentials" | "unsupported_metadata" | "resource_limit" | "decode" | "encode" | "validation" | "target_conflict" | "source_changed" | "io" | "commit_failed" | "cleanup_failed" | "worker_panicked" | "service_fault" | "tool_identity" | "tool_io" | "tool_exit" | "timed_out";
+export type JobErrorDto = "invalid_input" | "unsupported_format" | "unsupported_animation" | "unsupported_content_credentials" | "unsupported_jpeg_credentials" | "unsupported_gif_mode" | "unsupported_metadata" | "resource_limit" | "decode" | "encode" | "validation" | "target_conflict" | "source_changed" | "io" | "commit_failed" | "cleanup_failed" | "worker_panicked" | "service_fault" | "tool_identity" | "tool_io" | "tool_exit" | "timed_out";
 export type UnsupportedFormatDto = "jpeg" | "gif" | "web_p" | "other";
 export type PathConflictDto = "duplicate_source" | "duplicate_output" | "output_is_input" | "output_hierarchy";
 export type ScanStatusDto = { "kind": "scanning" } | { "kind": "complete" } | { "kind": "cancelled" } | { "kind": "limited", limit: ScanLimitDto, };
@@ -31,7 +31,8 @@ export type FallbackDto = { "kind": "high_bit_depth" } | { "kind": "color_metada
 export type PngProcessingDto = { "kind": "lossless" } | { "kind": "lossy", mappingVersion: number, measuredQuality: number, } | { "kind": "lossless_fallback", mappingVersion: number, reason: FallbackDto, };
 export type JpegFallbackDto = { "kind": "color_profile" } | { "kind": "four_component_color" } | { "kind": "embedded_thumbnail" } | { "kind": "ambiguous_color" };
 export type JpegProcessingDto = { "kind": "lossless" } | { "kind": "lossy", mappingVersion: number, nativeQuality: number, } | { "kind": "lossless_fallback", mappingVersion: number, nativeQuality: number, reason: JpegFallbackDto, };
-export type ProcessingDto = { "format": "png", "details": PngProcessingDto } | { "format": "jpeg", "details": JpegProcessingDto };
+export type GifProcessingDto = { "kind": "lossless", frames: number, loopCount: number | null, };
+export type ProcessingDto = { "format": "png", "details": PngProcessingDto } | { "format": "jpeg", "details": JpegProcessingDto } | { "format": "gif", "details": GifProcessingDto };
 export type ReportDto = { inputBytes: DecimalU64, outputBytes: DecimalU64, elapsedMs: DecimalU64, processing: ProcessingDto, outputName: DisplayName | null, backupName: DisplayName | null, contentCredentialsRemoved: boolean, };
 export type ConfirmationDto = { id: number, sourceName: DisplayName, sourceLabel: DisplayName, inputBytes: DecimalU64 | null, };
 export type JobStateDto = { "kind": "queued" } | { "kind": "running", stage: StageDto, cancelRequested: boolean, } | { "kind": "succeeded", report: ReportDto, } | { "kind": "no_gain", report: ReportDto, } | { "kind": "failed", failure: JobFailureDto, } | { "kind": "cancelled" };

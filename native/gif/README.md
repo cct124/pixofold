@@ -1,6 +1,6 @@
 # GIF无损核心与有界helper
 
-第二阶段提供独立Rust单文件无损与PNG/JPEG/GIF混合核心。桌面v10当前开放PNG/JPEG，GIF随包、协议、预览和GUI在第三阶段验收。
+第二阶段提供独立Rust单文件无损与PNG/JPEG/GIF混合核心。第三阶段接通可信随包与桌面v11工作流：GIF仅无损，首帧静态预览、报告及普通重试沿用任务所有权；GUI、安装和新SHA平台按连续记录分别验收。
 
 ## 开发入口
 
@@ -9,6 +9,9 @@ pnpm gif:lab:build
 pnpm jpeg:lab:build
 pnpm gif:core:check
 pnpm gif:lab:check
+pnpm jpeg:bundle:prepare
+pnpm gif:bundle:prepare
+pnpm gif:bundle:check
 pnpm check
 ~~~
 
@@ -45,10 +48,20 @@ Rust拥有child、三个有界管道线程和工作目录；取消/超时先kill
 
 ImageEngines::with_gif或with_jpeg(...).add_gif(...)显式注入；scan_with_engines、规划和BatchService共用同一实例，默认仍PNG-only。GIF接入唯一有界池，重试保留稳定行ID、原目标与备份策略；坏像素、超限和冲突逐行处理。
 
-Rust下游处理ImageKind/FormatOptions/ImportedImage/ImageReport/ImageError新增Gif变体、BatchParameters.gif与ScanOptions.gif_limits。桌面v10的ImageKindDto仍只有两种格式，转换改为TryFrom；GIF行/报告/能力快照返回InvalidSnapshot，第三阶段完成协议迁移后再开放。
+Rust下游处理ImageKind/FormatOptions/ImportedImage/ImageReport/ImageError新增Gif变体、BatchParameters.gif与ScanOptions.gif_limits。桌面v11的ImageKindDto、supportedFormats及格式专属processing包含Gif，无损报告提供frames与loopCount，后者保留原始扩展值（null无扩展、0无限循环）。旧页面须重载；Rust生成类型与TypeScript运行时验证同步。
+
+有损模式中的GIF逐行返回unsupported_gif_mode，其他格式继续；设置栏明确提示仅无损，切换无损后普通重试保留稳定ID、原输出与备份策略，不继承PNG凭据许可。原生文件过滤器和格式标志取自启动时验证通过的能力，JPEG/GIF独立降级，默认服务仍PNG-only。
+
+## 可信资源与首帧预览
+
+gif:bundle:prepare共用固定开发配方，在src-tauri/resources/gif/runtime准备helper、完整上游源码归档、封装/配方及许可原文。build.rs验证目标/源码/产物并内嵌预期SHA256，运行时只从宿主资源根加载，不信旁置清单。Windows使用静态CRT；release缺资源或配方过期即失败，普通无资源debug可运行PNG。
+
+gif:bundle:check将资源复制至独立中文空格目录，在无开发PATH的进程中执行真实处理、独立播放验证、三格式混合/模式失败/稳定ID重试/NoGain/冲突/备份/首帧预览/退出，并验证单引擎失效与伪造清单拒绝。支持--resources后接已解包的绝对资源根目录，验收二进制不随默认安装包分发。
+
+decode_preview只在Rust合成首幅完整透明画布，不执行helper或解码后续帧；先检查整个输入的结构与支持范围，成功不保证后续帧像素可解码。应用限制16MiB输入、4Mi画布/单帧像素、256帧结构、32MiB预览缓冲与5秒协作期限；输出至多128×96/64KiB静态PNG。预览沿用AssetService的单解码、任务绑定、缓存、取消和迟到失效，不改变真实压缩结果或播放时间轴。
 
 ## 许可与证据
 
 Gifsicle按GPL-2.0-only使用。新budget.h/budget.c/entry.c另提供GPL-2.0-only OR GPL-3.0-or-later，独立helper按GPLv2组合；既有Rust主体仍GPL-3.0-or-later。分发helper需提供完整上游对应源码、本封装/配方及COPYING/README等通知；来源链接和本说明不能替代。gif/weezl按MIT使用，原文见 [第三方说明](../../THIRD_PARTY_NOTICES.md)。
 
-Windows本机真实核心/混合/原图安全与采样证据见 [连续记录](../../docs/devlog/_plan/261009/animation-foundation.md)。新SHA三平台CI及GIF随包/安装/GUI分别待验。
+Windows本机真实核心/混合/原图安全与采样证据见 [连续记录](../../docs/devlog/_plan/261009/animation-foundation.md)。2026-10-12复核确认6209a23的三平台CI run38038904722全部9个jobs通过，包含GIF固定构建/独立实验/真实核心与混合回归；此结果不覆盖本轮第三阶段。GIF随包/桌面检查、安装和GUI分别记录，新SHA三平台须在本轮提交后验收。

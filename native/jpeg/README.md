@@ -1,6 +1,6 @@
 # JPEG 核心与混合批次（J1a / J1b）
 
-本目录的 helper 与 `pixofold_core::jpeg` 提供无损与保守有损核心，现已接入PNG/JPEG混合批次、共用worker和资源预约。桌面v10在可信随包引擎可用时开放JPEG导入、实际报告与受限方向缩略图；实际安装/GUI/平台结果分别见[J2桌面记录](../../docs/devlog/_plan/261009/jpeg-desktop-workflow.md)。
+本目录的 helper 与 `pixofold_core::jpeg` 提供无损与保守有损核心，现已接入PNG/JPEG/GIF混合批次、共用worker和资源预约。桌面自v10在可信随包引擎可用时开放JPEG导入、实际报告与受限方向缩略图，当前协议为v11；实际安装/GUI/平台结果分别见[J2桌面记录](../../docs/devlog/_plan/261009/jpeg-desktop-workflow.md)及[GIF迁移记录](../../docs/devlog/_plan/261009/animation-foundation.md)。
 
 ## 构建和真实回归
 
@@ -17,9 +17,9 @@ pnpm jpeg:core:check
 
 - 宿主先用 `JpegEngine::load` 验证固定工具，再构造 `ImageEngines::with_jpeg` 和 `BatchService::with_engines`。将 `service.engines()` 传入 `scan_with_engines`，再调用清单的 `plan` 和服务的 `start`；规划保存同一个共享引擎实例，服务拒绝换入另一实例。默认 `scan` / `BatchService::new` 仍只提供PNG，显式JPEG行缺能力时逐行失败。
 - 扫描按内容识别，保留原有条目/累计字节/取消上限，不解码像素或启动helper。JPEG须为jpg/jpeg原扩展名（大小写保留）；误命名为.jpg的真实PNG继续按PNG处理。保护元数据/坏结构进入扫描问题，坏像素仍可能在执行时失败。
-- 一个固定池处理两种格式及PNG凭据确认；格式请求、报告、质量映射和错误为显式分支，共用状态/统计/输出层。重试保留行ID和未选行，JPEG拒绝PNG凭据移除策略。副本保留原名，目标冲突逐行隔离，全部冲突仍返回Finished批次。
+- 一个固定池处理已启用格式及PNG凭据确认；格式请求、报告、质量映射和错误为显式分支，共用状态/统计/输出层。重试保留行ID和未选行，JPEG拒绝PNG凭据移除策略。副本保留原名，目标冲突逐行隔离，全部冲突仍返回Finished批次。
 - 核心Rust字面量迁移：`BatchItem`增加 `format`，`BatchRequest`增加 `engines`，`BatchParameters`增加 `jpeg`，`ScanOptions`增加 `jpeg_limits`；默认参数可用结构更新语法。行请求改为 `ImageRequest`，报告/错误/候选属性/质量映射分别由 `ImageReport`、`ImageError`、`ImportedImage`、`QualityMapping`区分格式；共用输入模式为 `CompressionMode`（沿用既有PngMode输入契约）。单文件API不变。
-- 桌面TaskRuntime::with_engines将同一实例贯穿扫描/规划/执行/预览，默认构造仍PNG-only。v10快照公开supportedFormats、行format及格式专属processing联合；JPEG工具/保护/恢复错误完整转换，不用PNG量化测量或caBX确认替代。旧v9页面须更新重载。
+- 桌面TaskRuntime::with_engines将同一实例贯穿扫描/规划/执行/预览，默认构造仍PNG-only。自v10快照公开supportedFormats、行format及格式专属processing联合，v11增加GIF分支；JPEG工具/保护/恢复错误完整转换，不用PNG量化测量或caBX确认替代。旧v9/v10页面须更新重载。
 
 ## 模式、质量与兼容性
 
@@ -27,7 +27,7 @@ pnpm jpeg:core:check
 - 映射版本1将质量0转为原生1，其余1–100保持原值。固定 FASTEST 配置、整数 ISLOW DCT 与优化 Huffman，不启用 trellis/SIMD；保持原颜色空间、分量ID、采样和基线/渐进类别。YCbCr逐行解码和重采样仍会改变像素，100仍属有损，不承诺跨格式相同质量数值或固定体积收益。
 - `JpegReport.processing` 区分 Lossless、Lossy 与带明确原因的 LosslessFallback，并保留输入质量/映射版本/原生质量。它描述候选的处理方式；只有 outcome=Optimized 才提交，NoGain保留原图且不产生备份/副本。
 - ICC、CMYK/YCCK、JFIF嵌入缩略图或不明确的三分量颜色标记进入现有系数无损验证路径。复杂Exif/XMP/未知APP/APP11仍拒绝，不能以无损回退绕开保护。压缩保留方向tag、不旋转文件像素；桌面仅在缩略图中应用方向。
-- 未发布的核心请求结构新增 mode，报告新增 processing；结构字面量调用方需补 mode，使用 new 的调用方仍默认无损。桌面v10共用模式沿用PngMode的无损/有损输入形状，格式专属质量映射通过processing分别表达。
+- 未发布的核心请求结构新增 mode，报告新增 processing；结构字面量调用方需补 mode，使用 new 的调用方仍默认无损。桌面自v10起共用模式沿用PngMode的无损/有损输入形状，当前v11保持此契约，格式专属质量映射通过processing分别表达。
 
 ## 格式和元数据边界
 

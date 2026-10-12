@@ -57,7 +57,7 @@ impl Playback {
             && self.logical == other.logical
     }
 }
-fn indices(frame: &gif::Frame<'_>, work: &Work<'_>) -> Result<Vec<u8>> {
+pub(super) fn indices(frame: &gif::Frame<'_>, work: &Work<'_>) -> Result<Vec<u8>> {
     let count = usize::from(frame.width) * usize::from(frame.height);
     let (&minimum, encoded) = frame.buffer.split_first().ok_or(LabError {
         code: Code::Decode,

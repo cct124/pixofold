@@ -67,3 +67,9 @@ name = "jpeg-bundle-check"
 path = "src/bin/jpeg-bundle-check.rs"
 test = false
 required-features = ["bundle-check"]
+
+[[bin]]
+name = "gif-bundle-check"
+path = "src/bin/gif-bundle-check.rs"
+test = false
+required-features = ["bundle-check"]

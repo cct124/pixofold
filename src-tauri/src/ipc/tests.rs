@@ -20,25 +20,53 @@ fn request(collection: TaskCollection) -> TaskPageRequest {
     }
 }
 #[test]
-fn core_gif_snapshots_are_rejected_before_desktop_protocol_migration() {
-    assert!(matches!(
-        ImageKindDto::try_from(ImageKind::Gif),
-        Err(QueryError::InvalidSnapshot)
-    ));
+fn protocol_v11_preserves_gif_reports_and_rejects_lossy_without_png_permission() {
+    use pixofold_core::gif::{GifError, GifInfo, GifReport};
     let (_dir, _runtime, mut snapshot) = completed();
-    Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0]
-        .request
-        .options = FormatOptions::Gif(Default::default());
-    assert!(matches!(
-        convert::snapshot(&snapshot, &request(TaskCollection::Jobs)),
-        Err(QueryError::InvalidSnapshot)
-    ));
-    let (_dir, _runtime, mut snapshot) = completed();
-    snapshot.supported_formats.push(ImageKind::Gif);
-    assert!(matches!(
-        convert::snapshot(&snapshot, &request(TaskCollection::Jobs)),
-        Err(QueryError::InvalidSnapshot)
-    ));
+    snapshot
+        .supported_formats
+        .extend([ImageKind::Jpeg, ImageKind::Gif]);
+    let job = &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0];
+    job.request.options = FormatOptions::Gif(Default::default());
+    job.request.mode = PngMode::Lossless;
+    job.state = JobState::NoGain(ImageReport::Gif(GifReport {
+        image: GifInfo {
+            width: 2,
+            height: 3,
+            frames: 4,
+            loop_count: Some(0),
+            total_decoded_bytes: ByteCount(96),
+        },
+        input_bytes: ByteCount(1000),
+        output_bytes: ByteCount(1000),
+        elapsed: Duration::from_millis(3),
+        outcome: ProcessingOutcome::NoGain,
+    }));
+    let value = wire(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).unwrap());
+    assert_eq!(value["protocolVersion"], 11);
+    assert_eq!(value["supportedFormats"], json!(["png", "jpeg", "gif"]));
+    let row = &value["page"]["items"][0];
+    assert_eq!(row["format"], "gif");
+    assert_eq!(
+        row["state"]["report"]["processing"],
+        json!({"format":"gif", "details":{"kind":"lossless", "frames":4, "loopCount":0}})
+    );
+    assert_eq!(row["state"]["report"]["contentCredentialsRemoved"], false);
+    assert!(row["state"]["report"]["outputName"].is_null());
+    let job = &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0];
+    job.request.mode = PngMode::Lossy {
+        quality: QualityValue::new(80).unwrap(),
+    };
+    job.state = JobState::Failed(JobFailure {
+        code: JobErrorCode::UnsupportedFormat,
+        cause: Some(Arc::new(ImageError::Gif(GifError::UnsupportedMode))),
+    });
+    let value = wire(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).unwrap());
+    assert_eq!(
+        value["page"]["items"][0]["state"]["failure"]["code"],
+        "unsupported_gif_mode"
+    );
+    assert_eq!(value["batch"]["confirmationCount"], 0);
 }
 fn wire(value: impl serde::Serialize) -> Value {
     serde_json::to_value(value).unwrap()
@@ -559,7 +587,7 @@ fn lossy_fallback_mapping_and_elapsed_milliseconds_come_from_actual_report() {
 }
 
 #[test]
-fn protocol_v10_preserves_jpeg_formats_errors_and_quality_without_png_semantics() {
+fn protocol_v11_preserves_jpeg_formats_errors_and_quality_without_png_semantics() {
     use pixofold_core::{
         batch::{FormatOptions, ImageError, JobErrorCode, JobFailure},
         jpeg::{
@@ -693,35 +721,62 @@ fn scan_limit_and_error_remain_visible_without_batch() {
 }
 
 #[test]
-fn jpeg_nested_cleanup_keeps_recovery_names_and_private_errors_stay_in_rust() {
+fn jpeg_and_gif_nested_cleanup_keep_recovery_names_and_private_errors_in_rust() {
+    use pixofold_core::gif::GifError;
     use pixofold_core::jpeg::JpegError;
-    let (_dir, _runtime, mut snapshot) = completed();
-    let job = &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0];
-    job.request.options = FormatOptions::Jpeg(Default::default());
-    job.state = JobState::Failed(JobFailure {
-        code: JobErrorCode::CleanupFailed,
-        cause: Some(Arc::new(ImageError::Jpeg(JpegError::Cleanup {
-            temporary: Path::new("private-parent").join("workspace"),
+    for gif in [false, true] {
+        let (_dir, _runtime, mut snapshot) = completed();
+        let job = &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0];
+        job.request.options = if gif {
+            FormatOptions::Gif(Default::default())
+        } else {
+            FormatOptions::Jpeg(Default::default())
+        };
+        let inner = ProcessingError::CleanupFailed {
+            temporary: Path::new("private-parent").join("inner-temp"),
             source: io::Error::other("private error"),
-            original: Some(Box::new(JpegError::File(ProcessingError::CleanupFailed {
-                temporary: Path::new("private-parent").join("inner-temp"),
+            original: Some(Box::new(ProcessingError::CommitFailed {
+                backup: Path::new("private-parent").join(if gif {
+                    "saved-backup-123abc.GIF"
+                } else {
+                    "saved-backup-123abc.JPG"
+                }),
                 source: io::Error::other("private error"),
-                original: Some(Box::new(ProcessingError::CommitFailed {
-                    backup: Path::new("private-parent").join("saved-backup-123abc.JPG"),
+            })),
+        };
+        job.state = JobState::Failed(JobFailure {
+            code: JobErrorCode::CleanupFailed,
+            cause: Some(Arc::new(if gif {
+                ImageError::Gif(GifError::Cleanup {
+                    temporary: Path::new("private-parent").join("workspace"),
                     source: io::Error::other("private error"),
-                })),
-            }))),
-        }))),
-    });
-    let value = wire(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).unwrap());
-    let recovery = &value["page"]["items"][0]["state"]["failure"]["recovery"];
-    assert_eq!(recovery["backupName"]["text"], "saved-backup-123abc.JPG");
-    assert_eq!(recovery["temporaryName"]["text"], "workspace");
-    assert_eq!(
-        recovery["originalError"],
-        json!({"kind":"failed", "code":"commit_failed"})
-    );
-    assert!(!value.to_string().contains("private"));
+                    original: Some(Box::new(GifError::File(inner))),
+                })
+            } else {
+                ImageError::Jpeg(JpegError::Cleanup {
+                    temporary: Path::new("private-parent").join("workspace"),
+                    source: io::Error::other("private error"),
+                    original: Some(Box::new(JpegError::File(inner))),
+                })
+            })),
+        });
+        let value = wire(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).unwrap());
+        let recovery = &value["page"]["items"][0]["state"]["failure"]["recovery"];
+        assert_eq!(
+            recovery["backupName"]["text"],
+            if gif {
+                "saved-backup-123abc.GIF"
+            } else {
+                "saved-backup-123abc.JPG"
+            }
+        );
+        assert_eq!(recovery["temporaryName"]["text"], "workspace");
+        assert_eq!(
+            recovery["originalError"],
+            json!({"kind":"failed", "code":"commit_failed"})
+        );
+        assert!(!value.to_string().contains("private"));
+    }
 }
 
 #[test]

@@ -14,8 +14,9 @@ use pixofold_core::{
         BatchParameters, ImageEngines, ImageKind, ImageReport, JobErrorCode, JobState, RetryJob,
         RetryRequest,
     },
+    gif::{GifLimits, validate_gif},
     import::{CopyLayout, ImportOutput},
-    jpeg::{self, JpegEngine, JpegLimits, JpegProcessing},
+    jpeg::{self, JpegLimits, JpegProcessing},
     model::{
         CancellationToken, OutputDirectory, PngMetadataPolicy, PngMode, ProcessingOutcome,
         QualityValue,
@@ -105,7 +106,8 @@ fn identity(
 /// 使用同一可信引擎验收真实混合导入、冻结重试、报告、备份/目录和有界预览。
 /// # Errors
 /// 语料缺失、任何运行/契约断言失败或I/O错误均返回错误；运行时Drop仍安全收尾。
-pub fn verify(engine: JpegEngine, samples: &Path, root: &Path) -> Result<Value> {
+pub fn verify(engines: ImageEngines, samples: &Path, root: &Path) -> Result<Value> {
+    let with_gif = engines.supports(ImageKind::Gif);
     fs::create_dir(root)?;
     let inputs = root.join("inputs");
     fs::create_dir(&inputs)?;
@@ -148,7 +150,29 @@ pub fn verify(engine: JpegEngine, samples: &Path, root: &Path) -> Result<Value> 
         fs::write(inputs.join(&name), &bytes)?;
         originals.push((inputs.join(name), bytes));
     }
-    let engines = ImageEngines::with_jpeg(engine);
+    if with_gif {
+        for (name, bytes) in [
+            (
+                "c.GIF",
+                include_bytes!("../../tests/fixtures/gif/larger-pattern.gif").as_slice(),
+            ),
+            (
+                "static.gif",
+                include_bytes!("../../tests/fixtures/gif/static87.gif").as_slice(),
+            ),
+            (
+                "offset.gif",
+                include_bytes!("../../tests/fixtures/gif/initial-offset-background.gif").as_slice(),
+            ),
+            (
+                "loop.gif",
+                include_bytes!("../../tests/fixtures/gif/finite-loop3.gif").as_slice(),
+            ),
+        ] {
+            fs::write(inputs.join(name), bytes)?;
+            originals.push((inputs.join(name), bytes.to_vec()));
+        }
+    }
     let service = Arc::new(AssetService::new(engines.clone()));
     let mut runtime = TaskRuntime::with_engines(TaskConfig::default(), engines.clone())?;
     let control = runtime.control();
@@ -159,13 +183,24 @@ pub fn verify(engine: JpegEngine, samples: &Path, root: &Path) -> Result<Value> 
     phase(&control, TaskPhase::Ready)?;
     let candidates = query(&control, "candidates")?;
     require(
-        candidates["supportedFormats"] == json!(["png", "jpeg"]),
+        candidates["supportedFormats"]
+            == if with_gif {
+                json!(["png", "jpeg", "gif"])
+            } else {
+                json!(["png", "jpeg"])
+            },
         "能力未贯通",
     )?;
     let candidate_rows = candidates["page"]["items"].as_array().ok_or("候选页无效")?;
     require(
         candidate_rows.iter().any(|row| row["format"] == "png")
-            && candidate_rows.iter().any(|row| row["format"] == "jpeg"),
+            && candidate_rows.iter().any(|row| row["format"] == "jpeg")
+            && (!with_gif
+                || candidate_rows
+                    .iter()
+                    .filter(|row| row["format"] == "gif")
+                    .count()
+                    == 4),
         "混合候选缺少格式",
     )?;
     let issues = query(&control, "issues")?;
@@ -185,9 +220,18 @@ pub fn verify(engine: JpegEngine, samples: &Path, root: &Path) -> Result<Value> 
     let initial_wire = query(&control, "jobs")?;
     require(
         initial_wire["batch"]["confirmationCount"] == 1,
-        "凭据列表混入JPEG或遗漏PNG",
+        "凭据列表混入JPEG/GIF或遗漏PNG",
     )?;
     let batch = finished.batch.as_ref().ok_or("缺少批次")?;
+    if with_gif {
+        let rows = initial_wire["page"]["items"].as_array().ok_or("缺少行")?;
+        require(
+            rows.iter()
+                .filter(|row| row["format"] == "gif")
+                .all(|row| row["state"]["failure"]["code"] == "unsupported_gif_mode"),
+            "GIF有损模式未返回专属逐行失败",
+        )?;
+    }
     let failed = batch
         .jobs
         .iter()
@@ -211,11 +255,16 @@ pub fn verify(engine: JpegEngine, samples: &Path, root: &Path) -> Result<Value> 
         selection,
         batch.revision,
         RetryRequest {
-            jobs: vec![RetryJob {
-                id: failed.id,
-                output: failed.request.output.clone(),
-                metadata: PngMetadataPolicy::Preserve,
-            }],
+            jobs: batch
+                .jobs
+                .iter()
+                .filter(|job| job.id == failed.id || job.request.format() == ImageKind::Gif)
+                .map(|job| RetryJob {
+                    id: job.id,
+                    output: job.request.output.clone(),
+                    metadata: PngMetadataPolicy::Preserve,
+                })
+                .collect(),
             parameters: BatchParameters::default(),
         },
     )?;
@@ -232,6 +281,25 @@ pub fn verify(engine: JpegEngine, samples: &Path, root: &Path) -> Result<Value> 
         "旧attempt仍可查看",
     )?;
     let batch = retried.batch.as_ref().ok_or("缺少重试批次")?;
+    for job in batch
+        .jobs
+        .iter()
+        .filter(|job| job.request.format() == ImageKind::Gif)
+    {
+        let previous = finished
+            .batch
+            .as_ref()
+            .ok_or("缺少首次批次")?
+            .jobs
+            .iter()
+            .find(|old| old.id == job.id)
+            .ok_or("GIF重试ID变化")?;
+        require(
+            job.attempt == previous.attempt + 1
+                && matches!(job.state, JobState::Succeeded(_) | JobState::NoGain(_)),
+            "GIF切换无损后重试未完成",
+        )?;
+    }
     let mut previews = 0;
     let mut outputs = Vec::new();
     for job in &batch.jobs {
@@ -249,7 +317,25 @@ pub fn verify(engine: JpegEngine, samples: &Path, root: &Path) -> Result<Value> 
                 Some(RevealTarget::Result),
             ))?;
             require(result.is_file(), "结果定位失效")?;
-            outputs.push(json!({"file":format!("mixed/{name}"), "source":format!("inputs/{name}"), "lossless":matches!(report, ImageReport::Jpeg(r) if !matches!(r.processing, JpegProcessing::Lossy { .. })), "format":if job.request.format() == ImageKind::Jpeg { "jpeg" } else { "png" }}));
+            let format = match job.request.format() {
+                ImageKind::Png => "png",
+                ImageKind::Jpeg => "jpeg",
+                ImageKind::Gif => "gif",
+            };
+            if format == "gif" {
+                let before = validate_gif(
+                    &fs::read(&job.request.source)?,
+                    GifLimits::default(),
+                    &CancellationToken::default(),
+                )?;
+                let after = validate_gif(
+                    &fs::read(&result)?,
+                    GifLimits::default(),
+                    &CancellationToken::default(),
+                )?;
+                require(before.equivalent(&after), "桌面GIF独立播放不等价")?;
+            }
+            outputs.push(json!({"file":format!("mixed/{name}"), "source":format!("inputs/{name}"), "lossless":format == "gif" || matches!(report, ImageReport::Jpeg(r) if !matches!(r.processing, JpegProcessing::Lossy { .. })), "format":format}));
         }
         if name == "icc.jpg" || name == "cmyk.jpg" {
             let permit = asset(service.reserve(Operation::Thumbnail))?;
@@ -265,6 +351,7 @@ pub fn verify(engine: JpegEngine, samples: &Path, root: &Path) -> Result<Value> 
             || name == "b.JPEG"
             || name == "gray.jpg"
             || name == "a.png"
+            || job.request.format() == ImageKind::Gif
         {
             let permit = asset(service.reserve(Operation::Thumbnail))?;
             let path = asset(assets::resolve(&retried, &request, None))?;
@@ -276,6 +363,21 @@ pub fn verify(engine: JpegEngine, samples: &Path, root: &Path) -> Result<Value> 
             )?;
             fs::write(root.join(format!("preview-{name}.png")), image.png)?;
             previews += 1;
+            if name == "c.GIF" {
+                drop(permit);
+                let permit = asset(service.reserve(Operation::Thumbnail))?;
+                let request = identity(&retried, job)?;
+                let path = asset(assets::resolve(&retried, &request, None))?;
+                let prepared = asset(service.prepare(&permit, request, path))?;
+                service.invalidate();
+                require(
+                    matches!(
+                        service.finish(&permit, prepared),
+                        Err(assets::AssetError::StaleTask)
+                    ),
+                    "GIF迟到预览复活缓存",
+                )?;
+            }
         }
     }
     for orientation in 1..=8 {
@@ -306,13 +408,20 @@ pub fn verify(engine: JpegEngine, samples: &Path, root: &Path) -> Result<Value> 
     }
     service.invalidate();
     let no_gain_output = copy_to(&root.join("no-gain"))?;
+    let mut no_gain_inputs = vec![output.join("b.JPEG"), inputs.join("small.png")];
+    if with_gif {
+        no_gain_inputs.push(output.join("c.GIF"));
+    }
     control.import(
-        vec![output.join("b.JPEG"), inputs.join("small.png")],
+        no_gain_inputs,
         Some(settings(no_gain_output, PngMode::Lossless)),
     )?;
     let no_gain = phase(&control, TaskPhase::Finished)?;
     let batch = no_gain.batch.as_ref().ok_or("缺少NoGain批次")?;
-    require(batch.summary.no_gain == 2, "PNG/JPEG未保留NoGain原图")?;
+    require(
+        batch.summary.no_gain == if with_gif { 3 } else { 2 },
+        "混合NoGain未保留原图",
+    )?;
     for job in &batch.jobs {
         require(
             asset(assets::resolve(
@@ -323,8 +432,12 @@ pub fn verify(engine: JpegEngine, samples: &Path, root: &Path) -> Result<Value> 
             "NoGain未定位源图",
         )?;
     }
+    let mut conflict_inputs = vec![inputs.join("a.png"), inputs.join("b.JPEG")];
+    if with_gif {
+        conflict_inputs.push(inputs.join("c.GIF"));
+    }
     control.import(
-        vec![inputs.join("a.png"), inputs.join("b.JPEG")],
+        conflict_inputs,
         Some(settings(ImportOutput::CopyBeside, PngMode::Lossless)),
     )?;
     let conflicts = phase(&control, TaskPhase::Finished)?;
@@ -335,7 +448,7 @@ pub fn verify(engine: JpegEngine, samples: &Path, root: &Path) -> Result<Value> 
             .ok_or("缺少冲突批次")?
             .summary
             .failed
-            == 2,
+            == if with_gif { 3 } else { 2 },
         "全部副本冲突未进入Finished",
     )?;
     let backup_source = root.join("backup.JPEG");
@@ -364,6 +477,40 @@ pub fn verify(engine: JpegEngine, samples: &Path, root: &Path) -> Result<Value> 
     outputs.push(
         json!({"file":"backup.JPEG", "source":"inputs/b.JPEG", "lossless":false, "format":"jpeg"}),
     );
+    if with_gif {
+        let source = root.join("backup.GIF");
+        let original = fs::read(inputs.join("c.GIF"))?;
+        fs::write(&source, &original)?;
+        control.import(
+            vec![source.clone()],
+            Some(settings(ImportOutput::Overwrite, PngMode::Lossless)),
+        )?;
+        let snapshot = phase(&control, TaskPhase::Finished)?;
+        let job = &snapshot.batch.as_ref().ok_or("缺少GIF备份批次")?.jobs[0];
+        let backup = asset(assets::resolve(
+            &snapshot,
+            &identity(&snapshot, job)?,
+            Some(RevealTarget::Backup),
+        ))?;
+        require(
+            backup.extension().is_some_and(|value| value == "GIF") && fs::read(backup)? == original,
+            "GIF备份字节或扩展名变化",
+        )?;
+        let before = validate_gif(
+            &original,
+            GifLimits::default(),
+            &CancellationToken::default(),
+        )?;
+        let after = validate_gif(
+            &fs::read(&source)?,
+            GifLimits::default(),
+            &CancellationToken::default(),
+        )?;
+        require(before.equivalent(&after), "GIF覆盖输出播放改变")?;
+        outputs.push(
+            json!({"file":"backup.GIF", "source":"inputs/c.GIF", "lossless":true, "format":"gif"}),
+        );
+    }
     fs::write(
         root.join("snapshot.json"),
         serde_json::to_vec_pretty(&query(&control, "jobs")?)?,
@@ -378,4 +525,29 @@ pub fn verify(engine: JpegEngine, samples: &Path, root: &Path) -> Result<Value> 
     Ok(
         json!({"result":"passed", "protocolVersion":ipc::TASK_PROTOCOL_VERSION, "previews":previews, "outputs":outputs, "mixedRetry":true, "noGain":true, "allConflicts":true, "backup":true, "shutdown":true}),
     )
+}
+
+/// 部署检查复用启动加载器的实际独立降级能力，不打开窗口。
+pub fn capabilities(resource_root: &Path) -> Vec<&'static str> {
+    let engines = crate::engine_bundle::load(Some(resource_root));
+    [
+        (ImageKind::Png, "png"),
+        (ImageKind::Jpeg, "jpeg"),
+        (ImageKind::Gif, "gif"),
+    ]
+    .into_iter()
+    .filter_map(|(kind, name)| engines.supports(kind).then_some(name))
+    .collect()
+}
+
+/// 在完整随包资源上验收三格式桌面任务及首帧预览。
+/// # Errors
+/// 资源身份、能力或任何真实处理检查失败时返回错误。
+pub fn verify_bundled(resource_root: &Path, samples: &Path, root: &Path) -> Result<Value> {
+    let engines = crate::engine_bundle::load(Some(resource_root));
+    require(
+        engines.supports(ImageKind::Jpeg) && engines.supports(ImageKind::Gif),
+        "缺少可信JPEG/GIF引擎",
+    )?;
+    verify(engines, samples, root)
 }

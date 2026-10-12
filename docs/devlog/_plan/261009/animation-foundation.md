@@ -192,3 +192,57 @@ A/B稳定后接GIF桌面闭环：可信资源prepare/打包与加载、supported
 - 用户要求根据工作区内容编写提交信息、提交并推送，无需执行其它任务。复核范围：101份文件（新增核心gif模块5份、native/gif封装4份、examples/tests、45份GIF语料与manifest、tools/gif-lab工具与许可；其余为ImageKind/引擎/扫描/规划/预算接入、CI、依赖、README/AGENTS、第三方说明与devlog），无未暂存改动与未跟踪残留（构建缓存与target证据按设计排除），git diff --check通过。
 - 提交0c0693f「feat: 实现GIF无损核心与三格式混合批次」（101 files changed、5416 insertions、49 deletions）。沙箱内.git只读，add/commit/push按规则提升同一条命令执行，未绕开沙箱约束；94dd86c..0c0693f  dev -> dev已同步origin/dev，本地与远端一致。
 - 沿用本轮已完成验证（pnpm check：159项前端、48项核心单元、全部核心集成、114项桌面与2项doctest、PNG/GIF语料与类型一致性、全目标Clippy；gif:core:check真实核心/混合含2MP与512×256×16帧压力样本；gif:lab:check 168项复验与careful O2 26收益/2NoGain）；本次未改业务代码，不重复构建或测试。桌面GIF、APNG、新MSI与新SHA三平台结果仍未取得，不据此声明通过。
+
+## 2026-10-12 仓库与三平台CI复核、第三阶段入口
+
+- 用户要求深入分析当前仓库与最近提交并制定下一步开发计划，本轮只读复核与记录维护。开工dev/6209a23、origin/dev同SHA，工作区干净；0c0693f为第一阶段及第二阶段A/B业务提交，6209a23仅追加交接文档。
+- GitHub只读查询run38038904722：head_sha=6209a23fd22902b8ffe0974503746ad045887f42，push/dev、run59，completed/success；2026-10-10 16:44:02创建、17:02:22最后更新（Asia/Shanghai）。9个jobs全部success，平台及关键步骤如下。
+
+| 平台 | Check job | JPEG engine lab job | GIF lossless lab job |
+| --- | --- | --- | --- |
+| Windows | 114175106115 | 114175105976 | 114175106175 |
+| Ubuntu 24.04 | 114175106103 | 114175106094 | 114175106205 |
+| macOS | 114175106247 | 114175106185 | 114175106212 |
+
+- 每个平台的Check均通过完整格式/类型/lint/测试/Rust检查、正式无安装包桌面构建及开发环境外JPEG资源验证；JPEG job通过固定工具构建、系数/元数据/资源实验及真实JPEG核心；GIF job通过固定单线程Gifsicle构建、语料/独立播放/真实无损优化、固定JPEG helper构建及真实GIF核心/PNG/JPEG/GIF混合回归。首次Linux/macOS configure+CMake有界helper配方的平台门槛已取得，第一阶段与第二阶段A/B收口；未把核心实验结果写成GIF随包/安装或GUI已通过。
+- 下一入口按[阶段计划本日复核](../260930/next-development-plan.md)推进第三阶段：3A可信GIF资源prepare/部署检查与生产加载器；3B同批完成v11/实际能力/启动注入/工作台与受限首帧预览；3C新SHA三平台部署/桌面混合CI及新MSI用户手测。完整动画任务保持活动，续用本记录。
+- 当前v10扫描与DTO不能分批开放：3A仅由独立部署验收入口注入GIF，避免生产扫描接纳后被v10快照拒绝。建议GIF首版仅无损，在默认有损设置下明确模式提示和逐行失败/改为无损后的稳定ID重试；按行自动无损属于另一模式契约，若用户选择需同步请求/报告/重试。预览建议输出第一幅完整合成画布的静态PNG，执行既有预算/缓存/撤销规则。
+- 本轮仅维护计划与当前证据，未改业务代码或运行功能/GUI/构建，也未提交推送；历史待验状态保留在各日期原节，本日以实际新SHA结果更新。GIF有损、APNG、Windows新包安装/细分视觉及用户后置的无WebView2环境继续分别验收。
+
+## 2026-10-12 第三阶段实施（本机完成，平台与手测待验）
+
+- 用户确认按计划实施。基准dev/6209a23，与origin/dev一致；保留开发索引、阶段计划、本记录和native/gif说明的四份既有文档修改。
+- 顺序：3A固定GIF可信资源prepare、构建身份及独立部署检查；3B同批迁移v11、启动实际能力、混合工作台、仅无损提示及受限静态首帧；3C接入CI、完成本机正式构建与新Windows安装包，准备原生与视觉验收。
+- 验收覆盖真实GIF处理/独立播放、资源身份拒绝、三格式混合及稳定ID重试、输出/备份/取消/退出、旧协议拒绝及预览撤销；已有PNG/JPEG回归按改动面复验。远端新SHA CI需后续提交推送后取得，GUI/安装结果按实际执行记录。
+- 实施复用现有JPEG随包模式与GIF固定构建配方，不增加新编码依赖；资源部署先以独立入口验收，生产能力与协议一起开放。
+
+### 3A：可信随包与独立部署（本机完成）
+
+- 新增gif:bundle:prepare/check，复用固定Gifsicle 1.96有界helper配方；runtime携带完整上游归档、native/gif封装、构建配方及许可，build.rs校验目标/运行库/配方/源码/产物后内嵌helper SHA256。生产加载器不从旁置清单或PATH取得信任，JPEG/GIF启动能力独立降级。
+- Windows prepare通过，helper SHA256为4352dd36bcb7b9298740da788c9c8fd9bd67728d8e828b1d239c5c5e8a932051。初次部署证据target/gif-bundle-tUt7Ar，缺失helper、替换helper并伪造清单均拒绝，源文件不变；日志target/gif-stage3-deploy-261012.log。桌面gif_过滤回归4项通过，日志target/gif-stage3-bundle-tests-261012.log。
+
+### 3B：v11与三格式桌面工作流（本机完成）
+
+- 启动在创建main窗口前分别校验JPEG/GIF并注入唯一任务/资产服务；v11能力、候选/行格式、GIF无损报告与错误、Rust生成类型和TS运行时校验同批迁移。GIF有损行返回unsupported_gif_mode，页面提示切无损后按稳定ID与revision重试，其余格式继续；GIF不继承PNG凭据许可。
+- 工作台按实际能力显示格式、GIF帧数与原始loopCount；GIF首帧透明画布由Rust解码为静态缩略图，不执行helper。16MiB输入、4Mi画布及单帧像素、32MiB缓冲、5秒协作期限，复用应用单解码/缓存/撤销机制。核心预览2项测试覆盖独立语料首帧哈希、损坏输入、预算、取消与超时。
+- pnpm check全部通过：15个前端文件/161项测试、50项核心单元与全部核心集成、117项桌面Rust测试、2项doctest、34份PNG和45份GIF语料、生成类型只读一致性、格式/lint/typecheck及全目标Clippy -D warnings。日志target/gif-stage3-check-261012.log；修正App旧范围文案断言及DTO版本注释后通过。
+- pnpm gif:bundle:check通过，证据target/gif-bundle-bVJRh4/report.json，日志target/gif-stage3-desktop-261012.log。真实protocolVersion=11、15次预览、PNG/JPEG/GIF混合及稳定ID重试、NoGain、全部目标冲突、GIF/JPEG备份、退出回收、独立播放与源不变均通过。独立能力降级覆盖三格式、缺JPEG仅PNG/GIF、缺GIF仅PNG/JPEG、双缺仅PNG。
+- README、AGENTS、GIF/JPEG说明、第三方通知与交互说明同步到v11实际范围；本机代码尚未提交。3C已配置三平台GIF部署/桌面混合CI与证据上传，JPEG回归、GIF真实核心及新Windows安装包证据见下节；新SHA远端结果和实际安装/GUI继续分别验收。
+
+### 3C：CI与Windows正式包（本机完成）
+
+- 三平台Check增加pnpm gif:bundle:check及gif-bundle-*证据上传；尚未提交推送，没有本轮新SHA的远端结果。6209a23的9个绿色jobs仍只覆盖前序代码。
+- pnpm jpeg:bundle:check通过，日志target/gif-stage3-jpeg-regression-261012.log，证据target/jpeg-bundle-1ufy73/；沿用v11，PNG/JPEG混合、11次预览及JPEG方向1–8保持通过。pnpm gif:core:check通过，日志target/gif-stage3-core-261012.log，证据target/gif-core-df0G2H/；25项收益、2项NoGain、2项压力样本及PNG/JPEG/GIF真实混合通过。
+- pnpm tauri build --bundles msi --ci完成Windows正式构建，日志target/gif-stage3-msi-261012.log。交付副本为target/deliverables/261012-gif-v11/PixoFold_0.1.0_x64_en-US.msi，4,964,352 bytes，SHA256为138d6e15ab334e662effc4d287c92ccf0f0dd06474c03d8b15251f24ff5981e6。
+- 使用WiX dark解包至target/gif-stage3-msi-261012/，target/gif-stage3-msi-check-261012.ps1核对24个安装文件及GIF清单14个文件；report.json结果passed，installed=false。资源与本次构建逐文件哈希相符，包含GIF helper、完整Gifsicle源码归档、native/gif封装/构建配方与许可，以及JPEG资源；未包含bundle-check开发验收程序。
+- 首次主程序逐字节比对发现差异，定位为Tauri打包时将唯一__TAURI_BUNDLE_TYPE_VAR_UNK标记改为MSI，只有3个字节变化。校验脚本确认长度、唯一标记位置与替换后的整文件SHA256，其余字节严格一致；报告保留打包前后哈希，不放宽其他文件校验。
+- 业务改动与新增文件已完成diff复核；最终补齐README快照节的v11、三格式报告和旧v9/v10页面重载说明。target/gif-stage3-documents-261012.mjs检查10份文档的186个本地链接、NUL及尾随空白通过，git diff --check通过；构建/证据继续由Git排除。未运行新安装包或GUI，不将解包、后端部署或模拟IPC结果写成安装与视觉已通过。
+
+### 第三阶段交接与手测清单
+
+- 当前dev/6209a23与本地origin/dev同SHA，本轮源码、协议生成类型、前端、构建/CI和文档均为本机未提交修改。按AGENTS.md须得到明确提交/推送授权后再执行；建议提交信息：feat: 接通GIF随包资源与v11三格式桌面工作流。授权后检查实际新SHA的三平台结果，失败先定位修复，不能沿用前序CI。
+- Windows新包：安装、启动、关闭与卸载；确认PNG/JPEG/GIF实际可用，启动/任务/退出日志正常。无WebView2环境沿用用户的后置安排；无开发工具的隔离系统及macOS/Linux安装继续分别取得证据。
+- 导入与模式：文件/目录选择、图片区域拖放；静态与动画GIF、三格式混合；默认有损模式中GIF逐行失败，PNG/JPEG继续，切无损后重试GIF，成功项保持不动且后台任务不因页面重载重跑。
+- 输出与查看：指定目录副本、保留结构、同目录冲突、覆盖前备份及原始GIF扩展名大小写；失败/NoGain原图保留；结果/备份定位、完成批次输出目录入口按实际输出工作，结合A1剩余原生场景验收。
+- 预览与视觉：GIF缩略图仅显示第一幅完整画布，含透明/偏移样本；JPEG方向预览保持正确。外部打开真实GIF复核播放速度、循环及观感，应用内不提供动画播放。检查亮暗、中英文、小窗口和不同DPI下的提示、详情与按钮；未测项保持待验。
+- 本连续任务继续活动，下一入口为提交授权、新SHA CI及上述手测反馈；GIF有损质量/闪烁实验与APNG仍按后续阶段推进。

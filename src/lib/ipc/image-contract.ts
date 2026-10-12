@@ -13,6 +13,7 @@ const failures = {
   unsupported_animation: true,
   unsupported_content_credentials: true,
   unsupported_jpeg_credentials: true,
+  unsupported_gif_mode: true,
   unsupported_metadata: true,
   resource_limit: true,
   decode: true,
@@ -89,6 +90,16 @@ function report(job: JobDto): void {
     if (value.details.kind === 'lossless_fallback') {
       requireContract(Object.hasOwn(jpegFallbacks, value.details.reason.kind));
     }
+  } else if (value.format === 'gif') {
+    requireContract(job.state.report.contentCredentialsRemoved === false);
+    requireContract(value.details.kind === 'lossless');
+    requireContract(
+      Number.isInteger(value.details.frames) &&
+        value.details.frames > 0 &&
+        value.details.frames <= 0xffffffff,
+    );
+    const loops = value.details.loopCount;
+    requireContract(loops === null || (Number.isInteger(loops) && loops >= 0 && loops <= 65535));
   } else {
     if (value.details.kind === 'lossy') requireContract(quality(value.details.measuredQuality));
     if (value.details.kind === 'lossless_fallback') {
@@ -101,12 +112,14 @@ function report(job: JobDto): void {
   }
 }
 
-/** v10格式边界：实际能力与行/报告一致，JPEG错误不能进入PNG移除凭据提示。 */
+/** v11格式边界：实际能力与行/报告一致，JPEG/GIF不继承PNG凭据许可。 */
 export function validateImages(snapshot: TaskSnapshotDto): void {
   const formats = snapshot.supportedFormats;
-  requireContract(Array.isArray(formats) && formats.length >= 1 && formats.length <= 2);
+  requireContract(Array.isArray(formats) && formats.length >= 1 && formats.length <= 3);
   requireContract(formats.includes('png') && new Set(formats).size === formats.length);
-  requireContract(formats.every((format) => format === 'png' || format === 'jpeg'));
+  requireContract(
+    formats.every((format) => format === 'png' || format === 'jpeg' || format === 'gif'),
+  );
   if (snapshot.error?.code === 'file') failure(snapshot.error.failure);
   const page = snapshot.page;
   if (page.kind === 'candidates' || page.kind === 'jobs') {

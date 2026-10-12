@@ -40,6 +40,16 @@ function JobResult({ job, language }: { job: JobDto; language: Language }) {
                 {t('jpegNativeQuality')}: {state.report.processing.details.nativeQuality}
               </small>
             )}
+          {state.report.processing.format === 'gif' && (
+            <small>
+              {t('gifFrames')}: {state.report.processing.details.frames} · {t('gifLoopCount')}:{' '}
+              {state.report.processing.details.loopCount === null
+                ? t('gifNoLoop')
+                : state.report.processing.details.loopCount === 0
+                  ? t('gifInfiniteLoop')
+                  : state.report.processing.details.loopCount}
+            </small>
+          )}
           {state.report.outputName && (
             <small>
               {t('outputName')}: <Name value={state.report.outputName} t={t} />

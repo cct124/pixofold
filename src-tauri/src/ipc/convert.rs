@@ -4,6 +4,7 @@ use super::dto::*;
 use crate::tasks::{TaskError, TaskSnapshot};
 use pixofold_core::{
     batch::*,
+    gif::{GifError, GifValidationCode},
     import::*,
     jpeg::{JpegError, JpegLossyFallbackReason, JpegProcessing},
     model::*,
@@ -95,6 +96,35 @@ fn jpeg_cause(error: &JpegError) -> RecoveryCauseDto {
     RecoveryCauseDto::Failed { code }
 }
 
+fn gif_cause(error: &GifError) -> RecoveryCauseDto {
+    let code = match error {
+        GifError::InvalidLimits => JobErrorDto::InvalidInput,
+        GifError::UnsupportedGif => JobErrorDto::UnsupportedFormat,
+        GifError::UnsupportedMode => JobErrorDto::UnsupportedGifMode,
+        GifError::Validation(error) => match error.code {
+            GifValidationCode::InvalidGif => JobErrorDto::InvalidInput,
+            GifValidationCode::Decode => JobErrorDto::Decode,
+            GifValidationCode::UnsupportedMetadata => JobErrorDto::UnsupportedMetadata,
+            GifValidationCode::UnsupportedInteraction | GifValidationCode::UnsupportedTiming => {
+                JobErrorDto::UnsupportedAnimation
+            }
+            GifValidationCode::ResourceLimit => JobErrorDto::ResourceLimit,
+            GifValidationCode::TimedOut => JobErrorDto::TimedOut,
+            GifValidationCode::Cancelled => return RecoveryCauseDto::Cancelled,
+        },
+        GifError::ResourceLimit(_) => JobErrorDto::ResourceLimit,
+        GifError::ToolIdentity => JobErrorDto::ToolIdentity,
+        GifError::ToolIo { .. } => JobErrorDto::ToolIo,
+        GifError::ToolExit(_) => JobErrorDto::ToolExit,
+        GifError::Timeout => JobErrorDto::TimedOut,
+        GifError::Cancelled => return RecoveryCauseDto::Cancelled,
+        GifError::ValidationFailed => JobErrorDto::Validation,
+        GifError::File(error) => return recovery_cause(error),
+        GifError::Cleanup { .. } => JobErrorDto::CleanupFailed,
+    };
+    RecoveryCauseDto::Failed { code }
+}
+
 fn failure(value: &JobFailure) -> Result<JobFailureDto> {
     let mut recovery = RecoveryDto {
         backup_name: None,
@@ -119,6 +149,29 @@ fn failure(value: &JobFailure) -> Result<JobFailureDto> {
                         recovery.temporary_name = Some(name(temporary));
                     }
                     recovery.original_error = original.as_deref().map(jpeg_cause);
+                    current = original.as_deref();
+                }
+                _ => break,
+            }
+        }
+    }
+    if let Some(ImageError::Gif(error)) = value.cause.as_deref() {
+        let mut current = Some(error);
+        while let Some(error) = current {
+            match error {
+                GifError::File(error) => {
+                    cause = Some(error);
+                    break;
+                }
+                GifError::Cleanup {
+                    temporary,
+                    original,
+                    ..
+                } => {
+                    if recovery.temporary_name.is_none() {
+                        recovery.temporary_name = Some(name(temporary));
+                    }
+                    recovery.original_error = original.as_deref().map(gif_cause);
                     current = original.as_deref();
                 }
                 _ => break,
@@ -151,6 +204,11 @@ fn failure(value: &JobFailure) -> Result<JobFailureDto> {
             Some(ImageError::Jpeg(JpegError::ProtectedMetadata(0xeb)))
         ) {
             JobErrorDto::UnsupportedJpegCredentials
+        } else if matches!(
+            value.cause.as_deref(),
+            Some(ImageError::Gif(GifError::UnsupportedMode))
+        ) {
+            JobErrorDto::UnsupportedGifMode
         } else {
             value.code.try_into()?
         },
@@ -300,7 +358,13 @@ fn jpeg_processing(value: JpegProcessing) -> JpegProcessingDto {
 }
 fn report(value: &ImageReport) -> Result<ReportDto> {
     let (elapsed, processing) = match value {
-        ImageReport::Gif(_) => return Err(QueryError::InvalidSnapshot),
+        ImageReport::Gif(report) => (
+            report.elapsed,
+            ProcessingDto::Gif(GifProcessingDto::Lossless {
+                frames: count(report.image.frames)?,
+                loop_count: report.image.loop_count,
+            }),
+        ),
         ImageReport::Png(report) => (
             report.elapsed,
             ProcessingDto::Png(png_processing(report.processing)),

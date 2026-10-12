@@ -85,6 +85,9 @@ export function WorkspaceSettings({
             </button>
           ))}
         </fieldset>
+        {view.snapshot?.supportedFormats.includes('gif') && (
+          <p className={styles.scope}>{t(lossless ? 'gifPreviewHint' : 'gifLosslessOnly')}</p>
+        )}
         <section className={styles.quality} aria-labelledby="qualityTitle">
           <div className={styles.qualityHeading}>
             <h3 id="qualityTitle">{t('quality')}</h3>

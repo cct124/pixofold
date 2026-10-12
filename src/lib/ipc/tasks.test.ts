@@ -98,6 +98,95 @@ it('validates actual format capabilities and JPEG reports at the IPC boundary', 
   }
 });
 
+it('validates v11 GIF lossless reports, loops, credentials and the mode error', async () => {
+  vi.mocked(isTauri).mockReturnValue(true);
+  const report = {
+    inputBytes: '500',
+    outputBytes: '500',
+    elapsedMs: '2',
+    outputName: null,
+    backupName: null,
+    contentCredentialsRemoved: false,
+    processing: { format: 'gif', details: { kind: 'lossless', frames: 3, loopCount: 0 } },
+  } as const;
+  const job: JobDto = {
+    id: 1,
+    attempt: 1,
+    format: 'gif',
+    mode: { kind: 'lossless' },
+    inputBytes: '500',
+    sourceName: { text: 'sample.GIF', lossy: false, truncated: false, sanitized: false },
+    state: { kind: 'no_gain', report },
+  };
+  const response: TaskSnapshotDto = {
+    ...snapshot(),
+    supportedFormats: ['png', 'gif'],
+    page: { kind: 'jobs', offset: 0, total: 1, items: [job] },
+  };
+  const resolve = async (
+    row: unknown,
+    formats: unknown = response.supportedFormats,
+    version = TASK_PROTOCOL_VERSION,
+  ) => {
+    vi.mocked(invoke).mockResolvedValue({
+      ...response,
+      protocolVersion: version,
+      supportedFormats: formats,
+      page: { ...response.page, items: [row] },
+    });
+    return getTaskSnapshot(request());
+  };
+  for (const loopCount of [null, 0, 1, 65535]) {
+    await expect(
+      resolve({
+        ...job,
+        state: {
+          kind: 'no_gain',
+          report: {
+            ...report,
+            processing: { format: 'gif', details: { kind: 'lossless', frames: 3, loopCount } },
+          },
+        },
+      }),
+    ).resolves.toBeDefined();
+  }
+  await expect(resolve(job, ['png', 'jpeg', 'gif'])).resolves.toBeDefined();
+  await expect(resolve(job, ['png'])).rejects.toThrow('image contract');
+  await expect(resolve(job, ['png', 'gif', 'apng'])).rejects.toThrow('image contract');
+  await expect(resolve(job, ['png', 'gif'], TASK_PROTOCOL_VERSION - 1)).rejects.toThrow();
+  for (const details of [
+    { kind: 'lossy', frames: 3, loopCount: 0 },
+    { kind: 'lossless', frames: 0, loopCount: 0 },
+    { kind: 'lossless', frames: 1.5, loopCount: 0 },
+    { kind: 'lossless', frames: 3, loopCount: -1 },
+    { kind: 'lossless', frames: 3, loopCount: 65536 },
+    { kind: 'lossless', frames: 3 },
+  ]) {
+    await expect(
+      resolve({
+        ...job,
+        state: { kind: 'no_gain', report: { ...report, processing: { format: 'gif', details } } },
+      }),
+    ).rejects.toThrow('image contract');
+  }
+  await expect(
+    resolve({
+      ...job,
+      state: { kind: 'no_gain', report: { ...report, contentCredentialsRemoved: true } },
+    }),
+  ).rejects.toThrow('image contract');
+  await expect(resolve({ ...job, mode: { kind: 'lossy', quality: 80 } })).rejects.toThrow(
+    'image contract',
+  );
+  await expect(
+    resolve({
+      ...job,
+      mode: { kind: 'lossy', quality: 80 },
+      state: { kind: 'failed', failure: { code: 'unsupported_gif_mode', recovery: null } },
+    }),
+  ).resolves.toBeDefined();
+});
+
 describe('read-only task IPC', () => {
   beforeEach(() => {
     vi.mocked(invoke).mockReset();

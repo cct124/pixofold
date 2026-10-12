@@ -4,7 +4,14 @@
 #[path = "../src/lib.rs"]
 pub mod desktop;
 pub use desktop::tasks;
-pub(crate) use desktop::{assets, diagnostics, ingress, ipc, lifecycle, resources, subscriptions};
+pub(crate) use desktop::{
+    assets, diagnostics, gif_bundle, ingress, ipc, jpeg_bundle, lifecycle, subscriptions,
+};
+#[cfg(feature = "bundle-check")]
+pub(crate) use desktop::{engine_bundle, resources};
 
 #[path = "../build-support/jpeg.rs"]
 mod jpeg_build;
+
+#[path = "../build-support/gif.rs"]
+mod gif_build;

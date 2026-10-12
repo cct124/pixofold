@@ -99,7 +99,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         return Err("存在意外输出或临时残留".into());
     }
     let desktop = pixofold_desktop_lib::bundle_check::verify(
-        engine,
+        pixofold_core::batch::ImageEngines::with_jpeg(engine),
         source.parent().ok_or("缺少样本目录")?,
         &output.join("desktop"),
     )?;
