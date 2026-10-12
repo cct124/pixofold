@@ -13,5 +13,10 @@ CMakeLists.txt text eol=lf
 *.yml text eol=lf
 *.svg text eol=lf
 *.png binary
+*.[jJ][pP][gG] binary
+*.[jJ][pP][eE][gG] binary
+*.[gG][iI][fF] binary
+*.[aA][pP][nN][gG] binary
+tests/manual-images/licenses/*.txt -text
 *.ico binary
 *.icns binary

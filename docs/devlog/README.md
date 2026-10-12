@@ -11,6 +11,7 @@
 
 ## 活动任务
 
+- 本机完成、待提交：[公开图片手测素材收集与版本管理](_plan/261012/public-image-test-resources.md)。tests/manual-images保存32张、18.18MiB原件及来源/许可；samples:check已接入统一语料检查，samples:prepare可离线创建全新工作副本。原件/副本哈希、重复准备及lint/格式检查通过，首次提交推送后可Git恢复与跨电脑复用。
 - P0完成、用户确认功能正常及卸载：[J2第一段平台基线](_plan/261009/jpeg-desktop-bundle.md)。0f4fcfd六个CI jobs通过；安装目录产物身份、启动/提交/退出已有日志证据，缺少WebView2的环境按用户安排后置，无开发工具隔离系统尚无独立证据。
 - 完成归档：[J1b第二段连续记录](_fin/261009/jpeg-mixed-batch.md)。7863652六个jobs全部通过，Windows最后于11:27:58完成，真实混合核心与共用资源准入阶段收口；此结果不覆盖本轮J2改动。
 - 阶段1代码及平台门槛完成：[J2第二段桌面混合工作流](_plan/261009/jpeg-desktop-workflow.md)。5f68448已入库；94dd86c六个jobs通过，照片/大图/工作集、新MSI及资源部署证据已具备。新修复包实际安装/GUI、无开发工具系统与细分视觉范围继续独立记录，完整J2任务保持活动。

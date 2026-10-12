@@ -73,6 +73,8 @@ pnpm desktop:dev
 | `pnpm desktop:build` | 构建当前平台的应用和安装包 |
 | `cargo test -p pixofold-core --locked` | 独立测试核心，不需要 GUI |
 | `pnpm fixtures:check` | 只读重生成并核对 PNG / GIF 语料、预期与 SHA256 清单 |
+| `pnpm samples:check` | 离线核对公开手测图片与许可文件的原始 SHA256；已纳入 fixtures:check |
+| `pnpm samples:prepare` | 从仓库原件在 .temp/manual-images-* 创建新的完整测试副本，供覆盖与混合导入 |
 | `pnpm gif:fixtures:generate` / `pnpm gif:fixtures:check` | 生成 / 只读核对 GIF 首轮语料和人工画布、时间轴预期 |
 | `pnpm gif:lab:build` | 下载并校验固定 Gifsicle 1.96 源码，独立构建开发实验工具；Windows 使用 MSVC 与 CMake |
 | `pnpm gif:lab:check` | 独立 GIF 播放验证、真实 Gifsicle 六组无损配方与隔离输出实验；须先 build |
@@ -88,6 +90,8 @@ pnpm desktop:dev
 | `cargo run -p pixofold-core --release --locked --example batch_profile -- SOURCE WORKERS COPIES [--confirm-credentials]` | 临时副本上测量整图并发；有损68，采样RSS/活动数；可显式移除测试副本凭据 |
 
 Windows 可执行文件位于 `target/release/pixofold.exe`，安装包位于 `target/release/bundle/`。安装包工具可能需要首次联网下载；签名、自动更新与正式发行尚未配置。
+
+[公开手测素材](tests/manual-images/README.md)在仓库保存32张PNG/JPEG/GIF/APNG原件（18.18MiB）及来源/许可；首次提交并推送后，其他电脑clone/pull即可获得。运行`pnpm samples:prepare`创建可覆盖的测试副本，再次运行会得到新的完整副本；已提交原件也可用素材说明中的`git restore`命令恢复。SHA256检查纳入统一检查，第三方图片保留自身许可，不进入桌面安装资源。
 
 JPEG 开发实验的版本、构建参数和限制见 [实验入口说明](tools/jpeg-lab/README.md)，历史结果见 [JPEG实验记录](docs/devlog/_fin/260930/jpeg-engine-lab.md)。实验工具留在 `.tools/`，语料与报告留在独立的 `target/jpeg-lab-*/`；桌面使用固定随包资源。CI 的三平台实验配置须以实际运行结果验收。
 

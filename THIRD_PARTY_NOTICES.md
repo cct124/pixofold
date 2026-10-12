@@ -36,6 +36,8 @@ PixoFold 自有代码采用 GPL-3.0-or-later；第三方组件适用其自身许
 
 应用图标沿用本仓库已确认的 PixoFold SVG 设计，桌面尺寸由 Tauri CLI 生成；本轮没有复制旧 png-palettes 业务代码。
 
+2026-10-12将32张公开手测图片整理到 [tests/manual-images](tests/manual-images/README.md)。这些图片适用各自许可，作为独立测试数据保留，不因同仓库而重许可为GPL，也不进入应用安装资源。Wikimedia Commons的三张图片选择CC BY-SA 3.0，APNG弹跳球按来源页作者公有领域授权；PngSuite保留Willem van Schaik的使用/复制/修改/分发许可；Exif方向测试集保留MIT通知；Pillow 12.0.0样本保留上游MIT-CMU通知及原始路径。逐文件作者、来源、许可链接及未改写原始字节的SHA256见 [SOURCES.json](tests/manual-images/SOURCES.json)，归属和许可原文见 [素材说明](tests/manual-images/README.md)。
+
 imagequant 来自 [ImageOptim/libimagequant](https://github.com/ImageOptim/libimagequant)，以锁定的 crates.io 源码依赖使用，未复制或修改其实现。其 COPYRIGHT 记载 Kornel Lesiński 的 GPLv3+ 改动及 Jef Poskanzer、Greg Roelofs 的原始许可/版权；分发时需保留完整 COPYRIGHT 和相应源码，不只保留本表。
 
 JPEG开发实验使用MozJPEG v4.1.5（提交`6c9f0897afa1c2738d7222a0a9ab49e8b536a267`），源码位置与SHA256固定于`tools/jpeg-lab/engine.json`。实验在`.tools/jpeg-lab/`构建cjpeg/djpeg/jpegtran与系数验证工具；J2第一段只将helper及相关许可/来源资料随桌面资源分发。上游`LICENSE.md`、`README.ijg`和各文件通知包含IJG、BSD-3-Clause、Zlib及Mozilla贡献的许可/版权；实验不修改或移除这些源码通知。后续实际随包配置须据此保留完整正文、IJG致谢及对应源码，不能以本表替代许可材料。
