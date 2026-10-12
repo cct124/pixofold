@@ -240,9 +240,15 @@ A/B稳定后接GIF桌面闭环：可信资源prepare/打包与加载、supported
 
 ### 第三阶段交接与手测清单
 
-- 当前dev/6209a23与本地origin/dev同SHA，本轮源码、协议生成类型、前端、构建/CI和文档均为本机未提交修改。按AGENTS.md须得到明确提交/推送授权后再执行；建议提交信息：feat: 接通GIF随包资源与v11三格式桌面工作流。授权后检查实际新SHA的三平台结果，失败先定位修复，不能沿用前序CI。
+- 开工基准dev/6209a23；用户随后要求提交推送，本轮源码、协议生成类型、前端、构建/CI和文档已提交3bcfe6b并同步origin/dev（6209a23..3bcfe6b）。待检查新SHA的三平台结果，失败先定位修复，不能沿用前序CI。
 - Windows新包：安装、启动、关闭与卸载；确认PNG/JPEG/GIF实际可用，启动/任务/退出日志正常。无WebView2环境沿用用户的后置安排；无开发工具的隔离系统及macOS/Linux安装继续分别取得证据。
 - 导入与模式：文件/目录选择、图片区域拖放；静态与动画GIF、三格式混合；默认有损模式中GIF逐行失败，PNG/JPEG继续，切无损后重试GIF，成功项保持不动且后台任务不因页面重载重跑。
 - 输出与查看：指定目录副本、保留结构、同目录冲突、覆盖前备份及原始GIF扩展名大小写；失败/NoGain原图保留；结果/备份定位、完成批次输出目录入口按实际输出工作，结合A1剩余原生场景验收。
 - 预览与视觉：GIF缩略图仅显示第一幅完整画布，含透明/偏移样本；JPEG方向预览保持正确。外部打开真实GIF复核播放速度、循环及观感，应用内不提供动画播放。检查亮暗、中英文、小窗口和不同DPI下的提示、详情与按钮；未测项保持待验。
-- 本连续任务继续活动，下一入口为提交授权、新SHA CI及上述手测反馈；GIF有损质量/闪烁实验与APNG仍按后续阶段推进。
+- 本连续任务继续活动，下一入口为新SHA CI及上述手测反馈；GIF有损质量/闪烁实验与APNG仍按后续阶段推进。
+
+## 2026-10-12 编写提交信息、提交与推送
+
+- 用户要求根据工作区内容编写提交信息、提交并推送，无需执行其它任务。复核范围：47份文件（新增核心gif/preview.rs、assets/gif.rs、engine_bundle/gif_bundle、build-support/gif.rs、gif-bundle程序与两个脚本、resources/gif说明；其余为DTO v11与转换、启动注入、工作台设置/行/消息/预览、CI、依赖与文档），无未暂存改动与未跟踪残留（gif runtime资源按设计由.gitignore排除），git diff --check通过。
+- 提交3bcfe6b「feat: 接通GIF随包资源与v11三格式桌面工作流」（47 files changed、1696 insertions、175 deletions）。沙箱内.git只读，add/commit/push按规则提升同一条命令执行，未绕开沙箱约束；6209a23..3bcfe6b  dev -> dev已同步origin/dev，本地与远端一致。
+- 沿用本轮已完成验证（pnpm check：161项前端、50项核心单元、117项桌面、2项doctest、PNG/GIF语料与全目标Clippy；gif:bundle:check真实protocolVersion=11与15次预览及三格式混合/稳定ID重试；jpeg:bundle:check与gif:core:check回归；Windows正式MSI与24个安装文件校验）；本次未改业务代码，不重复构建或测试。新SHA三平台结果、安装/GUI与视觉手测仍未取得，不据此声明通过。

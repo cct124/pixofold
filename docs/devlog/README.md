@@ -1,6 +1,6 @@
 # 开发交接
 
-更新日期：2026-10-12（Asia/Shanghai）。当前dev/6209a23与本地origin/dev一致，本轮修改尚未提交。[GIF动画任务](_plan/261009/animation-foundation.md)第三阶段3A可信随包与3B/v11桌面闭环已通过本机统一检查、GIF桌面隔离部署、JPEG部署回归及GIF真实核心/三格式混合验收；3C已接入三平台CI，Windows新MSI正式构建及包内资源校验通过。新代码的远端平台、安装与GUI结果继续独立验收；6209a23的9个绿色jobs只覆盖前序第一阶段与第二阶段A/B。[JPEG阶段1](_plan/261009/jpeg-desktop-workflow.md)的缺少WebView2环境按用户安排后置。
+更新日期：2026-10-12（Asia/Shanghai）。当前dev/3bcfe6b已推送origin/dev；[GIF动画任务](_plan/261009/animation-foundation.md)第三阶段3A可信随包与3B/v11桌面闭环已通过本机统一检查、GIF桌面隔离部署、JPEG部署回归及GIF真实核心/三格式混合验收并入库；3C已接入三平台CI，Windows新MSI正式构建及包内资源校验通过。新代码的远端平台、安装与GUI结果继续独立验收；6209a23的9个绿色jobs只覆盖前序第一阶段与第二阶段A/B。[JPEG阶段1](_plan/261009/jpeg-desktop-workflow.md)的缺少WebView2环境按用户安排后置。
 
 ## 当前阶段
 
@@ -14,7 +14,7 @@
 - P0完成、用户确认功能正常及卸载：[J2第一段平台基线](_plan/261009/jpeg-desktop-bundle.md)。0f4fcfd六个CI jobs通过；安装目录产物身份、启动/提交/退出已有日志证据，缺少WebView2的环境按用户安排后置，无开发工具隔离系统尚无独立证据。
 - 完成归档：[J1b第二段连续记录](_fin/261009/jpeg-mixed-batch.md)。7863652六个jobs全部通过，Windows最后于11:27:58完成，真实混合核心与共用资源准入阶段收口；此结果不覆盖本轮J2改动。
 - 阶段1代码及平台门槛完成：[J2第二段桌面混合工作流](_plan/261009/jpeg-desktop-workflow.md)。5f68448已入库；94dd86c六个jobs通过，照片/大图/工作集、新MSI及资源部署证据已具备。新修复包实际安装/GUI、无开发工具系统与细分视觉范围继续独立记录，完整J2任务保持活动。
-- 第三阶段本机实施完成、平台与手测待验：[GIF随包与三格式桌面](_plan/261009/animation-foundation.md)。可信资源/完整源码及许可、独立降级、v11能力与报告、仅无损提示、稳定ID重试和受限首帧预览已接通；pnpm check（161项前端/117项桌面及核心回归）、GIF桌面部署（15次预览）、JPEG部署与GIF真实核心均通过。Windows新MSI及24个安装文件/GIF清单14个文件校验通过；三平台CI已增加GIF桌面检查和证据上传，新SHA结果与用户安装/GUI手测待验，代码保留本机未提交。
+- 第三阶段本机实施完成、平台与手测待验：[GIF随包与三格式桌面](_plan/261009/animation-foundation.md)。可信资源/完整源码及许可、独立降级、v11能力与报告、仅无损提示、稳定ID重试和受限首帧预览已接通；pnpm check（161项前端/117项桌面及核心回归）、GIF桌面部署（15次预览）、JPEG部署与GIF真实核心均通过。Windows新MSI及24个安装文件/GIF清单14个文件校验通过，已提交3bcfe6b并推送origin/dev（6209a23..3bcfe6b）；三平台CI已增加GIF桌面检查和证据上传，新SHA结果与用户安装/GUI手测待验。
 - 2026-10-09完成归档：[A0 Windows基线](_fin/261009/png-native-name-portability.md)、[J1a单文件无损](_fin/261009/jpeg-lossless-core.md)、[J1b第一段单文件保守有损](_fin/261009/jpeg-lossy-core.md)。归档依据为c287f4e的六个jobs全部通过，创建日期与历史过程保留；照片/大图观感、GUI/安装继续分别验收，混合批次另见J1b第二段。
 
 - UI反馈修正待复测：[详情精简与操作颜色](_plan/260922/png-batch-desktop.md)。去掉浮层顶部原文件名与重复状态，保留参数/耗时/输出备份及错误；可用查看按钮与详情使用相同主题强调色，禁用态保留区分。155项前端与正式构建通过，已提交f6ab268并推送origin/dev（cd7f756..f6ab268）；未控制用户运行的开发程序，亮暗/中英的最终外观待用户复核。
@@ -28,7 +28,7 @@
 
 ## 后续优先顺序
 
-1. 取得GIF第三阶段的明确提交/推送授权，核对实际新SHA的三平台统一检查、JPEG/GIF隔离部署和桌面混合CI；本机实现与新MSI证据见[动画任务](_plan/261009/animation-foundation.md)。
+1. GIF第三阶段已提交3bcfe6b并推送，待核对新SHA的三平台统一检查、JPEG/GIF隔离部署和桌面混合CI；本机实现与新MSI证据见[动画任务](_plan/261009/animation-foundation.md)。
 2. 使用本轮新Windows MSI执行安装/启动/卸载、三格式工作台及输出/备份/定位手测，按动画任务清单逐项记录原生与视觉结果。
 3. JPEG/A1的剩余原生/视觉矩阵结合新包收尾；用户已反馈卸载通过，缺少WebView2环境按其安排后置，无开发工具隔离系统仍单独记录。
 4. GIF桌面稳定后推进GIF有损质量/闪烁实验与映射，再推进APNG语料/独立播放验证及无损核心，APNG有损继续分批验收。各目标平台发行资料独立验收，PNG性能专项仍按实际回归触发。

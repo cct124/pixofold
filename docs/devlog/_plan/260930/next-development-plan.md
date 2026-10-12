@@ -419,4 +419,4 @@ J1a验收重点：真实JPEG无损不变量与元数据策略通过；损坏/截
 
 - 已按3A→3B顺序接通GIF可信随包、独立部署、v11能力/报告/错误、三格式工作台、GIF仅无损模式提示及受限静态首帧。pnpm check、gif:bundle:check、jpeg:bundle:check与gif:core:check本机通过，详细证据续记[动画任务](../261009/animation-foundation.md)本日实施节。
 - 3C已增加三平台GIF部署/桌面混合CI和证据上传，Windows新MSI正式构建及24个安装文件/GIF清单14个文件校验通过。交付副本target/deliverables/261012-gif-v11/PixoFold_0.1.0_x64_en-US.msi，详细哈希、主程序预期打包标记差异和手测清单见动画任务。新SHA远端验证依赖后续明确提交/推送授权；实际安装、GUI与视觉矩阵继续独立验收，旧SHA绿色结果不覆盖本轮代码。
-- 本次最终diff已审阅，git diff --check通过；node target/gif-stage1-documents-261010.mjs检查10份文档的185个本地链接、NUL及尾随空白全部通过。HEAD与本地origin/dev的左右差异为0/0。
+- 本次最终diff已审阅，git diff --check通过；node target/gif-stage1-documents-261010.mjs检查10份文档的185个本地链接、NUL及尾随空白全部通过。HEAD与本地origin/dev的左右差异为0/0。本轮改动随后按用户指令提交为3bcfe6b并推送origin/dev（6209a23..3bcfe6b），新SHA三平台结果待取得。
