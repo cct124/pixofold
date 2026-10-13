@@ -1,7 +1,7 @@
 # 动画验证底座与GIF最小实验
 
 - 创建日期：2026-10-09（Asia/Shanghai）。
-- 状态：2026-10-10第一阶段及第二阶段A单文件无损核心、B核心混合批次的Windows本机门槛已完成；完整检查、真实核心/混合、候选篡改和168项实验复验均通过，并已提交0c0693f推送origin/dev（94dd86c..0c0693f）。三平台新SHA验证待核对。桌面GIF开放、APNG及有损随后分批实施。
+- 状态：截至2026-10-13，GIF无损核心与v11桌面第三阶段已入库；0830dab三平台9个CI jobs通过，Windows五组手测及日志核对已记录。下一主线为GIF有损最小实验，再接生产/桌面，随后APNG无损；完整动画任务继续活动。其他平台实际安装、无开发工具环境及后置的无WebView2环境按各自范围验收。
 - 分支/基准：dev/0f4fcfd0825f51542d5d2658da600d21e0174350，业务a21d330，开工本地/远端一致且工作区干净。
 - 关联：[阶段计划](../260930/next-development-plan.md)、[J2桌面混合工作流](jpeg-desktop-workflow.md)、[项目方案](../../../架构设计文档/pixofold-proposal.md)。
 
@@ -252,3 +252,71 @@ A/B稳定后接GIF桌面闭环：可信资源prepare/打包与加载、supported
 - 用户要求根据工作区内容编写提交信息、提交并推送，无需执行其它任务。复核范围：47份文件（新增核心gif/preview.rs、assets/gif.rs、engine_bundle/gif_bundle、build-support/gif.rs、gif-bundle程序与两个脚本、resources/gif说明；其余为DTO v11与转换、启动注入、工作台设置/行/消息/预览、CI、依赖与文档），无未暂存改动与未跟踪残留（gif runtime资源按设计由.gitignore排除），git diff --check通过。
 - 提交3bcfe6b「feat: 接通GIF随包资源与v11三格式桌面工作流」（47 files changed、1696 insertions、175 deletions）。沙箱内.git只读，add/commit/push按规则提升同一条命令执行，未绕开沙箱约束；6209a23..3bcfe6b  dev -> dev已同步origin/dev，本地与远端一致。
 - 沿用本轮已完成验证（pnpm check：161项前端、50项核心单元、117项桌面、2项doctest、PNG/GIF语料与全目标Clippy；gif:bundle:check真实protocolVersion=11与15次预览及三格式混合/稳定ID重试；jpeg:bundle:check与gif:core:check回归；Windows正式MSI与24个安装文件校验）；本次未改业务代码，不重复构建或测试。新SHA三平台结果、安装/GUI与视觉手测仍未取得，不据此声明通过。
+
+## 2026-10-13 用户完成Windows手测后的日志复核
+
+- 用户反馈前述5组检查均已完成：安装/启动/关闭/卸载与三格式可用性；原生选择/拖放/混合及GIF模式重试；输出/备份/冲突/定位；GIF/JPEG预览与外部播放；亮暗/中英/窗口/DPI。未报告具体异常，要求进一步从日志检查问题；本轮按用户反馈记录已完成，日志证据单独核对。
+- 开工dev/0830dab，与本地origin/dev一致，工作区干净；前序GIF业务3bcfe6b与公开素材737f622已入库。
+- 仓库logs最新为10月9日；当前正式版用户temp_dir下找到10月12日17:25:17启动、10月13日10:48:35最后修改的20,063-byte会话。沙箱临时目录隔离，提升仅用于只读访问正式版日志并在Git排除的target目录保留分析快照；不运行/终止/卸载应用。
+- 下一步：解析会话/任务终态、错误类别、输出与退出顺序及日志健康；发现可复现业务问题再定位代码，验收记录按日志实际覆盖范围更新。
+
+### 日志结果（Asia/Shanghai，本轮复核完成）
+
+- 已保存原始快照与只读分析脚本至target/gif-manual-review-261013/，均由Git排除。原文件run-1791797117836-vEK9HmE7aDwS.jsonl，20,063 bytes，SHA256 df27575c9da499bd56d00f2540b94607ac79286b153f159bc68c74622cfd897c；76行JSON均可解析，带sequence的1–75连续且无重复，末条为独立健康汇总。版本release/0.1.0、Windows x86_64，会话自2026-10-12 17:25:17至2026-10-13 10:48:35。
+- 启动含jpeg_engine_verified和gif_engine_verified；worker池30个、CPU线程32、预算4,111,122,432 bytes。日志没有构建SHA，不能单凭0.1.0头部验证确切安装包身份；本轮不读取或启动安装程序。
+- 4个单图批次均完成，按batch_id/job_id/attempt分别核对，每项恰好一次job_started/job_finished，无重复终态或未闭合运行项；batch_finished计数与行结果一致。成功3项、NoGain 1项、失败0、取消0。成功路径均Reading→Optimizing→Validating→BeforeCommit且commit开始/成功成对，NoGain无提交事件。
+
+| 批次 | 本地结束时间 | 结果 | 输入→输出bytes | 单项耗时 | 输出策略 |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 10-13 10:44:36 | succeeded | 15,305→15,297 | 83ms | copy |
+| 2 | 10-13 10:45:05 | succeeded | 15,305→15,297 | 25ms | copy |
+| 3 | 10-13 10:45:47 | no_gain | 1,001,718→1,001,718 | 403ms | 未提交 |
+| 4 | 10-13 10:48:11 | succeeded | 146,690→134,756 | 119ms | overwrite_without_backup |
+
+- 4次thumbnail均ok，耗时2/2/2/4ms；同时检查INFO级result/error_code，没有被日志级别掩盖的展示失败。WARN/ERROR均0，未出现WorkerPanicked、ServiceFault、ToolIdentity/ToolIo/ToolExit/TimedOut、CommitFailed/CleanupFailed或shutdown_failed的已记录故障。
+- 10:48:35出现application_stopping(exit_code=0)，其后session_finished，dropped_events=0、write_failures=0。源码lifecycle在订阅/任务shutdown及资产wait_idle后记录application_stopping，和这次正常收尾一致；本轮未检查OS残留进程或对所有临时文件作文件系统审计，不扩展为任意强杀场景保证。elapsedMs约6,260万为应用累计运行时间，任务耗时用elapsed_ms，不能误读成单张处理十几小时。
+- 11次扫描均Complete，候选数依次1、1、1、0、0、0、0、0、0、0、1。selection 4–10发生在10:46:01–10:47:05，共7次0候选，均没有进入批次。tasks/worker.rs仅记录scan.files().len()与status，扫描单项失败/不支持/重复/排除项留在ImportScan.issues()及progress，没有写入日志。用户随后说明当时导入“apng和应该是受保护的jpg文件？”。源码probe遇acTL/fcTL/fdAT返回UnsupportedAnimation，JPEG结构检查对APP11/JUMBF保护及不支持元数据拒绝，故结合操作说明与当前边界相符，没有新增扫描缺陷证据。JPEG“受保护”仍是用户推测，缺少逐项日志，未将其具体类别或7次输入逐一认定。
+- 本会话未出现多行混合批次、batch_retry_started、attempt>1、备份创建/保留、reveal或输出目录展示事件。格式/输入方式/源路径也未写入日志，无法仅凭相同字节数认定某个具体样本。用户明确反馈5组手测已完成，作为用户验收记录保留；本日志独立证据只覆盖上述实际事件，亮暗/中英/DPI、动画观感、安装/卸载不能从JSONL推导。
+- 结论：在可观察运行范围内未发现明确业务故障；空候选已收到APNG/可能受保护JPEG的操作说明，与当前拒绝范围相符，尚无改动业务代码的证据。python target/gif-manual-review-261013/audit.py通过，report.json记录上述配对、终态、提交顺序与健康核对；两份开发文档的34个本地链接、NUL/尾随空白及git diff --check通过。仅维护开发记录和索引；未运行GUI/压缩/安装、未修改业务代码、未重复构建/测试、未查询或宣称新SHA三平台CI，也未提交推送。后续入口为核对新SHA平台门槛；无WebView2/无开发工具环境沿原计划分别验收，未来若加强日志可补充不含路径的扫描拒绝类别计数。
+
+## 2026-10-13 平台门槛收口与第四阶段计划
+
+- 用户询问下一步合理开发计划。本轮只读核对代码、远端分支/CI并更新连续计划；开工dev/0830dab，保留此前日志复核的两份未提交文档修改。GitHub分支dev与本地HEAD均为0830dab88a55e3c8338a0438bb2346a56f20fdcf。
+- [CI run38234086653](https://github.com/cct124/pixofold/actions/runs/38234086653)，push/dev、attempt1，2026-10-12 18:05:14创建、18:20:18最后更新（Asia/Shanghai），completed/success。核对最新attempt全部9个jobs及关键步骤，详情保存target/gif-phase4-plan-261013/ci-0830dab.json。
+
+| 平台 | Check job | JPEG engine lab job | GIF lossless lab job |
+| --- | --- | --- | --- |
+| Windows | 114760798744 | 114760798759 | 114760798379 |
+| Ubuntu 24.04 | 114760798831 | 114760798679 | 114760798706 |
+| macOS | 114760798883 | 114760798735 | 114760798675 |
+
+- 三平台Check的统一检查、桌面正式构建、JPEG隔离部署、GIF隔离部署及PNG/JPEG/GIF混合步骤均success；三平台JPEG/GIF实验和真实核心/混合步骤均success。统一检查在该SHA包含samples:check，确认32张公开原件/4份许可的跨平台checkout后哈希门槛通过；这不扩展为所有系统的GUI/安装或prepare命令手测。
+- 因此上节“新SHA三平台待核”在本次查询后收口，已完成的Windows手测不再重复列为普遍阻塞；完整动画任务尚有有损/APNG，继续活动。没有当前故障证据要求重做输出层、线程池、原生授权或性能专项。
+
+### 小批补充：扫描诊断（可与4A并行，尚未实施）
+
+- 根据本次7次空候选调查，给import_scan_finished增加accepted/rejected/excluded/duplicates及有界错误类别计数，区分unsupported_animation、JPEG凭据/元数据、资源、I/O、重复与产物排除。来源复用ImportScan.issues/progress，日志保持固定字段白名单，不输出路径、文件名、请求Debug或元数据正文。
+- 如为关联混合任务补充format/mode，只记录冻结请求中的受控枚举。保持现有UI/任务行为及协议不变，不改变保护文件拒绝策略。
+- 验收：APNG、保护/不支持JPEG、重复/备份排除分别得到正确类别计数；日志隐私过滤和正常退出健康回归通过。此项是诊断能力改进，不能据此追溯补造已保存会话的拒绝原因。
+
+### 4A：GIF有损最小实验（下一主要代码交付）
+
+1. 固定现有Gifsicle 1.96与有界helper、careful O2基线，实验范围先聚焦原生lossy参数。先核对固定源码内参数语义，以少量原生强度点比较，不直接将UI的0–100质量作为lossiness，也不先升级编码器。调色板缩减/抖动仅在结果需要时另列对照，避免首轮叠加多个变量。
+2. 复用45项确定性语料与公开手测GIF，再补少量来源/许可明确的文字/UI、插画、透明边缘、照片动画和录屏运动样本。当前6张公开GIF不足以独立覆盖全部观感边界，新增样本限制总规模并保存哈希。
+3. 现有Playback::equivalent依赖完整画面哈希，仅适用于无损；建立独立有损判定。结构合法、画布、循环、精确时间轴及透明覆盖、保护/评论元数据为硬门槛；按时间段对齐比较完整合成画面，允许已证明合理的帧分块/合并，不能依赖帧数相同。双背景继续覆盖；像素误差与帧间误差变化另作有界质量评估，保留无损判定路径。
+4. 对每个样本记录原图/无损/有损体积、耗时、采样工作集、空间误差与时域误差变化；不能把正常运动量直接当作闪烁。输出可查看的原图/候选动画和对比报告，人工观察文字、透明边缘、背景残留和循环接缝；阈值及默认质量方案由实际实验决定。
+5. 执行仍在隔离目录，保留源SHA256；取消/超时/资源超限/结构或时间轴改变必须识别并收尾。实验命令名称与报告模式在实现时固定；4A不先开放生产有损能力，也不为使实验通过而放宽现有安全拒绝。
+
+完成条件：既有无损回归保持；硬语义负例能被拒绝；得到可复现的收益/质量/资源对照及质量映射候选，明确适用与拒绝范围。若没有稳定收益或可接受观感，保留GIF无损并转向APNG无损，避免无限扩展参数搜索。
+
+### 4B/4C：实验通过后接入核心、桌面与产品验收
+
+- 4B增加GIF专属质量映射与版本、请求/processing报告，明确实际有损、无损回退及NoGain；有效质量参数按批次冻结，普通重试保持稳定ID、原输出/备份策略与现有授权。安全验证/工具错误保留失败语义，质量/收益门槛下的回退策略在报告中明确。不得复用PNG凭据移除或质量测量语义。
+- 资源预约覆盖新的双输入/候选画面比较缓冲和原生工作集，实际执行同一收紧限额；取消/超时/关闭仍等子进程、管道和临时产物回收后释放许可。复验源变化、候选替换、逐行/全部目标冲突、备份/NoGain及混合批次。
+- 4C同批迁移Rust DTO/生成TS/运行时验证/能力与详情，按报告契约升级协议（预计v12）；移除“GIF仅无损”提示必须以真实生产能力为前提。核心、统一检查、JPEG/PNG回归、GIF bundle、实际新SHA三平台、新MSI及有损动画观感分层验收。
+
+### 第五阶段：APNG无损
+
+- GIF有损阶段收口后，先建立APNG独立结构/CRC/序号/声明帧数、精确有理数延时、默认图参与/不参与动画、SOURCE/OVER及NONE/BACKGROUND/PREVIOUS验证与拒绝语料。
+- 通过独立编码方案实验后，再接有界无损核心、混合调度、协议/预览/桌面和部署。不能仅删除静态PNG的acTL/fcTL/fdAT拒绝，将首帧压缩误作动画支持；APNG有损继续单独推进。
+- JPEG凭据移除、零延时GIF语义扩展、无WebView2/隔离系统、其他平台安装及没有当前回归依据的性能专项各自保留边界，按明确需求或证据安排。

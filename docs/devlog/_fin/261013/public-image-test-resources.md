@@ -2,7 +2,8 @@
 
 - 创建日期：2026-10-12（Asia/Shanghai）。
 - 首次归档日期：2026-10-12（Asia/Shanghai）；同日按用户后续要求续开，保留收集过程。
-- 状态：本机整理与验证完成；Git目录、命令及说明可审阅，尚未提交/推送。
+- 本次归档日期：2026-10-13（Asia/Shanghai）。
+- 状态：完成；737f622素材与工具、0830dab交接补记已推送，0830dab三平台统一检查包含samples:check并全部通过。各系统GUI使用素材不属于本任务验收。
 - 基准：dev/9cccc2a；开工工作区干净。
 - 用户要求：从公开网络搜集PNG、JPEG、GIF、APNG，在仓库.temp下新建目录，供本机测试。
 
@@ -62,3 +63,9 @@
 - 用户要求根据工作区内容编写提交信息、提交并推送，无需执行其它任务。复核范围：46份文件（tests/manual-images 39份：32张图片/4份许可/SOURCES.json/SHA256SUMS.txt/README；新增tools/manual-images.mjs与本计划；.gitattributes、package.json、根README、第三方说明与索引），无未暂存改动与未跟踪残留，git diff --check通过。
 - 提交737f622「feat: 纳入手测公开图片素材与离线校验命令」（46 files changed、1727 insertions、1 deletion）。沙箱内.git只读，add/commit/push按规则提升同一条命令执行，未绕开沙箱约束；9cccc2a..737f622  dev -> dev已同步origin/dev，本地与远端一致。
 - 沿用本轮已完成验证（fixtures:check含34项PNG、45项GIF与32张手测图片/4份许可；两次prepare副本哈希与原件一致且互不覆盖；Oxlint/Prettier通过；此前collect.py的逐帧解码与Exif方向证据保留在上节）；本次未改业务代码，不重复下载、解码或构建。其他系统checkout与运行仍待后续CI/开发机验证，不据此声明通过。
+
+## 2026-10-13 跨平台检查与完成归档
+
+- 制定下一阶段计划时只读核对0830dab的CI run38234086653，Windows/Ubuntu/macOS的Check jobs114760798744/114760798831/114760798883均success；该SHA的pnpm check经fixtures:check执行samples:check，跨平台checkout的32张原件/4份许可SHA256门槛已通过。
+- 跨平台CI不代表三个系统的prepare交互或图片GUI手测全部完成；prepare新目录及原件/旧副本保护沿用本机明确证据。素材来源、Git恢复基准、离线工具及校验目标已满足，本任务移至_fin/261013，完整保留首次采集、续开及提交过程。
+- 只更新记录与索引，没有新增素材或变更工具，也未重跑下载/解码/构建、提交或推送。后续扩充GIF有损真实动画样本在动画连续任务中说明来源、许可、规模及验收用途。
