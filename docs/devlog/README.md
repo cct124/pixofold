@@ -1,6 +1,6 @@
 # 开发交接
 
-更新日期：2026-10-13（Asia/Shanghai）。当前dev/0830dab与实际远端dev一致，CI run38234086653的Windows/macOS/Ubuntu共9个jobs全部通过，含GIF部署/桌面混合与素材哈希校验。[GIF第三阶段](_plan/261009/animation-foundation.md)Windows五组手测及76条release日志复核已记录，未发现明确故障；APNG/可能受保护JPEG的空候选与当前拒绝范围相符。下一主线为GIF有损最小实验，再接核心/桌面，随后APNG无损；扫描拒绝日志为可并行小改进，详见[本日阶段计划](_plan/260930/next-development-plan.md)。缺少WebView2环境继续按用户安排后置。
+更新日期：2026-10-13（Asia/Shanghai）。当前dev/cf16ea8已推送origin/dev；CI run38234086653的Windows/macOS/Ubuntu共9个jobs全部通过，含GIF部署/桌面混合与素材哈希校验。[GIF第三阶段](_plan/261009/animation-foundation.md)Windows五组手测及76条release日志复核已记录，未发现明确故障；APNG/可能受保护JPEG的空候选与当前拒绝范围相符。下一主线为GIF有损最小实验，再接核心/桌面，随后APNG无损；扫描拒绝日志为可并行小改进，详见[本日阶段计划](_plan/260930/next-development-plan.md)。缺少WebView2环境继续按用户安排后置。
 
 ## 当前阶段
 
