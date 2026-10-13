@@ -1,7 +1,7 @@
 # 动画验证底座与GIF最小实验
 
 - 创建日期：2026-10-09（Asia/Shanghai）。
-- 状态：截至2026-10-13，dev/72d4f1b基线9个三平台CI jobs全部成功；本机4B批量/资源预算与4C/v12已实现并通过统一检查、222组对照及真实核心/随包回归，新Windows MSI构建、24个包内文件及解包资源实际验收通过。当前改动未提交推送；新包安装/有损GUI/人工观感、新SHA三平台、其他系统安装及无开发工具/后置无WebView2分别验收，之后推进APNG，完整动画任务继续活动。
+- 状态：截至2026-10-13，dev/72d4f1b基线9个三平台CI jobs全部成功；4B批量/资源预算与4C/v12已实现并通过统一检查、222组对照及真实核心/随包回归，新Windows MSI构建、24个包内文件及解包资源实际验收通过，并已提交1dd909a推送origin/dev（72d4f1b..1dd909a）。新包安装/有损GUI/人工观感、新SHA三平台、其他系统安装及无开发工具/后置无WebView2分别验收，之后推进APNG，完整动画任务继续活动。
 - 分支/基准：dev/0f4fcfd0825f51542d5d2658da600d21e0174350，业务a21d330，开工本地/远端一致且工作区干净。
 - 关联：[阶段计划](../260930/next-development-plan.md)、[J2桌面混合工作流](jpeg-desktop-workflow.md)、[项目方案](../../../架构设计文档/pixofold-proposal.md)。
 
@@ -552,5 +552,5 @@ A/B稳定后接GIF桌面闭环：可信资源prepare/打包与加载、supported
 - pnpm gif:bundle:check --resources E:/Project/pixofold/target/gif-v12-261013/msi/restored通过；用实际MSI解包资源在仓库外/中文空格路径/无开发PATH运行v12三格式、五质量GIF矩阵、输出/备份/稳定ID/预览/退出与独立降级。证据target/gif-bundle-1bYAe9，日志target/gif-v12-261013/msi-resources.log。
 - 最终源码范围：核心batch/image/planning/resources/mixed_tests与gif/memory/playback/comparison；核心真实example/共用语料；桌面DTO/convert/生成TS/前端校验与提示详情测试；bundle_check及新gif_lossy矩阵、两份检查脚本；README/AGENTS/格式与交互说明/本连续记录/索引及阶段计划。无依赖锁、应用版本、原始手测素材或CI配置变更；构建、实验、MSI与证据均Git排除。本轮所有改动留在dev工作区，未提交、未推送。
 - 下一验收仅聚焦新增能力：新MSI安装/启动/关闭；默认有损混批、q100、实际无损与两类回退/NoGain；失败后切模式重试及详情；外部播放器核对速度/循环/透明边缘/闪烁，新提示/详情的中英、亮暗、小窗口/DPI。用户已完成的无损版五组手测保持原证据；本轮没有声称新包GUI、人工观感或新SHA三平台已通过。
-- 获得用户后续明确提交/推送授权后验新SHA平台；有损观感问题优先调整或回到无损策略。后续APNG从独立语料、结构/合成/时间轴和无损编码实验开始，JPEG凭据移除及其他平台安装各自安排，完整动画任务继续使用本记录。
+- 改动已提交1dd909a并推送origin/dev，待以新SHA核对平台结果；有损观感问题优先调整或回到无损策略。后续APNG从独立语料、结构/合成/时间轴和无损编码实验开始，JPEG凭据移除及其他平台安装各自安排，完整动画任务继续使用本记录。
 - 最终diff复核及git diff --check通过；文档脚本核对9份变更文档、202个本地链接、NUL与尾随空白通过。MSI重新计算SHA256与交付清单一致，Git忽略规则确认安装包和验证日志未入库；dev/72d4f1b的提交位置未改变。

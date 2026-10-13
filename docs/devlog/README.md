@@ -1,6 +1,6 @@
 # 开发交接
 
-更新日期：2026-10-13（Asia/Shanghai）。当前dev/72d4f1b基线的CI run38365744564已completed/success，9个三平台jobs全部成功。本机GIF有损批量/资源预算与4C/v12已完成接入，统一检查、222组实验、真实核心及GIF/JPEG随包回归通过；新Windows MSI构建、24个包内文件核对及解包资源真实验收通过，交付目录target/deliverables/261013-gif-v12。改动尚未提交推送。详细证据和剩余验收见[动画连续记录](_plan/261009/animation-foundation.md)。新包安装/有损GUI/观感、新SHA平台分别验收，之后APNG；无WebView2按用户安排后置。
+更新日期：2026-10-13（Asia/Shanghai）。当前dev/1dd909a已推送origin/dev；前序72d4f1b基线的CI run38365744564为9个三平台jobs全部成功。GIF有损批量/资源预算与4C/v12已完成接入并入库，统一检查、222组实验、真实核心及GIF/JPEG随包回归通过；新Windows MSI构建、24个包内文件核对及解包资源真实验收通过，交付目录target/deliverables/261013-gif-v12。详细证据和剩余验收见[动画连续记录](_plan/261009/animation-foundation.md)。新包安装/有损GUI/观感、新SHA平台分别验收，之后APNG；无WebView2按用户安排后置。
 
 ## 当前阶段
 
@@ -32,5 +32,5 @@
 
 1. 安装并验收target/deliverables/261013-gif-v12中的新Windows MSI；[4B第二段与4C/v12](_plan/261009/animation-foundation.md)的本机自动门槛与包内真实处理已通过。
 2. 使用新包核对新增有损/q100/回退/详情/重试，以及外部播放时的速度、循环、透明边缘和闪烁；中英文/亮暗/小窗口/DPI仅针对新增提示和详情，保留用户已完成的旧版五组检查。
-3. 用户明确授权提交推送后核对新SHA三平台CI；72d4f1b的9项成功仅覆盖基线。实际安装/GUI与自动检查分开，观感问题优先修正或回到无损策略。
+3. 4B第二段/4C已提交1dd909a并推送，待核对新SHA三平台CI；72d4f1b的9项成功仅覆盖基线。实际安装/GUI与自动检查分开，观感问题优先修正或回到无损策略。
 4. 后续APNG先独立语料/合成/时间轴与编码实验，再接无损核心和桌面；JPEG凭据移除、无WebView2/无开发工具环境、其他平台安装各自安排。PNG性能专项仍按实际回归触发，已完成的Windows五组手测不重复作为普遍阻塞。
