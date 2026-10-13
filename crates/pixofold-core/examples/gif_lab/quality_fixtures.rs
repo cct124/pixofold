@@ -1,5 +1,41 @@
 //! 可复现观感样本：整数调色板动画；照片平移衍生自随仓库保存的公开静态GIF。
-use std::{borrow::Cow, error::Error, fs::OpenOptions, io::Cursor, path::Path};
+use std::{
+    borrow::Cow,
+    error::Error,
+    fs::OpenOptions,
+    io::{Cursor, Write},
+    path::Path,
+};
+
+fn dark_noise() -> Result<Vec<u8>, Box<dyn Error>> {
+    // 低亮度32阶确定性噪声，供单文件核心和桌面混批共同验证质量回退。
+    let palette: Vec<u8> = (0..32u8).flat_map(|n| [n, n, n]).collect();
+    let mut bytes = Vec::new();
+    {
+        let mut encoder = gif::Encoder::new(&mut bytes, 128, 128, &palette)?;
+        encoder.set_repeat(gif::Repeat::Infinite)?;
+        let mut state = 0x12345678u32;
+        for _ in 0..3 {
+            let pixels = (0..128 * 128)
+                .map(|_| {
+                    state ^= state << 13;
+                    state ^= state >> 17;
+                    state ^= state << 5;
+                    (state & 31) as u8
+                })
+                .collect();
+            encoder.write_frame(&gif::Frame {
+                width: 128,
+                height: 128,
+                delay: 10,
+                dispose: gif::DisposalMethod::Keep,
+                buffer: Cow::Owned(pixels),
+                ..Default::default()
+            })?;
+        }
+    }
+    Ok(bytes)
+}
 
 fn write(
     directory: &Path,
@@ -128,5 +164,10 @@ pub fn generate(directory: &Path, photo_gif: &[u8]) -> Result<(), Box<dyn Error>
         frames.push(pixels);
     }
     write(directory, "photo-pan.gif", 96, 96, &global, frames, None)?;
+    OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(directory.join("dark-noise.gif"))?
+        .write_all(&dark_noise()?)?;
     Ok(())
 }

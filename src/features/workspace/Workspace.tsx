@@ -265,7 +265,7 @@ export function Workspace({
                 </span>
                 <span
                   aria-disabled={!gifAvailable}
-                  title={t(gifAvailable ? 'gifLosslessOnly' : 'gifUnavailable')}
+                  title={t(gifAvailable ? 'gifLossyHint' : 'gifUnavailable')}
                 >
                   GIF
                 </span>

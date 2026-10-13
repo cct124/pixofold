@@ -78,10 +78,14 @@ pub(super) fn image_limits(
             max_pixels: original.max_pixels.min(pixels),
             max_dimension: original.max_dimension.min(width.max(height) as u32),
             max_decoded_bytes: ByteCount(
-                original
-                    .max_decoded_bytes
-                    .0
-                    .min(pixels * 9 + original.max_input_bytes.0 * 2 + BUFFER_MARGIN),
+                original.max_decoded_bytes.0.min(
+                    crate::gif::validation_bound(
+                        pixels,
+                        original.max_input_bytes.0,
+                        request.gif_mode(),
+                    )
+                    .unwrap_or(u64::MAX),
+                ),
             ),
             ..original
         });
@@ -202,5 +206,66 @@ mod tests {
         let limits = execution_limits(&request, Some(ByteCount(bytes.len() as u64)));
         assert_eq!(limits.max_input_bytes, request.limits.max_input_bytes);
         assert!(limits.max_decoded_bytes <= request.limits.max_decoded_bytes);
+    }
+
+    #[test]
+    fn gif_admission_and_execution_share_mode_aware_buffers_and_frozen_deadline() {
+        use crate::{
+            batch::{BatchItem, ImageKind},
+            gif::{GifLimits, GifMode},
+            model::OutputPolicy,
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sample.gif");
+        let bytes = std::fs::read(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/gif/static87.gif"),
+        )
+        .unwrap();
+        std::fs::write(&path, &bytes).unwrap();
+        for mode in [
+            PngMode::Lossless,
+            PngMode::Lossy {
+                quality: QualityValue::new(80).unwrap(),
+            },
+            PngMode::Lossy {
+                quality: QualityValue::new(100).unwrap(),
+            },
+        ] {
+            let mut parameters = BatchParameters {
+                mode,
+                ..Default::default()
+            };
+            parameters.gif.preparation_timeout = std::time::Duration::from_secs(7);
+            parameters.limits.max_input_bytes = ByteCount(4096);
+            let mut request = parameters.request(BatchItem {
+                source: path.clone(),
+                output: OutputPolicy::Overwrite,
+                format: ImageKind::Gif,
+            });
+            let limits = image_limits(&request, Some(ByteCount(bytes.len() as u64)));
+            let expected = crate::gif::validation_bound(6, 4096, request.gif_mode()).unwrap();
+            assert_eq!(limits.max_decoded_bytes, ByteCount(expected));
+            assert_eq!(limits.max_pixels, 6);
+            request.limits = limits;
+            let actual = request.gif().unwrap();
+            assert_eq!(
+                actual.limits.preparation_timeout,
+                std::time::Duration::from_secs(7)
+            );
+            assert_eq!(
+                actual.limits.resources.max_decoded_bytes,
+                limits.max_decoded_bytes
+            );
+            assert!(
+                actual.limits.working_set().unwrap() < GifLimits::default().working_set().unwrap()
+            );
+            assert_eq!(
+                matches!(actual.mode, GifMode::Lossless),
+                matches!(mode, PngMode::Lossless)
+            );
+            request.limits.max_decoded_bytes = ByteCount(1);
+            assert_eq!(image_limits(&request, None).max_decoded_bytes, ByteCount(1));
+        }
     }
 }

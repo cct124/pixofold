@@ -1,6 +1,6 @@
 // 由 Rust 任务DTO生成；请运行 pnpm types:generate，勿手工编辑。
 import type { PngMode } from './generated';
-export const TASK_PROTOCOL_VERSION = 11;
+export const TASK_PROTOCOL_VERSION = 12;
 export const MAX_TASK_PAGE_SIZE = 100;
 export type DecimalU64 = string;
 export type TaskCollection = "jobs" | "candidates" | "issues" | "confirmations";
@@ -31,7 +31,8 @@ export type FallbackDto = { "kind": "high_bit_depth" } | { "kind": "color_metada
 export type PngProcessingDto = { "kind": "lossless" } | { "kind": "lossy", mappingVersion: number, measuredQuality: number, } | { "kind": "lossless_fallback", mappingVersion: number, reason: FallbackDto, };
 export type JpegFallbackDto = { "kind": "color_profile" } | { "kind": "four_component_color" } | { "kind": "embedded_thumbnail" } | { "kind": "ambiguous_color" };
 export type JpegProcessingDto = { "kind": "lossless" } | { "kind": "lossy", mappingVersion: number, nativeQuality: number, } | { "kind": "lossless_fallback", mappingVersion: number, nativeQuality: number, reason: JpegFallbackDto, };
-export type GifProcessingDto = { "kind": "lossless", frames: number, loopCount: number | null, };
+export type GifProcessingDto = { "kind": "lossless", frames: number, loopCount: number | null, } | { "kind": "lossy", frames: number, loopCount: number | null, mappingVersion: number, nativeLossiness: number, } | { "kind": "lossless_fallback", frames: number, loopCount: number | null, mappingVersion: number, nativeLossiness: number, reason: GifFallbackDto, };
+export type GifFallbackDto = { "kind": "quality_below_target" } | { "kind": "insufficient_gain" };
 export type ProcessingDto = { "format": "png", "details": PngProcessingDto } | { "format": "jpeg", "details": JpegProcessingDto } | { "format": "gif", "details": GifProcessingDto };
 export type ReportDto = { inputBytes: DecimalU64, outputBytes: DecimalU64, elapsedMs: DecimalU64, processing: ProcessingDto, outputName: DisplayName | null, backupName: DisplayName | null, contentCredentialsRemoved: boolean, };
 export type ConfirmationDto = { id: number, sourceName: DisplayName, sourceLabel: DisplayName, inputBytes: DecimalU64 | null, };

@@ -98,7 +98,7 @@ it('validates actual format capabilities and JPEG reports at the IPC boundary', 
   }
 });
 
-it('validates v11 GIF lossless reports, loops, credentials and the mode error', async () => {
+it('validates v12 GIF actual paths, loops, mapping and credentials', async () => {
   vi.mocked(isTauri).mockReturnValue(true);
   const report = {
     inputBytes: '500',
@@ -175,9 +175,53 @@ it('validates v11 GIF lossless reports, loops, credentials and the mode error', 
       state: { kind: 'no_gain', report: { ...report, contentCredentialsRemoved: true } },
     }),
   ).rejects.toThrow('image contract');
-  await expect(resolve({ ...job, mode: { kind: 'lossy', quality: 80 } })).rejects.toThrow(
-    'image contract',
-  );
+  for (const q of [0, 60, 80, 99, 100]) {
+    await expect(resolve({ ...job, mode: { kind: 'lossy', quality: q } })).resolves.toBeDefined();
+    if (q === 100) continue;
+    const nativeLossiness = Math.min(20, Math.ceil((100 - q) / 2));
+    for (const details of [
+      { kind: 'lossy', frames: 3, loopCount: 0, mappingVersion: 1, nativeLossiness },
+      ...['quality_below_target', 'insufficient_gain'].map((kind) => ({
+        kind: 'lossless_fallback',
+        frames: 3,
+        loopCount: 0,
+        mappingVersion: 1,
+        nativeLossiness,
+        reason: { kind },
+      })),
+    ]) {
+      const state = {
+        kind: 'no_gain',
+        report: { ...report, processing: { format: 'gif', details } },
+      };
+      await expect(
+        resolve({ ...job, mode: { kind: 'lossy', quality: q }, state }),
+      ).resolves.toBeDefined();
+      await expect(
+        resolve({ ...job, mode: { kind: 'lossy', quality: 100 }, state }),
+      ).rejects.toThrow('image contract');
+      await expect(resolve({ ...job, state })).rejects.toThrow('image contract');
+    }
+  }
+  for (const details of [
+    { kind: 'lossy', frames: 3, loopCount: 0, mappingVersion: 2, nativeLossiness: 10 },
+    { kind: 'lossy', frames: 3, loopCount: 0, mappingVersion: 1, nativeLossiness: 20 },
+    {
+      kind: 'lossless_fallback',
+      frames: 3,
+      loopCount: 0,
+      mappingVersion: 1,
+      nativeLossiness: 10,
+      reason: { kind: 'color_profile' },
+    },
+  ])
+    await expect(
+      resolve({
+        ...job,
+        mode: { kind: 'lossy', quality: 80 },
+        state: { kind: 'no_gain', report: { ...report, processing: { format: 'gif', details } } },
+      }),
+    ).rejects.toThrow('image contract');
   await expect(
     resolve({
       ...job,

@@ -250,7 +250,8 @@ pub(super) fn inspect(
         .unwrap_or(0);
     // 双画布、单帧索引和gif压缩Vec最多两份输入容量；字典、行表、头/摘要另留1MiB。
     check(
-        canvas * 8 + largest_frame + bytes.len() as u64 * 2 + 1024 * 1024 <= maximum_working,
+        super::memory::playback_bytes(canvas, largest_frame, bytes.len() as u64)
+            .is_some_and(|bytes| bytes <= maximum_working),
         Code::ResourceLimit,
         "GIF验证缓冲工作集",
     )?;

@@ -20,7 +20,7 @@ fn request(collection: TaskCollection) -> TaskPageRequest {
     }
 }
 #[test]
-fn protocol_v11_preserves_gif_reports_and_rejects_lossy_without_png_permission() {
+fn protocol_v12_preserves_gif_actual_paths_and_rejects_inconsistent_mapping() {
     use pixofold_core::gif::{GifError, GifInfo, GifReport};
     let (_dir, _runtime, mut snapshot) = completed();
     snapshot
@@ -46,7 +46,7 @@ fn protocol_v11_preserves_gif_reports_and_rejects_lossy_without_png_permission()
         quality: None,
     }));
     let value = wire(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).unwrap());
-    assert_eq!(value["protocolVersion"], 11);
+    assert_eq!(value["protocolVersion"], 12);
     assert_eq!(value["supportedFormats"], json!(["png", "jpeg", "gif"]));
     let row = &value["page"]["items"][0];
     assert_eq!(row["format"], "gif");
@@ -56,7 +56,7 @@ fn protocol_v11_preserves_gif_reports_and_rejects_lossy_without_png_permission()
     );
     assert_eq!(row["state"]["report"]["contentCredentialsRemoved"], false);
     assert!(row["state"]["report"]["outputName"].is_null());
-    // 单文件核心已能有损，但v11不得把意外进入的有损报告序列化为无损。
+    // 报告请求必须与冻结行模式一致。
     if let JobState::NoGain(ImageReport::Gif(report)) =
         &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0].state
     {
@@ -65,15 +65,75 @@ fn protocol_v11_preserves_gif_reports_and_rejects_lossy_without_png_permission()
         };
     }
     assert!(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).is_err());
-    if let JobState::NoGain(ImageReport::Gif(report)) =
-        &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0].state
-    {
-        report.requested_mode = pixofold_core::gif::GifMode::Lossless;
-        report.processing = pixofold_core::gif::GifProcessing::Lossy {
-            parameters: pixofold_core::gif::GifQualityMapping::new(QualityValue::default()),
-        };
+    for q in [0, 60, 80, 99, 100] {
+        let quality = QualityValue::new(q).unwrap();
+        let parameters = pixofold_core::gif::GifQualityMapping::new(quality);
+        let mut paths = vec![(pixofold_core::gif::GifProcessing::Lossless, "lossless")];
+        if q < 100 {
+            paths.extend([
+                (
+                    pixofold_core::gif::GifProcessing::Lossy { parameters },
+                    "lossy",
+                ),
+                (
+                    pixofold_core::gif::GifProcessing::LosslessFallback {
+                        parameters,
+                        reason: pixofold_core::gif::GifFallbackReason::QualityBelowTarget,
+                    },
+                    "lossless_fallback",
+                ),
+                (
+                    pixofold_core::gif::GifProcessing::LosslessFallback {
+                        parameters,
+                        reason: pixofold_core::gif::GifFallbackReason::InsufficientGain,
+                    },
+                    "lossless_fallback",
+                ),
+            ]);
+        }
+        for (processing, expected) in paths {
+            let job = &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0];
+            job.request.mode = PngMode::Lossy { quality };
+            if let JobState::NoGain(ImageReport::Gif(report)) = &mut job.state {
+                report.requested_mode = pixofold_core::gif::GifMode::Lossy { quality };
+                report.processing = processing;
+            }
+            let value = wire(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).unwrap());
+            let result = &value["page"]["items"][0]["state"]["report"];
+            assert_eq!(result["processing"]["details"]["kind"], expected);
+            assert_eq!(result["processing"]["details"]["frames"], 4);
+            assert!(result.get("quality").is_none());
+            assert_eq!(result["contentCredentialsRemoved"], false);
+            if expected != "lossless" {
+                assert_eq!(
+                    result["processing"]["details"]["nativeLossiness"],
+                    parameters.native_lossiness
+                );
+            }
+        }
     }
-    assert!(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).is_err());
+    for (q, requested_lossless, version, native_lossiness) in [
+        (100, false, 1, 0),
+        (80, true, 1, 10),
+        (80, false, 2, 10),
+        (80, false, 1, 20),
+    ] {
+        let job = &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0];
+        let quality = QualityValue::new(q).unwrap();
+        job.request.mode = if requested_lossless {
+            PngMode::Lossless
+        } else {
+            PngMode::Lossy { quality }
+        };
+        if let JobState::NoGain(ImageReport::Gif(report)) = &mut job.state {
+            report.requested_mode = job.request.gif().unwrap().mode;
+            let mut parameters = pixofold_core::gif::GifQualityMapping::new(quality);
+            parameters.version = version;
+            parameters.native_lossiness = native_lossiness;
+            report.processing = pixofold_core::gif::GifProcessing::Lossy { parameters };
+        }
+        assert!(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).is_err());
+    }
     let job = &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0];
     job.request.mode = PngMode::Lossy {
         quality: QualityValue::new(80).unwrap(),
@@ -608,7 +668,7 @@ fn lossy_fallback_mapping_and_elapsed_milliseconds_come_from_actual_report() {
 }
 
 #[test]
-fn protocol_v11_preserves_jpeg_formats_errors_and_quality_without_png_semantics() {
+fn protocol_v12_preserves_jpeg_formats_errors_and_quality_without_png_semantics() {
     use pixofold_core::{
         batch::{FormatOptions, ImageError, JobErrorCode, JobFailure},
         jpeg::{

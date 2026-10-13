@@ -32,7 +32,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
     if args.len() == 3 && args[0] == "fixtures" {
         quality_fixtures::generate(Path::new(&args[1]), &read(Path::new(&args[2]))?)?;
-        println!("{}", json!({"result":"generated","samples":5}));
+        println!("{}", json!({"result":"generated","samples":6}));
         return Ok(());
     }
     if args.len() != 5 {

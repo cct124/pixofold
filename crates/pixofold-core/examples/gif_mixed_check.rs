@@ -1,4 +1,4 @@
-//! PNG/JPEG/GIF真实核心混合验收；GIF开放桌面仍由后续协议和随包阶段决定。
+//! PNG/JPEG/GIF真实核心混合验收；覆盖有损请求、资源失败与稳定ID重试。
 use pixofold_core::{batch::*, gif::*, import::*, jpeg::JpegEngine, model::*};
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -149,7 +149,12 @@ fn main() {
     // 原生预算失败后仅重试失败行；保留其稳定ID/源和成功行结果。
     let retry_source = put(&root, "retry.gif", &gif);
     let retry_output = root.join("retry-output.gif");
-    let mut parameters = BatchParameters::default();
+    let mut parameters = BatchParameters {
+        mode: PngMode::Lossy {
+            quality: QualityValue::new(80).unwrap(),
+        },
+        ..Default::default()
+    };
     parameters.gif.max_native_bytes = ByteCount(1);
     let id = service
         .start(BatchRequest {
@@ -180,13 +185,24 @@ fn main() {
                     },
                     metadata: PngMetadataPolicy::Preserve,
                 }],
-                parameters: BatchParameters::default(),
+                parameters: BatchParameters {
+                    mode: PngMode::Lossy {
+                        quality: QualityValue::new(100).unwrap(),
+                    },
+                    ..Default::default()
+                },
             },
         )
         .unwrap();
     let retried = done(&service, id);
     assert_eq!(retried.jobs[0].id, stable);
     assert_eq!(retried.jobs[0].attempt, 2);
+    assert_eq!(
+        retried.jobs[0].request.gif().unwrap().mode,
+        GifMode::Lossy {
+            quality: QualityValue::new(100).unwrap()
+        }
+    );
     assert!(matches!(
         &retried.jobs[0].state,
         JobState::Succeeded(ImageReport::Gif(_))
@@ -211,7 +227,12 @@ fn main() {
                 },
                 format: ImageKind::Gif,
             }],
-            parameters: BatchParameters::default(),
+            parameters: BatchParameters {
+                mode: PngMode::Lossy {
+                    quality: QualityValue::new(80).unwrap(),
+                },
+                ..Default::default()
+            },
             engines: engines.clone(),
         })
         .unwrap();
@@ -219,7 +240,7 @@ fn main() {
         matches!(&done(&tight,id).jobs[0].state,JobState::Failed(error)if error.code==JobErrorCode::ResourceLimit)
     );
     tight.shutdown().unwrap();
-    // GIF有损仅该行明确拒绝；GIF无损不会继承PNG凭据授权。
+    // 有损请求可选严格无损结果；GIF不继承PNG凭据授权。
     let parameters = BatchParameters {
         mode: PngMode::Lossy {
             quality: QualityValue::new(80).unwrap(),
@@ -239,11 +260,24 @@ fn main() {
             engines: engines.clone(),
         })
         .unwrap();
-    let unsupported = done(&service, id);
-    assert!(
-        matches!(&unsupported.jobs[0].state,JobState::Failed(error)if error.code==JobErrorCode::UnsupportedFormat)
+    let lossy = done(&service, id);
+    let JobState::Succeeded(ImageReport::Gif(report)) = &lossy.jobs[0].state else {
+        panic!("有损请求未进入真实GIF处理：{:?}", lossy.jobs[0].state);
+    };
+    assert_eq!(
+        report.requested_mode,
+        GifMode::Lossy {
+            quality: QualityValue::new(80).unwrap()
+        }
     );
-    assert!(unsupported.jobs[0].content_credentials_source().is_none());
+    assert_eq!(report.processing, GifProcessing::Lossless);
+    assert_eq!(
+        lossy.jobs[0].mapping,
+        Some(QualityMapping::Gif(GifQualityMapping::new(
+            QualityValue::new(80).unwrap()
+        )))
+    );
+    assert!(lossy.jobs[0].content_credentials_source().is_none());
     let occupied = root.join("occupied.gif");
     fs::write(&occupied, b"occupied").unwrap();
     let success = root.join("good-copy.PNG");
@@ -277,7 +311,7 @@ fn main() {
     assert_eq!(fs::read(occupied).unwrap(), b"occupied");
     service.shutdown().unwrap();
     let rows:Vec<_>=finished.jobs.iter().map(|row|json!({"file":row.request.source.file_name().unwrap().to_str().unwrap(),"format":match row.request.format(){ImageKind::Png=>"png",ImageKind::Jpeg=>"jpeg",ImageKind::Gif=>"gif"},"state":match row.state{JobState::Succeeded(_)=>"succeeded",JobState::NoGain(_)=>"no_gain",JobState::Failed(_)=>"failed",_=>"unexpected"}})).collect();
-    fs::write(root.join("report.json"),serde_json::to_vec_pretty(&json!({"result":"passed","jobs":rows,"retryStableId":stable.get(),"workerBudgetMiB":256,"sourceGifSha256":format!("{:x}",Sha256::digest(&gif)),"boundaries":["bad pixels","NoGain","native quota retry","total budget","unsupported lossy","per-row conflicts"]})).unwrap()).unwrap();
+    fs::write(root.join("report.json"),serde_json::to_vec_pretty(&json!({"result":"passed","jobs":rows,"retryStableId":stable.get(),"workerBudgetMiB":256,"sourceGifSha256":format!("{:x}",Sha256::digest(&gif)),"boundaries":["bad pixels","NoGain","native quota retry","total budget","lossy request with lossless result","per-row conflicts"]})).unwrap()).unwrap();
     fs::write(
         root.join("metrics.json"),
         serde_json::to_vec_pretty(&memory.finish()).unwrap(),

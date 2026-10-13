@@ -14,7 +14,7 @@ use pixofold_core::{
         BatchParameters, ImageEngines, ImageKind, ImageReport, JobErrorCode, JobState, RetryJob,
         RetryRequest,
     },
-    gif::{GifLimits, validate_gif},
+    gif::{GifLimits, GifProcessing, compare_gif, meets_quality, validate_gif},
     import::{CopyLayout, ImportOutput},
     jpeg::{self, JpegLimits, JpegProcessing},
     model::{
@@ -31,6 +31,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod gif_lossy;
 mod profile;
 pub use profile::profile;
 
@@ -226,10 +227,12 @@ pub fn verify(engines: ImageEngines, samples: &Path, root: &Path) -> Result<Valu
     if with_gif {
         let rows = initial_wire["page"]["items"].as_array().ok_or("缺少行")?;
         require(
-            rows.iter()
-                .filter(|row| row["format"] == "gif")
-                .all(|row| row["state"]["failure"]["code"] == "unsupported_gif_mode"),
-            "GIF有损模式未返回专属逐行失败",
+            rows.iter().filter(|row| row["format"] == "gif").all(|row| {
+                row["mode"] == json!({"kind":"lossy", "quality":40})
+                    && matches!(row["state"]["kind"].as_str(), Some("succeeded" | "no_gain"))
+                    && row["state"]["report"]["processing"]["format"] == "gif"
+            }),
+            "GIF有损请求或实际处理报告未贯通",
         )?;
     }
     let failed = batch
@@ -258,7 +261,7 @@ pub fn verify(engines: ImageEngines, samples: &Path, root: &Path) -> Result<Valu
             jobs: batch
                 .jobs
                 .iter()
-                .filter(|job| job.id == failed.id || job.request.format() == ImageKind::Gif)
+                .filter(|job| job.id == failed.id)
                 .map(|job| RetryJob {
                     id: job.id,
                     output: job.request.output.clone(),
@@ -293,11 +296,11 @@ pub fn verify(engines: ImageEngines, samples: &Path, root: &Path) -> Result<Valu
             .jobs
             .iter()
             .find(|old| old.id == job.id)
-            .ok_or("GIF重试ID变化")?;
+            .ok_or("未重试GIF的ID变化")?;
         require(
-            job.attempt == previous.attempt + 1
+            job.attempt == previous.attempt
                 && matches!(job.state, JobState::Succeeded(_) | JobState::NoGain(_)),
-            "GIF切换无损后重试未完成",
+            "JPEG重试重新执行了已完成的GIF",
         )?;
     }
     let mut previews = 0;
@@ -322,20 +325,29 @@ pub fn verify(engines: ImageEngines, samples: &Path, root: &Path) -> Result<Valu
                 ImageKind::Jpeg => "jpeg",
                 ImageKind::Gif => "gif",
             };
-            if format == "gif" {
-                let before = validate_gif(
+            if let ImageReport::Gif(gif) = report {
+                let comparison = compare_gif(
                     &fs::read(&job.request.source)?,
-                    GifLimits::default(),
-                    &CancellationToken::default(),
-                )?;
-                let after = validate_gif(
                     &fs::read(&result)?,
                     GifLimits::default(),
                     &CancellationToken::default(),
                 )?;
-                require(before.equivalent(&after), "桌面GIF独立播放不等价")?;
+                require(
+                    comparison.hard_constraints
+                        && if matches!(gif.processing, GifProcessing::Lossy { .. }) {
+                            !comparison.lossless_equivalent && meets_quality(&comparison)
+                        } else {
+                            comparison.lossless_equivalent
+                        },
+                    "桌面GIF实际处理路径与最终文件不符",
+                )?;
             }
-            outputs.push(json!({"file":format!("mixed/{name}"), "source":format!("inputs/{name}"), "lossless":format == "gif" || matches!(report, ImageReport::Jpeg(r) if !matches!(r.processing, JpegProcessing::Lossy { .. })), "format":format}));
+            let lossless = match report {
+                ImageReport::Gif(r) => !matches!(r.processing, GifProcessing::Lossy { .. }),
+                ImageReport::Jpeg(r) => !matches!(r.processing, JpegProcessing::Lossy { .. }),
+                ImageReport::Png(_) => false,
+            };
+            outputs.push(json!({"file":format!("mixed/{name}"), "source":format!("inputs/{name}"), "lossless":lossless, "format":format}));
         }
         if name == "icc.jpg" || name == "cmyk.jpg" {
             let permit = asset(service.reserve(Operation::Thumbnail))?;
@@ -515,6 +527,11 @@ pub fn verify(engines: ImageEngines, samples: &Path, root: &Path) -> Result<Valu
         root.join("snapshot.json"),
         serde_json::to_vec_pretty(&query(&control, "jobs")?)?,
     )?;
+    let gif_lossy = if with_gif {
+        Some(gif_lossy::verify(&control, samples, root)?)
+    } else {
+        None
+    };
     service.close();
     service.wait_idle();
     runtime.shutdown()?;
@@ -523,7 +540,7 @@ pub fn verify(engines: ImageEngines, samples: &Path, root: &Path) -> Result<Valu
         "应用任务未安全关闭",
     )?;
     Ok(
-        json!({"result":"passed", "protocolVersion":ipc::TASK_PROTOCOL_VERSION, "previews":previews, "outputs":outputs, "mixedRetry":true, "noGain":true, "allConflicts":true, "backup":true, "shutdown":true}),
+        json!({"result":"passed", "protocolVersion":ipc::TASK_PROTOCOL_VERSION, "previews":previews, "outputs":outputs, "mixedRetry":true, "noGain":true, "allConflicts":true, "backup":true, "shutdown":true, "gifLossy":gif_lossy}),
     )
 }
 

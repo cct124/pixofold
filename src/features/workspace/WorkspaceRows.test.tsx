@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import type { JobDto, TaskPageDto } from '../../lib/ipc/tasks.generated';
+import type { GifProcessingDto, JobDto, TaskPageDto } from '../../lib/ipc/tasks.generated';
 import { TaskAssets } from '../../lib/ipc/task-assets';
 import { WorkspaceRows } from './WorkspaceRows';
 
@@ -79,6 +79,76 @@ afterEach(() => {
   vi.useRealTimers();
   access.assets.reset();
 });
+
+it.each(['zh-CN', 'en'] as const)(
+  'shows GIF actual paths and retained source in %s',
+  (language) => {
+    if (job.state.kind !== 'succeeded') throw new Error('fixture');
+    const paths: GifProcessingDto[] = [
+      { kind: 'lossless', frames: 12, loopCount: null },
+      { kind: 'lossy', frames: 12, loopCount: 0, mappingVersion: 1, nativeLossiness: 10 },
+      {
+        kind: 'lossless_fallback',
+        frames: 12,
+        loopCount: 3,
+        mappingVersion: 1,
+        nativeLossiness: 10,
+        reason: { kind: 'quality_below_target' },
+      },
+      {
+        kind: 'lossless_fallback',
+        frames: 12,
+        loopCount: 0,
+        mappingVersion: 1,
+        nativeLossiness: 10,
+        reason: { kind: 'insufficient_gain' },
+      },
+    ];
+    const labels =
+      language === 'en'
+        ? [
+            'Lossless',
+            'Lossy',
+            'Lossless fallback · Quality target not met',
+            'Lossless fallback · Insufficient additional savings',
+          ]
+        : ['无损', '有损', '回退无损 · 未达到质量目标', '回退无损 · 额外压缩收益不足'];
+    for (const [i, details] of paths.entries()) {
+      const noGain = i === 3;
+      const gif: JobDto = {
+        ...job,
+        format: 'gif',
+        sourceName: name('animation.GIF'),
+        mode: { kind: 'lossy', quality: i === 0 ? 100 : 80 },
+        state: {
+          kind: noGain ? 'no_gain' : 'succeeded',
+          report: {
+            ...job.state.report,
+            outputName: noGain ? null : name('animation.GIF'),
+            backupName: null,
+            processing: { format: 'gif', details },
+          },
+        },
+      };
+      const ui = render(
+        <WorkspaceRows
+          page={{ kind: 'jobs', offset: 0, total: 1, items: [gif] }}
+          language={language}
+          access={access}
+        />,
+      );
+      fireEvent.mouseEnter(
+        screen.getByRole('button', { name: language === 'en' ? 'Details' : '详情' }),
+      );
+      const panel = screen.getByRole('dialog');
+      expect(panel).toHaveTextContent(labels[i]!);
+      expect(panel).toHaveTextContent(language === 'en' ? 'Source frames: 12' : '原图帧数: 12');
+      expect(panel).not.toHaveTextContent(/nativeLossiness|RMSE|measuredQuality/);
+      if (noGain) expect(panel).not.toHaveTextContent('animation.GIF');
+      ui.unmount();
+    }
+  },
+);
 
 it.each([
   {

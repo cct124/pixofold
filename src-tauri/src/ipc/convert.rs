@@ -4,7 +4,10 @@ use super::dto::*;
 use crate::tasks::{TaskError, TaskSnapshot};
 use pixofold_core::{
     batch::*,
-    gif::{GifError, GifValidationCode},
+    gif::{
+        GifError, GifFallbackReason, GifMode, GifProcessing, GifQualityMapping, GifReport,
+        GifValidationCode,
+    },
     import::*,
     jpeg::{JpegError, JpegLossyFallbackReason, JpegProcessing},
     model::*,
@@ -356,22 +359,46 @@ fn jpeg_processing(value: JpegProcessing) -> JpegProcessingDto {
         }
     }
 }
+fn gif_processing(report: &GifReport) -> Result<GifProcessingDto> {
+    // frames始终为输入帧数；淘汰候选的quality/output_frames不进入桌面报告。
+    let frames = count(report.image.frames)?;
+    let loop_count = report.image.loop_count;
+    let parameters = match report.processing {
+        GifProcessing::Lossless => return Ok(GifProcessingDto::Lossless { frames, loop_count }),
+        GifProcessing::Lossy { parameters }
+        | GifProcessing::LosslessFallback { parameters, .. } => parameters,
+    };
+    let GifMode::Lossy { quality } = report.requested_mode else {
+        return Err(QueryError::InvalidSnapshot);
+    };
+    if quality.get() == 100 || parameters != GifQualityMapping::new(quality) {
+        return Err(QueryError::InvalidSnapshot);
+    }
+    let mapping_version = parameters.version;
+    let native_lossiness = parameters.native_lossiness;
+    Ok(match report.processing {
+        GifProcessing::Lossless => return Err(QueryError::InvalidSnapshot),
+        GifProcessing::Lossy { .. } => GifProcessingDto::Lossy {
+            frames,
+            loop_count,
+            mapping_version,
+            native_lossiness,
+        },
+        GifProcessing::LosslessFallback { reason, .. } => GifProcessingDto::LosslessFallback {
+            frames,
+            loop_count,
+            mapping_version,
+            native_lossiness,
+            reason: match reason {
+                GifFallbackReason::QualityBelowTarget => GifFallbackDto::QualityBelowTarget,
+                GifFallbackReason::InsufficientGain => GifFallbackDto::InsufficientGain,
+            },
+        },
+    })
+}
 fn report(value: &ImageReport) -> Result<ReportDto> {
     let (elapsed, processing) = match value {
-        // v11尚未开放有损GIF；拒绝意外进入的新核心报告，避免错误标成无损。
-        ImageReport::Gif(report)
-            if report.requested_mode != pixofold_core::gif::GifMode::Lossless
-                || report.processing != pixofold_core::gif::GifProcessing::Lossless =>
-        {
-            return Err(QueryError::InvalidSnapshot);
-        }
-        ImageReport::Gif(report) => (
-            report.elapsed,
-            ProcessingDto::Gif(GifProcessingDto::Lossless {
-                frames: count(report.image.frames)?,
-                loop_count: report.image.loop_count,
-            }),
-        ),
+        ImageReport::Gif(report) => (report.elapsed, ProcessingDto::Gif(gif_processing(report)?)),
         ImageReport::Png(report) => (
             report.elapsed,
             ProcessingDto::Png(png_processing(report.processing)),
@@ -401,6 +428,17 @@ fn report(value: &ImageReport) -> Result<ReportDto> {
     })
 }
 fn job(value: &JobSnapshot) -> Result<JobDto> {
+    if let JobState::Succeeded(ImageReport::Gif(report))
+    | JobState::NoGain(ImageReport::Gif(report)) = &value.state
+    {
+        let request = value
+            .request
+            .gif()
+            .map_err(|_| QueryError::InvalidSnapshot)?;
+        if request.mode != report.requested_mode {
+            return Err(QueryError::InvalidSnapshot);
+        }
+    }
     Ok(JobDto {
         id: count(value.id.get())?,
         format: value.request.format().try_into()?,

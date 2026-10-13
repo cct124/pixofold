@@ -4,7 +4,7 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, renameSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { root, target, execute, digest } from './gif-lab/build.mjs';
+import { root, target, execute, digest, helper, verifyTools } from './gif-lab/build.mjs';
 import { verifyTools as verifyJpegTools } from './jpeg-lab/build.mjs';
 import { createSamples } from './jpeg-lab/experiment.mjs';
 
@@ -43,6 +43,38 @@ mkdirSync(sampleDirectory);
 const { samples } = createSamples({ root, tools: verifyJpegTools(), directory: sampleDirectory });
 for (const [name, bytes] of samples)
   writeFileSync(path.join(sampleDirectory, name + '.jpg'), bytes, { flag: 'wx' });
+// 在开发阶段生成可复现语料；隔离验收进程只使用随包资源。
+execute(
+  'cargo',
+  [
+    'run',
+    '--release',
+    '--locked',
+    '-p',
+    'pixofold-core',
+    '--features',
+    'gif-lossy-lab',
+    '--example',
+    'gif_lossy_lab',
+    '--',
+    'fixtures',
+    sampleDirectory,
+    path.join(root, 'tests/manual-images/gif/hopper.gif'),
+  ],
+  { stdio: 'inherit' },
+);
+verifyTools();
+execute(helper, [
+  '--memory-bytes',
+  '33554432',
+  '--careful',
+  '-O2',
+  '--resize-fit',
+  '320x320',
+  '--output',
+  path.join(sampleDirectory, 'openrefine-320.gif'),
+  path.join(root, 'tests/fixtures/gif-lossy/openrefine-wikidata.gif'),
+]);
 const cleanEnv =
   process.platform === 'win32'
     ? {
@@ -69,9 +101,10 @@ const checked = run([install, input, output]);
 assert.equal(checked.status, 0, checked.stderr?.toString());
 const report = JSON.parse(checked.stdout);
 assert.equal(report.result, 'passed');
-assert.equal(report.desktop.protocolVersion, 11);
+assert.equal(report.desktop.protocolVersion, 12);
 assert.equal(report.desktop.result, 'passed');
 assert.equal(report.desktop.previews, 15);
+assert.equal(report.desktop.gifLossy.result, 'passed');
 const capabilities = () => {
   const value = run(['--capabilities', install]);
   assert.equal(value.status, 0, value.stderr?.toString());

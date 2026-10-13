@@ -1,7 +1,7 @@
 # 动画验证底座与GIF最小实验
 
 - 创建日期：2026-10-09（Asia/Shanghai）。
-- 状态：截至2026-10-13，GIF无损/v11基线（0830dab）与扫描日志、4A及4B第一段（395a0ea）均已入库。实验边界、222组对照和单文件有损质量/收益/回退/安全输出已通过本机验证。下一步同步接入4B批量预算与4C/v12报告消费者，再推进APNG；人工观感、新SHA三平台、其他系统安装及无开发工具/后置无WebView2分别验收，完整动画任务继续活动。
+- 状态：截至2026-10-13，dev/72d4f1b基线9个三平台CI jobs全部成功；本机4B批量/资源预算与4C/v12已实现并通过统一检查、222组对照及真实核心/随包回归，新Windows MSI构建、24个包内文件及解包资源实际验收通过。当前改动未提交推送；新包安装/有损GUI/人工观感、新SHA三平台、其他系统安装及无开发工具/后置无WebView2分别验收，之后推进APNG，完整动画任务继续活动。
 - 分支/基准：dev/0f4fcfd0825f51542d5d2658da600d21e0174350，业务a21d330，开工本地/远端一致且工作区干净。
 - 关联：[阶段计划](../260930/next-development-plan.md)、[J2桌面混合工作流](jpeg-desktop-workflow.md)、[项目方案](../../../架构设计文档/pixofold-proposal.md)。
 
@@ -464,3 +464,93 @@ A/B稳定后接GIF桌面闭环：可信资源prepare/打包与加载、supported
 - 用户要求根据工作区内容编写提交信息、提交并推送，无需执行其它任务。复核范围：43份文件（新增核心gif/comparison、gif/lab、gif/quality、gif/pipeline与两个example；桌面scan_diagnostics与诊断回归；实验contracts/lossy-check与gif-lossy语料；README/AGENTS/第三方说明/实验与native说明及devlog），无未暂存改动与未跟踪残留（target报告与.tools构建继续排除），git diff --check通过。
 - 提交395a0ea「feat: 增加扫描拒绝分类日志与GIF保守有损单文件核心」（43 files changed、3243 insertions、114 deletions）。沙箱内.git只读，add/commit/push按规则提升同一条命令执行，未绕开沙箱约束；2a23aa5..395a0ea  dev -> dev已同步origin/dev，本地与远端一致。
 - 沿用本轮已完成验证（pnpm check：161项前端、63项核心单元、118项桌面、2项doctest与全目标Clippy；222组v2实验与2项Node契约测试；gif:core:check与gif:bundle:check在候选验证顺序调整后复验；真实质量/收益回退、透明拒绝、取消/冲突/源变化与写后复验）；本次未改业务代码，不重复构建或测试。批量有损入口、4C/v12、有损GUI/新MSI观感与新SHA三平台仍未取得，不据此声明通过。
+
+## 2026-10-13 4B第二段与4C/v12实施计划
+
+### 基线及本次代码复核
+
+- 用户询问下一步合理开发计划。本轮开工dev/72d4f1b、工作区干净；395a0ea为扫描日志/4A/单文件有损业务提交，72d4f1b为交接文档。GitHub分支GET确认远端dev同为72d4f1b138a335053bd818be98f21737a4896030，前轮“未提交”已收口。
+- 当前HEAD的CI run38365744564于2026-10-13 15:54:56（Asia/Shanghai）启动，首次查询为in_progress、9个jobs尚未完成且无失败。395a0ea的run38365590177已cancelled，不把取消当作测试失败，也不宣称本轮三平台通过。初始快照保留target/gif-desktop-plan-261013/ci-72d4f1b-initial.json；最终查询另补记。现有工具环境未提供gh，使用GitHub只读连接器核对，未触发重跑或修改远端。
+- 批量planning和ImageRequest::gif()仍拒绝有损，QualityMapping缺GIF；GifOptions未显式冻结preparation_timeout。resources::image_limits的GIF缓冲收紧仍是无损模型：像素×9+输入上限×2+1MiB，不能直接用于双输入比较和存活候选；预约与实际执行须同批调整。
+- 桌面GifProcessingDto只有Lossless，convert对有损请求/结果直接InvalidSnapshot；前端image-contract还在格式分支前强制“details.kind=lossless时job.mode必须lossless”。GIF q100与有损请求得到实际完全等价结果均应合法，不能只扩充GIF枚举而留下这条旧约束。
+- 核心GifReport.quality可能记录回退前被淘汰的有损候选，不能把其误差、output_frames或收益作为最终文件信息展示。v12应优先暴露请求/实际路径、映射及受控回退原因；帧数字段继续明确原图语义，若新增输出帧数必须来自最终已验证候选。
+
+### 下一批范围与实施顺序
+
+| 顺序 | 实施内容 | 可验收结果 |
+| --- | --- | --- |
+| 0，并行收尾 | 核对72d4f1b实际三平台CI；明确失败优先定位，必要时修复对应小项 | Windows/macOS/Ubuntu的统一/实验/核心/随包结果有新SHA证据；等待结果不阻断独立本机准备 |
+| 1 | GIF有损批量请求、映射、冻结参数及资源准入 | PNG/JPEG/GIF有损混批可执行；独立成功/回退/NoGain/失败，预算与执行同一限额，稳定ID重试保持输出策略 |
+| 2，与入口开放同批 | v12 Rust DTO/转换、生成TS、运行时验证及界面消费者 | 请求有损但实际无损、实际有损、两种回退及NoGain如实显示；旧v11握手拒绝，不暴露中间候选指标为最终结果 |
+| 3 | 新混批/桌面/部署回归与Windows MSI，新增交互/观感手测 | 同一交付代码的自动检查、包内真实处理和安装运行证据齐全；人工反馈独立记录 |
+
+1. **先建立批量资源与请求契约。** 复用现有GifMode与v1质量/收益策略，补QualityMapping::Gif及GifOptions准备期限冻结。按无损、q100和实际有损路径核对源/候选/验证/原生内存峰值，抽取确有复用的纯计算以约束预约和执行；扫描头只收紧，运行重读实际尺寸。验证排队后源变大、格式替换、预算不足、取消/超时/关闭先真实回收再释放；继续使用唯一worker池，两候选在同一worker中顺序运行，不为有损另开池或嵌套并行。
+2. **同步完成批量输出与重试。** 输出仍走现有安全层，副本/备份/指定目录身份/结构保留/逐行冲突沿用。普通重试用当前合法模式和质量，保持job ID、递增attempt与原目标/备份策略；运行中设置变化不能改变已接纳参数。不把透明/时间轴/工具错误改成成功回退，不继承PNG凭据授权；多个格式的成功和失败互不污染。
+3. **设计并迁移v12报告。** GifProcessing增加实际Lossy与LosslessFallback（QualityBelowTarget/InsufficientGain），携带必要的映射版本/原生强度及既有frames/原始loopCount。保留请求模式与实际路径的区别；GIF有损请求可以得到Lossless，q100必须实际无损。有损/回退的强度必须符合v1映射，不能把PNG/JPEG的无损请求约束一并放宽。NoGain为独立终态，不让被淘汰候选的质量报告冒充最终产物。
+4. **生成与消费者作为一个迁移提交面。** 修改Rust DTO后运行types:generate，更新运行时验证、格式专属错误/回退白名单、快照/分页/订阅契约及组件。移除gifLosslessOnly与无损专属转换门槛应以完整v12消费者就绪为前提；旧协议拒绝重连，重载不重跑后台已接纳任务。沿用真实supportedFormats和独立引擎降级，不凭扩展名或固定文案开放能力。
+5. **界面聚焦实际行为。** 设置说明GIF保守有损与q100无损、预览仍为首帧；结果区显示实际无损/有损/回退及受控原因，NoGain明确原图保留。误差阈值、内存预算和helper参数不进入默认用户操作流程。中英/亮暗/小窗口检查仅覆盖新增提示、详情和状态，保留原有布局与输出交互。
+
+### 必须覆盖的验收矩阵
+
+- 同批含PNG、JPEG、GIF照片（q80/q60有损）、UI GIF（请求有损但实际无损）、暗部噪声（质量回退）、录屏（收益不足/NoGain）、透明最小样本（安全失败）；逐行报告和批次统计与真实结果一致。
+- GIF q100、合法低端封顶和非法质量；无损/有损切换后稳定ID重试；新草稿不改变旧行目标，已有成功项不重跑；所选目录失效、逐行/全部冲突、覆盖备份与取消期间原图安全。
+- 重复/迟到订阅、页面重载、运行中关闭、helper缺失/替换、原图变大/替换；原生资源和比较缓冲按同一额度执行，进程/管道/临时目录回收后释放worker。
+- v12接受所有真实GIF路径，拒绝旧v11、错误格式/映射/原因/模式组合；PNG/JPEG约束保持。前端不将NoGain的尝试指标当结果，不把GIF无损输出误报协议异常。
+- 按改动范围执行pnpm check、gif:lossy:check、扩展gif:core:check、gif:bundle:check及JPEG回归；构建新Windows MSI后验证新有损/回退/重试/详情和动画速度、循环、透明边缘/闪烁。三平台CI须绑定该交付的新SHA，自动测试、安装GUI和人工观感分别记录。
+
+### 完成与后续边界
+
+- 该批最小交付是可以在桌面真实使用的GIF保守有损闭环：导入→有界混批→真实处理报告→结果定位/重试→新包验证。单文件v1参数与引擎版本优先复用，只在具体失败或观感证据要求时调整，不同时扩大质量搜索或重做输出层/资源池。
+- 用户此前已完成的无损版五组手测保留，不重复当作所有开发前置。实际观感可与接入并行，发布/对外宣称支持前须取得；无WebView2与其他系统实际安装沿原安排。之后进入APNG独立结构/CRC/序号/时间轴/合成底座及无损编码实验，再接核心和桌面。
+- 本轮仅只读代码/远端复核并维护本记录、索引与阶段计划，尚未实施以上业务代码，未重新运行功能检查/构建，也未提交推送。
+
+### 本次收尾查询与文档验收
+
+- 收尾再次查询run38365744564：整体仍in_progress，Windows/macOS/Ubuntu的JPEG engine lab与GIF lossless lab共6个jobs均completed/success；三个Check jobs仍in_progress，无失败步骤。GIF job在该SHA包含222组有损契约及真实单文件/混合核心，因此首轮三平台GIF有损实验/核心已取得证据；综合检查、桌面构建/部署仍不能提前宣称全部通过。
+- 最终快照target/gif-desktop-plan-261013/ci-72d4f1b-final.json保留run身份、全部9个job ID/状态及步骤；6个通过job分别为GIF Ubuntu115190876323、macOS115190876501、Windows115190876531，JPEG Windows115190876421、macOS115190876548、Ubuntu115190876572。后续应继续核对当前HEAD三个Check的实际终态，未设置自动监控或擅自重跑。
+- git diff --check通过；只读文档脚本核对3份变更文档的119个本地链接、NUL/尾随空白通过。工作区仅本记录、索引与阶段计划三份文档修改，未提交推送；开发实施以本节明确范围开始。
+
+## 2026-10-13 实施GIF有损批量与v12桌面
+
+- 用户授权先核对剩余CI，再完成有损批量、资源预算和v12桌面接入，验证通过后构建Windows MSI。开工dev/72d4f1b，保留前轮三份未提交计划；本轮未授权提交推送。
+- 已核对run38365744564的9个jobs，首次查询8项成功，仅Windows综合Check尚在运行且无失败；实施前继续确认其终态。资源/模式/报告及消费者按同一交付迁移，核心v1质量/收益和安全提交策略沿用。
+- 随后确认剩余Windows Check通过，run38365744564最终completed/success、9个jobs全部成功，最后更新2026-10-13 16:17:52（Asia/Shanghai）。三平台统一检查、桌面构建/部署与JPEG/GIF实验/核心基线收口，快照target/gif-v12-261013/ci-baseline.json；这仅覆盖72d4f1b，不覆盖本轮v12未提交代码。
+
+### 批量与v12实现进展
+
+- ImageRequest接通GifMode/QualityMapping::Gif，GifOptions冻结preparation_timeout；抽取验证内存纯计算供播放/有损比较与批量收紧共用，有损候选常驻容量计入额度，q100使用无损界限。预约与实际请求使用相同收紧值，维持单worker顺序候选和现有取消回收。
+- 桌面协议升级v12，增加GIF实际Lossy及QualityBelowTarget/InsufficientGain两种LosslessFallback；生成TS与运行时映射/模式验证同步，有损请求可返回实际无损，q100禁止有损报告。保留输入帧数和原始循环语义，不暴露被淘汰候选的quality指标。
+- 设置提示改为保守有损/q100无损/必要时回退及首帧预览；准备真实混批矩阵（0/60/80/99/100、照片/UI/暗噪声/录屏/透明安全拒绝、失败切换模式重试及有损备份），复用同一确定性噪声生成器。尚在验证，不能将本节视为通过证据。
+
+### 本机自动验证通过
+
+| 命令 | 结果与证据 |
+| --- | --- |
+| pnpm types:generate | 已从Rust生成v12类型，后续types:check只读核对通过；generated.ts无内容变化，tasks.generated.ts包含新联合与协议号 |
+| pnpm check | 最终完整通过：163项前端、65项核心单元、86项核心集成、118项桌面、2项doctest；含格式、lint、类型、素材哈希、生成类型和全目标全特性Clippy。日志target/gif-v12-261013/check-final.log |
+| pnpm gif:core:check | 25项无损收益、2项NoGain、2项压力及单文件有损/三格式混合通过；原生额度失败后以q100稳定ID重试、总预算拒绝、有损请求实际无损及冲突隔离。证据target/gif-core-kr2RF2，日志core.log |
+| pnpm gif:lossy:check | 37输入/222组全部满足预期契约，两个透明样本保持精确拒绝；2项Node契约负例通过。证据target/gif-lossy-hrYTaC，日志lossy.log |
+| pnpm gif:bundle:check | v12隔离资源及真实桌面后端通过，15次首帧/方向预览、五质量混批、两类回退/NoGain、透明失败、稳定ID切换模式重试、有损覆盖备份、退出与独立能力降级。证据target/gif-bundle-j8Dbfv，日志gif-bundle.log |
+| pnpm jpeg:bundle:check | v12下PNG/JPEG部署、真实混合、11次预览、方向1–8及输出安全回归通过。证据target/jpeg-bundle-mbVVKJ，日志jpeg-bundle.log |
+
+- 上表未标全路径的日志均在target/gif-v12-261013/，所有语料副本/证据由Git排除。生产参数未扩大，无新增依赖或锁文件变更。
+- 资源回归覆盖无损/q80/q100在预约后源变大/格式替换、准备期限7秒冻结、实际额度等于预约额度、超限保持原图；GIF/JPEG/PNG共用worker的取消测试确认runner真实返回前预算不释放。单文件真实取消/超时/输出竞争沿原核心验收执行。
+- 真实有损矩阵：照片q0/60/80为Lossy，q99为收益不足回退但仍有无损收益，q100为Lossless；UI始终实际无损。暗噪声q0/60/80质量回退并NoGain、q99可实际有损；录屏q0/60/80收益不足并NoGain。透明最小样本在q80为安全失败，未写目标。每批冲突重试更换模式，保留ID、递增attempt和冻结目标，其他行不重跑，旧attempt定位失效。
+- 新的真实验收属于开发bundle-check特性，不进入默认安装包。中英文详情测试涵盖实际路径、回退原因和原图帧数；这些测试及静态首帧检查不代表实际GUI主题/DPI或动画观感通过。
+
+### 验证中发现并修正的问题
+
+- 首次类型检查发现空列表GIF格式标签仍引用gifLosslessOnly，已同步改为新能力提示；Rust Clippy指出移除模式门槛后的可合并if及测试默认值二次赋值，按规则修正，没有关闭lint。
+- 首次新增随包矩阵在“重试原目标”断言失败。输出已在正确位置且独立图像验证通过；授权目录采用Windows规范路径表示，直接PathBuf与普通路径比较不成立。改用same_file核对实际文件身份后全矩阵通过，未放宽生产目标身份或修改重试业务。
+- 本次进一步补齐Rust转换的q100错误有损、无损请求错误有损、错误映射版本/强度负例；前端仍拒绝旧v11和跨格式回退原因，PNG/JPEG约束保留。
+
+### Windows包与后续交接（本机交付完成）
+
+- 统一检查与真实回归通过后执行pnpm desktop:build --bundles msi --ci。按同一构建产物解包核对主程序、GIF/JPEG资源和许可，并复验实际包内资源；完成结果在本节续记。
+- 构建通过，日志target/gif-v12-261013/msi-build.log。交付副本target/deliverables/261013-gif-v12/PixoFold_0.1.0_x64_en-US.msi，4,988,928 bytes（约4.76MiB），SHA256为8537ca0d3781b4eda4347c78fb3637641045c87d805ea8d0eec69b5a644050d3；同目录SHA256SUMS.txt可核对。版本仍为0.1.0，使用独立日期/v12目录避免与既有v11包混用。
+- WiX dark解包及target/gif-v12-261013/check-msi.ps1通过：24个安装文件逐一与本次构建比对，GIF清单14项、JPEG清单5项均符合，完整Gifsicle源码/封装/配方/许可仍随包，开发验收二进制未进入安装清单。主程序仅有Tauri预期的唯一UNK→MSI三字节标记差异，替换后整文件SHA256一致；报告target/gif-v12-261013/msi/report.json记录installed=false。dark有7条ControlEvent反编译DARK1059警告，文件提取与哈希校验成功；解包不等于安装UI验收，本轮未运行安装程序。
+- pnpm gif:bundle:check --resources E:/Project/pixofold/target/gif-v12-261013/msi/restored通过；用实际MSI解包资源在仓库外/中文空格路径/无开发PATH运行v12三格式、五质量GIF矩阵、输出/备份/稳定ID/预览/退出与独立降级。证据target/gif-bundle-1bYAe9，日志target/gif-v12-261013/msi-resources.log。
+- 最终源码范围：核心batch/image/planning/resources/mixed_tests与gif/memory/playback/comparison；核心真实example/共用语料；桌面DTO/convert/生成TS/前端校验与提示详情测试；bundle_check及新gif_lossy矩阵、两份检查脚本；README/AGENTS/格式与交互说明/本连续记录/索引及阶段计划。无依赖锁、应用版本、原始手测素材或CI配置变更；构建、实验、MSI与证据均Git排除。本轮所有改动留在dev工作区，未提交、未推送。
+- 下一验收仅聚焦新增能力：新MSI安装/启动/关闭；默认有损混批、q100、实际无损与两类回退/NoGain；失败后切模式重试及详情；外部播放器核对速度/循环/透明边缘/闪烁，新提示/详情的中英、亮暗、小窗口/DPI。用户已完成的无损版五组手测保持原证据；本轮没有声称新包GUI、人工观感或新SHA三平台已通过。
+- 获得用户后续明确提交/推送授权后验新SHA平台；有损观感问题优先调整或回到无损策略。后续APNG从独立语料、结构/合成/时间轴和无损编码实验开始，JPEG凭据移除及其他平台安装各自安排，完整动画任务继续使用本记录。
+- 最终diff复核及git diff --check通过；文档脚本核对9份变更文档、202个本地链接、NUL与尾随空白通过。MSI重新计算SHA256与交付清单一致，Git忽略规则确认安装包和验证日志未入库；dev/72d4f1b的提交位置未改变。

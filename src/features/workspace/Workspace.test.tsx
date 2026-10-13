@@ -191,13 +191,15 @@ describe('native drop import workflow', () => {
     expect(screen.getByText('JPEG')).toHaveAttribute('aria-disabled', 'false');
     expect(writes()).toHaveLength(0);
   });
-  it('enables GIF independently and explains lossless mode before import', async () => {
+  it('enables GIF independently and explains conservative lossy and lossless modes', async () => {
     current.supportedFormats = ['png', 'gif'];
     await mount();
     expect(screen.getByText('GIF')).toHaveAttribute('aria-disabled', 'false');
     expect(screen.getByText('JPEG')).toHaveAttribute('aria-disabled', 'true');
     expect(
-      screen.getByText('GIF 仅支持无损优化。有损模式下 GIF 会逐行失败；切换无损后可重试。'),
+      screen.getByText(
+        'GIF 使用保守有损，质量 100 时无损；质量或收益不足会回退无损。缩略图仅展示首帧。',
+      ),
     ).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: '无损优化' }));
     expect(screen.getByText('GIF 按无损处理，缩略图仅展示首幅画面。')).toBeVisible();

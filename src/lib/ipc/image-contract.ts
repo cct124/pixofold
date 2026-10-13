@@ -1,5 +1,6 @@
 import type {
   FallbackDto,
+  GifFallbackDto,
   JpegFallbackDto,
   JobDto,
   JobErrorDto,
@@ -45,6 +46,10 @@ const jpegFallbacks = {
   embedded_thumbnail: true,
   ambiguous_color: true,
 } satisfies Record<JpegFallbackDto['kind'], true>;
+const gifFallbacks = {
+  quality_below_target: true,
+  insufficient_gain: true,
+} satisfies Record<GifFallbackDto['kind'], true>;
 
 function requireContract(condition: boolean): void {
   if (!condition) throw new Error('Inconsistent image contract');
@@ -71,7 +76,8 @@ function report(job: JobDto): void {
   const details = value.details;
   requireContract(['lossless', 'lossy', 'lossless_fallback'].includes(details.kind));
   if (details.kind === 'lossless') {
-    requireContract(job.mode.kind === 'lossless');
+    // GIF允许有损请求实际得到严格无损（q100或候选像素完全等价）。
+    requireContract(value.format === 'gif' || job.mode.kind === 'lossless');
   } else {
     requireContract(
       job.mode.kind === 'lossy' &&
@@ -92,7 +98,17 @@ function report(job: JobDto): void {
     }
   } else if (value.format === 'gif') {
     requireContract(job.state.report.contentCredentialsRemoved === false);
-    requireContract(value.details.kind === 'lossless');
+    if (value.details.kind !== 'lossless') {
+      requireContract(job.mode.kind === 'lossy' && job.mode.quality < 100);
+      requireContract(value.details.mappingVersion === 1);
+      if (job.mode.kind === 'lossy') {
+        requireContract(
+          value.details.nativeLossiness === Math.min(20, Math.ceil((100 - job.mode.quality) / 2)),
+        );
+      }
+    }
+    if (value.details.kind === 'lossless_fallback')
+      requireContract(Object.hasOwn(gifFallbacks, value.details.reason.kind));
     requireContract(
       Number.isInteger(value.details.frames) &&
         value.details.frames > 0 &&
@@ -112,7 +128,7 @@ function report(job: JobDto): void {
   }
 }
 
-/** v11格式边界：实际能力与行/报告一致，JPEG/GIF不继承PNG凭据许可。 */
+/** v12格式边界：GIF区分请求与实际路径，JPEG/GIF不继承PNG凭据许可。 */
 export function validateImages(snapshot: TaskSnapshotDto): void {
   const formats = snapshot.supportedFormats;
   requireContract(Array.isArray(formats) && formats.length >= 1 && formats.length <= 3);

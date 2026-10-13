@@ -110,9 +110,9 @@ const copy = {
     'GIF 暂不可用，请使用包含 GIF 引擎的完整安装包。',
     'GIF is unavailable. Use a complete installation with the GIF engine.',
   ],
-  gifLosslessOnly: [
-    'GIF 仅支持无损优化。有损模式下 GIF 会逐行失败；切换无损后可重试。',
-    'GIF supports lossless optimization only. GIF rows fail in lossy mode; switch to lossless to retry.',
+  gifLossyHint: [
+    'GIF 使用保守有损，质量 100 时无损；质量或收益不足会回退无损。缩略图仅展示首帧。',
+    'GIF uses conservative lossy compression, or lossless at quality 100. It falls back to lossless when quality or savings are insufficient. Thumbnails show the first frame only.',
   ],
   gifPreviewHint: [
     'GIF 按无损处理，缩略图仅展示首幅画面。',
@@ -313,8 +313,8 @@ const copy = {
     'JPEG contains protected APP11 data. Original kept; credential removal is unavailable.',
   ],
   unsupported_gif_mode: [
-    'GIF 仅支持无损优化，原图已保留；切换到无损模式后重试。',
-    'GIF supports lossless optimization only. Original kept; switch to lossless and retry.',
+    'GIF 处理模式不可用，原图已保留。',
+    'The GIF processing mode is unavailable. Original kept.',
   ],
   tool_identity: [
     '此格式的压缩引擎缺失或已变化，请重新安装完整应用。',
@@ -351,12 +351,13 @@ const copy = {
   transparency_guard: ['透明度保护', 'Transparency protection'],
   no_size_benefit: ['量化无收益', 'No quantization benefit'],
   quality_below_target: ['未达到质量目标', 'Quality target not met'],
+  insufficient_gain: ['额外压缩收益不足', 'Insufficient additional savings'],
   color_profile: ['ICC 色彩配置保护', 'ICC color profile protection'],
   four_component_color: ['CMYK / YCCK 颜色保护', 'CMYK / YCCK color protection'],
   embedded_thumbnail: ['内嵌缩略图保护', 'Embedded thumbnail protection'],
   ambiguous_color: ['颜色解释不明确', 'Ambiguous color interpretation'],
   jpegNativeQuality: ['JPEG 编码质量', 'JPEG encoding quality'],
-  gifFrames: ['GIF 帧数', 'GIF frames'],
+  gifFrames: ['原图帧数', 'Source frames'],
   gifLoopCount: ['循环扩展值', 'Loop extension value'],
   gifNoLoop: ['无循环扩展', 'No loop extension'],
   gifInfiniteLoop: ['无限循环', 'Infinite loop'],

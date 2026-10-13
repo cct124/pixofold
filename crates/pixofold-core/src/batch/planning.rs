@@ -126,15 +126,10 @@ pub(super) fn prepare(
             }
         };
         // 头探测只能收紧有效的配置，格式专属上限须在收紧前校验。
-        if let FormatOptions::Gif(options) = request.options {
-            if let Err(error) = options.limits(request.limits).validate() {
-                failure.get_or_insert_with(|| JobFailure::image(error.into()));
-            }
-            if !matches!(request.mode, PngMode::Lossless) {
-                failure.get_or_insert_with(|| {
-                    JobFailure::image(crate::gif::GifError::UnsupportedMode.into())
-                });
-            }
+        if let FormatOptions::Gif(options) = request.options
+            && let Err(error) = options.limits(request.limits).validate()
+        {
+            failure.get_or_insert_with(|| JobFailure::image(error.into()));
         }
         if let FormatOptions::Jpeg(options) = request.options
             && let Err(error) = options.limits(request.limits).validate()
@@ -192,6 +187,9 @@ pub(super) fn prepare(
             }
             (PngMode::Lossy { quality: q }, ImageKind::Jpeg) => Some(QualityMapping::Jpeg(
                 crate::jpeg::JpegQualityMapping::new(q),
+            )),
+            (PngMode::Lossy { quality }, ImageKind::Gif) => Some(QualityMapping::Gif(
+                crate::gif::GifQualityMapping::new(quality),
             )),
             _ => None,
         };

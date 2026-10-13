@@ -12,7 +12,6 @@ use serde::Serialize;
 use std::{collections::BTreeSet, time::Instant};
 
 const MAX_COMPARED_PIXELS: u64 = 256 * 1024 * 1024;
-const COMPARISON_FIXED_BYTES: u64 = 2 * 1024 * 1024;
 
 /// 时间加权RGB均方根误差；时域量只在误差画面实际变化时累计，不随等价拆帧稀释。
 #[derive(Debug, Clone, Serialize)]
@@ -190,10 +189,13 @@ pub(super) fn compare_with_resident(
         .max(u64::from(output.width) * u64::from(output.height));
     // 完整解码前计入两个仍在存活的输入；尺寸取实际字节结构，不复用扫描的旧头。
     // 四RGBA画布、两个索引解码、上一误差i16 RGB、压缩缓存/输入及固定余量。
-    let working = pixels * 24
-        + (source.len() as u64 + target.len() as u64) * 4
-        + COMPARISON_FIXED_BYTES
-        + resident_bytes;
+    let working = super::memory::comparison_bytes(
+        pixels,
+        source.len() as u64,
+        target.len() as u64,
+        resident_bytes,
+    )
+    .ok_or(GifError::ResourceLimit("GIF比较缓冲计算溢出"))?;
     check(
         working <= limits.resources.max_decoded_bytes.0,
         Code::ResourceLimit,

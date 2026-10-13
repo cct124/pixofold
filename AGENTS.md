@@ -3,22 +3,22 @@
 ## 项目与入口
 
 - PixoFold（轻图）是本地批量图片压缩工具，计划支持PNG、JPEG、GIF、APNG，采用GPL-3.0-or-later。静态PNG真实工作台已接通核心、批量/导入规划、应用协调、快照订阅、原生文件/目录选择及受控拖放。TaskRuntime与SubscriptionRuntime属于应用；WorkspaceController属于页面，StrictMode单连接，首次未知响应失败须重载。变更前完成握手；原生路径只留Rust，不接受任意路径IPC。输入使用会话绑定单次授权，拖放复用唯一Channel/输入槽，Drop终点命中图片区域且无弹窗/忙态才导入，处理后释放票据，不发高频Over。main页面重载撤销旧订阅/授权，物理对话框仍占槽，后台任务不重跑。
-- 当前协议v11沿用v7的有/无备份覆盖、同目录及指定目录副本。输出草稿与输入共用物理选择互斥、分离授权用途；仅当前会话复用目录ID，页面只得安全名称。OutputDirectory共享身份句柄由草稿/已接纳任务持有，替换/清除/断连不改任务冻结目标；规划/暂存/提交复查身份，不宣称文件系统CAS。只持久化指定目录意图与布局布尔值，重启/重连须重选，不静默回退；缺少目录或非法质量的新导入只扫描，Ready修正后启动。普通重试只需有效模式/质量，保留原行目标/备份策略，用当前页稳定ID与批次revision，不依赖新草稿授权、不继承移除许可。
-- 高级选项常显，覆盖前备份默认不勾选，副本忽略；指定目录时可选保留输入结构（默认关闭），不支持任意路径文本、自动编号或覆盖已有副本。caBX确认完整加载同版本列表、默认全选，固定打开时模式/目录/布局与备份初值，调整只影响选中行；布局复用核心ImportOutput::outputs_for，不移动成功项。草稿与批次分离，不自动重发不确定操作。GIF仅无损，GIF有损/APNG待接；查询名不是路径授权，分页保持同revision。实际GUI/平台验证以devlog为准，不沿用旧CI为新代码背书。
+- 当前协议v12沿用v7的有/无备份覆盖、同目录及指定目录副本。输出草稿与输入共用物理选择互斥、分离授权用途；仅当前会话复用目录ID，页面只得安全名称。OutputDirectory共享身份句柄由草稿/已接纳任务持有，替换/清除/断连不改任务冻结目标；规划/暂存/提交复查身份，不宣称文件系统CAS。只持久化指定目录意图与布局布尔值，重启/重连须重选，不静默回退；缺少目录或非法质量的新导入只扫描，Ready修正后启动。普通重试只需有效模式/质量，保留原行目标/备份策略，用当前页稳定ID与批次revision，不依赖新草稿授权、不继承移除许可。
+- 高级选项常显，覆盖前备份默认不勾选，副本忽略；指定目录时可选保留输入结构（默认关闭），不支持任意路径文本、自动编号或覆盖已有副本。caBX确认完整加载同版本列表、默认全选，固定打开时模式/目录/布局与备份初值，调整只影响选中行；布局复用核心ImportOutput::outputs_for，不移动成功项。草稿与批次分离，不自动重发不确定操作。GIF支持无损及保守有损，APNG待接；查询名不是路径授权，分页保持同revision。实际GUI/平台验证以devlog为准，不沿用旧CI为新代码背书。
 - v8展示命令按已ACK会话/selection/job/attempt/终态绑定，定位只解析实际结果/备份，NoGain定位保留原图；opener仅Rust调用，不装其通用IPC。缩略图由应用AssetService拥有，单解码、16 MiB输入/8 Mi像素/各32 MiB解码预算，最多128×96/64 KiB PNG，缓存64项/4 MiB；可见终态行按需，离屏释放Blob。清除/换批/重载/退出失效并释放，迟到解码不复活缓存；不把无备份覆盖后的文件叫原图，不把Requested叫OS选中已验证。具体限制与平台边界见README。
 - 自协议v9提供完成批次输出目录查询/打开，按会话/selection/batchId/revision绑定，仅成功行参与分组；冻结的指定输出根或实际结果父目录，不读设置草稿。单目录直开、多目录每页50项逐次选择，打开前复查存在/链接/原生身份；与行定位共享一个在途许可，旧版本、删除/替换不重新授权。操作列常显详情/查看，详情悬停或聚焦浮层不撑高行，备份按钮在浮层；Escape、滚动、行失效与模态占用收起，实际GUI待手测。
 - 从 [README.md](README.md) 了解项目；架构与引擎选型见[项目方案](docs/架构设计文档/pixofold-proposal.md)，交互规则见[UI 交互设计](docs/架构设计文档/ui-interaction-design.md)。
 - 副本保留原始OS文件名（含扩展名/大小写），不添加后缀。同目录同名按行冲突拒绝，不能转为覆盖。同名目录根允许合并布局，已有目标/同批同目标/父子目标/输出与输入交叉只使相关副本失败，其余继续；重复源身份仍整批拒绝。导入、普通重试及caBX确认共用预检和输出层noclobber，全部目标冲突也应进入Finished行结果，不能退回Ready整批拒绝。
 - 当前main为单WebviewWindow，原生拖放经WindowEvent::DragDrop分发，不是子WebView的WebviewEvent；不要双路转发。窗口分发回归与实际OS投递验收分开，未来增加子WebView时重新评估事件来源和区域归属。
 - 桌面启动按CPU/RAM配置唯一固定图片worker池（最多32）；普通压缩和凭据确认整图共用池，编码器内部不嵌套并行。PNG头/文件大小只用于收紧每图执行上限，预约按同一上限计费且pipeline必须实际执行，不能仅信扫描旧尺寸。全局预算不超过可用RAM/2、总RAM/4和4 GiB，未知RAM回退单worker/256 MiB；不是实时负载管理或RSS硬上限。核心手动BatchConfig默认仍为1，不将其误当桌面实际配置。
-- 桌面v11经TaskRuntime::with_engines把同一ImageEngines注入scan_with_engines/规划/BatchService和AssetService；默认服务仍PNG-only，工作台按supportedFormats开放JPEG/GIF。候选/行格式冻结，JPEG/GIF请求/报告/错误独立，不能复用PNG凭据许可；processing按format/details区分，生成类型与运行时验证同步。JPEG最多2MiB头探测仅收紧实际执行上限，预约计入父进程缓冲、原生工作集和32MiB固定余量；取消/超时/关闭先回收子进程/管道/临时目录再释放worker及预算。真实核心回归通过jpeg:core:check，桌面后端混合及方向预览通过jpeg:bundle:check，三格式与GIF首帧通过gif:bundle:check；GUI/安装按devlog独立验收。
+- 桌面v12经TaskRuntime::with_engines把同一ImageEngines注入scan_with_engines/规划/BatchService和AssetService；默认服务仍PNG-only，工作台按supportedFormats开放JPEG/GIF。候选/行格式冻结，JPEG/GIF请求/报告/错误独立，不能复用PNG凭据许可；processing按format/details区分，生成类型与运行时验证同步。JPEG最多2MiB头探测仅收紧实际执行上限，预约计入父进程缓冲、原生工作集和32MiB固定余量；取消/超时/关闭先回收子进程/管道/临时目录再释放worker及预算。真实核心回归通过jpeg:core:check，桌面后端混合及方向预览通过jpeg:bundle:check，三格式/GIF有损路径与首帧通过gif:bundle:check；GUI/安装按devlog独立验收。
 - main窗口create=false，setup先验证引擎、创建唯一任务/订阅/展示所有者，再按原配置创建窗口；不能让首次page-load/IPC早于服务就绪。JPEG缩略图复用可信helper的pixels，限16MiB输入/8Mi像素/各32MiB像素与原生工作集/5秒单次调用；Exif方向1–8只应用于预览。ICC/CMYK/不明确颜色及保护元数据拒绝预览，不改变压缩结果；撤销取消在途预览，真实回收前仍占许可。
 - 界面以 [HTML 原型](docs/UI界面设计/PixoFold.html)及[原型说明](docs/UI界面设计/HTML原型说明.md)为准，生成的 UI 图片仅作历史参考。旧项目 png-palettes 用于参考，未经任务要求不修改。
 - 实际工具链与命令以 README、`package.json`、`rust-toolchain.toml` 为准；不把规划或未运行的跨平台 CI 写成已验证能力。
 
 ## 接手与修改
 
-- GIF无损核心与桌面v11已有PNG/JPEG/GIF混合入口；GIF能力取决于独立随包校验。有损模式中的GIF逐行unsupported_gif_mode，设置提示切无损后稳定ID重试，其他格式继续；报告保留frames/原始loopCount。核心使用固定Gifsicle有界helper及gif/weezl独立验证，默认原生请求分配32MiB、累计解码与验证缓冲各64MiB，预约另计输入/系统余量；真实执行沿用收紧额度。取消/超时先回收child/管道/临时目录再释放许可；GIF不继承PNG凭据许可，备份保留原始gif扩展名大小写。GIF预览在Rust合成首幅透明画布，不执行helper；16MiB输入/4Mi画布与单帧像素/32MiB缓冲/5秒协作期限，撤销沿用单解码许可与缓存失效。具体边界及迁移见native/gif/README.md，GUI/安装/平台证据以devlog为准。
+- GIF无损/保守有损核心与桌面v12已有PNG/JPEG/GIF混合入口；GIF能力取决于独立随包校验。报告区分请求模式和实际Lossless/Lossy/LosslessFallback，q100无损，回退只有质量不足/额外收益不足；frames为输入帧数，保留原始loopCount，不暴露被淘汰候选quality指标。核心使用固定Gifsicle有界helper及gif/weezl独立验证，默认原生请求分配32MiB、累计解码与验证缓冲各64MiB，预约另计输入/系统余量；真实执行沿用按模式收紧的同一额度。取消/超时先回收child/管道/临时目录再释放许可；GIF不继承PNG凭据许可，备份保留原始gif扩展名大小写。GIF预览在Rust合成首幅透明画布，不执行helper；16MiB输入/4Mi画布与单帧像素/32MiB缓冲/5秒协作期限，撤销沿用单解码许可与缓存失效。具体边界及迁移见native/gif/README.md，GUI/安装/平台证据以devlog为准。
 
 - 先检查分支与工作区改动、相关目录的 `AGENTS.md`；已有 `docs/devlog/README.md` 时，读取索引和对应任务记录，再核对代码。
 - 先检索、后读取、再编辑：用 `rg -n` 定位定义与引用，用 `rg --files` 找文件，按需读取相关区间及必要上下文。
@@ -59,11 +59,11 @@
 
 ## 工具链、依赖与配置
 
-- JPEG/GIF生产与实验分别共用tools/jpeg-lab/build.mjs和tools/gif-lab/build.mjs固定配方；桌面dev/build钩子依次执行jpeg:bundle:prepare、gif:bundle:prepare，资源固定在jpeg/runtime与gif/runtime。build.rs核对目标/来源/产物并内嵌预期SHA256，运行时不信旁置清单。GIF资源含完整上游源码、封装/配方及许可。普通无工具debug可PNG-only，release必须有有效资源；修改helper/配方后重新prepare。Windows helper静态CRT，JPEG/GIF独立降级且始终保留PNG；v11工作流按启动实际能力开放，执行仍复查身份。jpeg:bundle:check及gif:bundle:check为独立无GUI部署/混合后端验收，不随默认安装包分发；运行/安装/各平台证据分别记录。
+- JPEG/GIF生产与实验分别共用tools/jpeg-lab/build.mjs和tools/gif-lab/build.mjs固定配方；桌面dev/build钩子依次执行jpeg:bundle:prepare、gif:bundle:prepare，资源固定在jpeg/runtime与gif/runtime。build.rs核对目标/来源/产物并内嵌预期SHA256，运行时不信旁置清单。GIF资源含完整上游源码、封装/配方及许可。普通无工具debug可PNG-only，release必须有有效资源；修改helper/配方后重新prepare。Windows helper静态CRT，JPEG/GIF独立降级且始终保留PNG；v12工作流按启动实际能力开放，执行仍复查身份。jpeg:bundle:check及gif:bundle:check为独立无GUI部署/混合后端验收，不随默认安装包分发；运行/安装/各平台证据分别记录。
 
 - 已使用 pnpm、Vite、Oxlint、Prettier、Vitest 与 Cargo workspace；`pnpm desktop:dev` 启动桌面，`pnpm check` 执行统一检查。变更 Rust DTO 后运行 `pnpm types:generate`，CI 用 `pnpm types:check` 只读检查。
 - GIF有损4A通过pnpm gif:lossy:check和显式gif-lossy-lab特性运行；内存候选复用有界helper，双背景/时间对齐检查与误差观测分离，保持生产无损验证不变。target/gif-lossy-*保留全部候选/拒绝/采样与HTML对照；原生lossiness不是UI质量，实验筛选不是感知保证或生产能力。新增公开录屏身份与许可由fixtures:check核对，GIF job运行实验；新SHA平台结果仍单独验收。
-- GIF单文件4B已有GifMode/版本化映射/实际processing与质量及收益回退；q100无损、q80强度10、q≤60封顶20。有损需比原图/无损候选较小者再省1%且1KiB；硬语义/工具失败不转成功回退。双候选顺序执行，比较额度计入存活候选容量，准备阶段总90秒协作期限，进入共享提交层后沿用取消/临界区契约。compare_gif使用独立流式双背景/循环检查，时域RMS排除相同误差拆帧的零变化分母。批量/v11仍仅无损，转换拒绝意外有损报告；后续批量开放须同步预算公式、DTO/协议/前端，不能只删除UnsupportedMode。
+- GIF单文件/批量共用GifMode/版本化映射/实际processing与质量及收益回退；q100无损、q80强度10、q≤60封顶20。有损需比原图/无损候选较小者再省1%且1KiB；硬语义/工具失败不转成功回退。双候选顺序执行，比较额度计入存活候选容量；共享memory公式按无损/q100或有损收紧预约与执行。GifOptions冻结准备阶段总90秒协作期限，进入共享提交层后沿用取消/临界区契约。compare_gif使用独立流式双背景/循环检查，时域RMS排除相同误差拆帧的零变化分母。v12有损请求可返回实际无损，反向组合、q100有损及错误映射/原因拒绝；PNG/JPEG约束不变。
 - 工程初始化时锁定 Rust、Node 和包管理器版本，在 README 记录实际命令与系统依赖；固定 Rust edition 与格式风格。本地和 CI 使用同一套配置。
 - 提交 `Cargo.lock` 与唯一的前端锁文件，使用锁定依赖的安装与构建；依赖升级尽量与功能改动分开，Git 依赖及随包编码工具固定到可复现版本。
 - 新增依赖先检查现有能力，评估用途、维护、许可证、平台和构建成本，只启用所需功能；迁移代码与分发第三方工具保留来源、版权和各自许可。

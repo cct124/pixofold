@@ -160,20 +160,23 @@ impl ImageRequest {
             limits: options.limits(self.limits),
         })
     }
-    /// 转为仅无损GIF请求，独立约束实际输入/验证缓冲和原生分配。
+    /// 转为GIF专属请求，保留冻结模式/准备期限，独立约束验证与原生分配。
     pub fn gif(&self) -> Result<GifRequest, GifError> {
         let FormatOptions::Gif(options) = self.options else {
             return Err(GifError::InvalidLimits);
         };
-        if !matches!(self.mode, CompressionMode::Lossless) {
-            return Err(GifError::UnsupportedMode);
-        }
         Ok(GifRequest {
             source: self.source.clone(),
             output: self.output.clone(),
             limits: options.limits(self.limits),
-            mode: crate::gif::GifMode::Lossless,
+            mode: self.gif_mode(),
         })
+    }
+    pub(super) fn gif_mode(&self) -> crate::gif::GifMode {
+        match self.mode {
+            CompressionMode::Lossless => crate::gif::GifMode::Lossless,
+            CompressionMode::Lossy { quality } => crate::gif::GifMode::Lossy { quality },
+        }
     }
 }
 impl From<PngRequest> for ImageRequest {
@@ -348,14 +351,16 @@ impl std::error::Error for ImageError {
 pub enum QualityMapping {
     Png(PngQualityMapping),
     Jpeg(crate::jpeg::JpegQualityMapping),
+    Gif(crate::gif::GifQualityMapping),
 }
-/// GIF仅无损；格式硬上限在转换时与公共资源取较小值，额外约束固定到每行请求。
+/// GIF格式硬上限与公共资源取较小值，额外约束固定到每行请求。
 #[derive(Debug, Clone, Copy)]
 pub struct GifOptions {
     pub validation: GifValidationLimits,
     pub max_native_bytes: ByteCount,
     pub process_timeout: Duration,
     pub validation_timeout: Duration,
+    pub preparation_timeout: Duration,
 }
 impl Default for GifOptions {
     fn default() -> Self {
@@ -365,6 +370,7 @@ impl Default for GifOptions {
             max_native_bytes: limits.max_native_bytes,
             process_timeout: limits.process_timeout,
             validation_timeout: limits.validation_timeout,
+            preparation_timeout: limits.preparation_timeout,
         }
     }
 }
@@ -389,7 +395,7 @@ impl GifOptions {
             max_native_bytes: self.max_native_bytes,
             process_timeout: self.process_timeout,
             validation_timeout: self.validation_timeout,
-            preparation_timeout: GifLimits::default().preparation_timeout,
+            preparation_timeout: self.preparation_timeout,
         }
     }
 }

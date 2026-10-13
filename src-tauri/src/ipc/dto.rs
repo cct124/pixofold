@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 
 pub(super) const MAX_PAGE_SIZE: u16 = 100;
 pub(super) const MAX_DISPLAY_CHARS: usize = 240;
-// v11增加GIF无损报告与模式错误；旧页面须更新重载，ACK/背压契约沿用。
-pub(crate) const TASK_PROTOCOL_VERSION: u32 = 11;
+// v12增加GIF有损/回退报告并区分请求与实际模式；旧页面须更新重载，ACK/背压沿用。
+pub(crate) const TASK_PROTOCOL_VERSION: u32 = 12;
 
 /// 无符号64位十进制字符串；拒绝数字JSON、符号、空白、前导零及溢出。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -458,9 +458,30 @@ pub(crate) enum GifProcessingDto {
         frames: u32,
         loop_count: Option<u16>,
     },
+    Lossy {
+        frames: u32,
+        loop_count: Option<u16>,
+        mapping_version: u32,
+        native_lossiness: u16,
+    },
+    LosslessFallback {
+        frames: u32,
+        loop_count: Option<u16>,
+        mapping_version: u32,
+        native_lossiness: u16,
+        reason: GifFallbackDto,
+    },
 }
 
-/// 格式是可辨识联合的一部分；GIF仅无损，JPEG原生质量不能解释为PNG量化测量值。
+#[derive(Debug, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) enum GifFallbackDto {
+    QualityBelowTarget,
+    InsufficientGain,
+}
+
+/// 格式是可辨识联合的一部分；请求模式和实际路径分别表达，不跨格式解释质量数值。
 #[derive(Debug, Serialize)]
 #[serde(tag = "format", content = "details", rename_all = "snake_case")]
 #[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
@@ -653,6 +674,7 @@ pub(super) fn declarations() -> String {
         JpegFallbackDto,
         JpegProcessingDto,
         GifProcessingDto,
+        GifFallbackDto,
         ProcessingDto,
         ReportDto,
         ConfirmationDto,

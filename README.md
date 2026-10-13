@@ -2,7 +2,7 @@
 
 基于 Tauri、React 和 Rust 的本地批量图片压缩工具，计划支持 PNG、JPEG、GIF 和 APNG，由 png-palettes 重构演进。
 
-当前已接通 **静态 PNG / JPEG / GIF 混合工作台**：Tauri 2 + React 界面经受控原生选择/拖放、应用级任务协调和有界快照驱动独立 Rust 核心，支持文件/目录导入、批量处理、可选备份覆盖、同目录或指定目录副本、重试与清除记录。指定目录可选保留输入目录结构，授权仅本次连接有效。启动后不提供主动取消操作，退出时仍保留底层安全收尾。大小、状态和进度均来自实际任务，结果/备份定位与可见终态行缩略图已接入。**JPEG/GIF 各自在随包引擎通过身份校验后开放；GIF 首版仅支持无损，APNG 尚未接入。** compressionAvailable=true不表示全部plannedFormats已实现，实际启动能力由v11快照supportedFormats提供。有损模式中的GIF逐行失败并保留原图，切换无损后可重试。JPEG暂仅接受8位Huffman基线/渐进及已支持的元数据，复杂Exif/XMP/APP11等保留原图并拒绝，具体边界见[JPEG说明](native/jpeg/README.md)和[GIF说明](native/gif/README.md)。自动验证、GUI/安装和新SHA平台结果分别见[开发记录](docs/devlog/_plan/261009/animation-foundation.md)，不沿用旧GUI/CI作为新代码证据。
+当前已接通 **静态 PNG / JPEG / GIF 混合工作台**：Tauri 2 + React 界面经受控原生选择/拖放、应用级任务协调和有界快照驱动独立 Rust 核心，支持文件/目录导入、批量处理、可选备份覆盖、同目录或指定目录副本、重试与清除记录。指定目录可选保留输入目录结构，授权仅本次连接有效。启动后不提供主动取消操作，退出时仍保留底层安全收尾。大小、状态和进度均来自实际任务，结果/备份定位与可见终态行缩略图已接入。**JPEG/GIF 各自在随包引擎通过身份校验后开放；GIF 支持无损与保守有损，APNG 尚未接入。** compressionAvailable=true不表示全部plannedFormats已实现，实际启动能力由v12快照supportedFormats提供。GIF质量100按无损处理，质量或额外收益不足时回退无损，无收益保留原图；结果详情显示实际处理路径和回退原因，预览仍为首帧。JPEG暂仅接受8位Huffman基线/渐进及已支持的元数据，复杂Exif/XMP/APP11等保留原图并拒绝，具体边界见[JPEG说明](native/jpeg/README.md)和[GIF说明](native/gif/README.md)。自动验证、GUI/安装和新SHA平台结果分别见[开发记录](docs/devlog/_plan/261009/animation-foundation.md)，不沿用旧GUI/CI作为新代码证据。
 
 UI 设计与可交互 HTML 原型保留作为实现依据：质量采用 0–100 连续滑块和精细输入，默认 80；当前质量描述以纯文字显示在标题行右侧。
 
@@ -96,15 +96,15 @@ Windows 可执行文件位于 `target/release/pixofold.exe`，安装包位于 `t
 
 JPEG 开发实验的版本、构建参数和限制见 [实验入口说明](tools/jpeg-lab/README.md)，历史结果见 [JPEG实验记录](docs/devlog/_fin/260930/jpeg-engine-lab.md)。实验工具留在 `.tools/`，语料与报告留在独立的 `target/jpeg-lab-*/`；桌面使用固定随包资源。CI 的三平台实验配置须以实际运行结果验收。
 
-GIF 提供 [独立实验入口](tools/gif-lab/README.md) 和 [45项确定性语料](tests/fixtures/gif/manifest.json)，逐帧合成、精确厘秒时间轴及循环接缝由 Rust gif/weezl 路径核对。实验结果保留于独立的 `target/gif-lab-*/`，作为无损核心的参数和拒绝边界依据；桌面v11接通GIF无损，有损批量/桌面及APNG仍待后续。实际本机结果及三平台待验项见 [动画开发记录](docs/devlog/_plan/261009/animation-foundation.md)。
+GIF 提供 [独立实验入口](tools/gif-lab/README.md) 和 [45项确定性语料](tests/fixtures/gif/manifest.json)，逐帧合成、精确厘秒时间轴及循环接缝由 Rust gif/weezl 路径核对。实验结果保留于独立的 `target/gif-lab-*/`，作为核心参数和拒绝边界依据；桌面v12接通GIF无损与保守有损，APNG待后续。实际本机结果及三平台待验项见 [动画开发记录](docs/devlog/_plan/261009/animation-foundation.md)。
 
-4A的`gif:lossy:check`及显式`gif-lossy-lab`特性使用原生强度lossless/0/10/20/40/80，`target/gif-lossy-*/index.html`保留对照动画。4B第一段已接单文件有损核心：q100严格无损，q80原生10，q60及更低值原生20；质量/额外收益不足时无损回退，无收益保留原图。批量与桌面v11仍仅无损，后续迁移真实报告/协议后再开放。API迁移、期限与边界见[GIF核心说明](native/gif/README.md)。
+4A的`gif:lossy:check`及显式`gif-lossy-lab`特性使用原生强度lossless/0/10/20/40/80，`target/gif-lossy-*/index.html`保留对照动画。生产单文件、批量与桌面共用v1策略：q100严格无损，q80原生10，q60及更低值原生20；质量/额外收益不足时无损回退，无收益保留原图。批量按模式计算验证缓冲并冻结准备期限，预约与实际执行使用同一额度。API及v12迁移、期限与边界见[GIF核心说明](native/gif/README.md)。
 
 独立的 `pixofold_core::jpeg` 提供无损与保守有损入口，受控字节helper复用可靠输出层；PNG/JPEG共用模型、worker与工作集预约。桌面通过 `TaskRuntime::with_engines` 将同一能力注入扫描、规划、批次和受限预览；默认服务与扫描仍为PNG-only。模式/质量映射、元数据保护/回退、资源、工具信任及Rust API迁移见[JPEG核心说明](native/jpeg/README.md)。JPEG凭据移除尚未开放。应用统一检查不自动下载/构建JPEG工具，真实核心回归由上述显式命令和三平台JPEG job执行，实际平台结果见[开发日志](docs/devlog/README.md)。
 
 ## GIF单文件核心开发入口
 
-独立Rust GIF核心已提供无损优化、严格播放验证、安全输出和三格式混合批次。固定Gifsicle helper采用有界分配，验证与原生额度分别计费；命令、范围和迁移见 [GIF核心说明](native/gif/README.md)。桌面v11按实际能力开放GIF，报告包含帧数及原始循环扩展值，受限预览仅显示首幅合成画布。真实核心命令为 `pnpm gif:core:check`，须先构建固定GIF与JPEG工具；GUI、安装及平台证据见 [开发记录](docs/devlog/_plan/261009/animation-foundation.md)。
+独立Rust GIF核心已提供无损/保守有损优化、严格播放验证、安全输出和三格式混合批次。固定Gifsicle helper采用有界分配，验证与原生额度分别计费；命令、范围和迁移见 [GIF核心说明](native/gif/README.md)。桌面v12按实际能力开放GIF，报告包含实际处理路径、原图帧数及原始循环扩展值，不展示淘汰候选指标；受限预览仅显示首幅合成画布。真实核心命令为 `pnpm gif:core:check`，须先构建固定GIF与JPEG工具；GUI、安装及平台证据见 [开发记录](docs/devlog/_plan/261009/animation-foundation.md)。
 
 ## GIF随包资源（第三阶段）
 
@@ -253,7 +253,7 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 - jobs/candidates/issues每页50项；状态更新时回到首屏，额外分页最多一个在途查询。过期页不拼接，按最新revision恢复。未知大小显示“—”，精确字节按bigint计算；进度为processed/total，取消不冒充100%成功。
 - 重试只接纳当前同revision可见页内失败/取消行的稳定ID，使用草稿模式但保留原输出位置；清除需确认，仅清记录，不删除文件。结果展示实际回退原因、输出/备份名及失败恢复信息；展示名不是可访问路径，截断或替换明确标注。
 - main页面Started生命周期在同一订阅锁域撤销会话与授权，不清除或重跑任务；尚未关闭的物理对话框仍占槽，晚到结果拒绝后才释放。非main或Finished事件不撤销新会话，不依赖unload必达。
-- 浏览器仅预览布局，不读取图片或模拟业务。桌面拖放接入上述受控入口；缩略图和结果定位使用下文的任务绑定窄命令，未开放高级编码参数或通用fs/dialog/event/opener权限。v11按实际能力开放PNG/JPEG/GIF混合输入，自选输出目录使用下节的窄命令，原生GUI覆盖范围按开发记录独立验收。
+- 浏览器仅预览布局，不读取图片或模拟业务。桌面拖放接入上述受控入口；缩略图和结果定位使用下文的任务绑定窄命令，未开放高级编码参数或通用fs/dialog/event/opener权限。v12按实际能力开放PNG/JPEG/GIF混合输入，自选输出目录使用下节的窄命令，原生GUI覆盖范围按开发记录独立验收。
 
 ## 指定输出目录（P5，协议v7）
 
@@ -264,12 +264,12 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 - caBX弹窗固定打开时的目录/布局，只给选中行授权移除；使用Rust保存的导入来源和同一个`ImportOutput::outputs_for`规划目标，不把所有普通成功项搬到新目录。指定目录副本同样不显示备份模块，目标存在则拒绝覆盖。
 - 默认扁平输出，保留原文件名；保留结构时映射为`目标/导入根名/相对父目录/原文件名`，单独选择的文件放目标根。目标已存在或冲突只使相关图片失败，其他任务继续；普通重试保留原目标、caBX确认同样逐项检查，均不自动编号或覆盖已有副本。无收益不生成副本，失败/无收益可能留下空结构目录。输出位于输入树内时只在完整扫描后写入；历史_compressed文件仍是普通候选，不一律排除。此命名/错误语义更新不改变协议v7形状；显式核心Copy目标路径不被改名。
 
-## 结果定位、批次目录与真实缩略图（协议v11）
+## 结果定位、批次目录与真实缩略图（协议v12）
 
 - 任务表最右侧“操作”列常显“详情”和“在文件夹中查看”。详情悬停或键盘聚焦即弹出非模态浮层，不展开表格行；鼠标可移入面板阅读，Tab可访问其中的真实备份定位，Escape、外部点击、来源列表滚动或行失效会关闭。实际结果可直接定位；无收益定位保留原图，没有可用结果的行禁用查看。成功备份或失败恢复报告确有备份才在浮层内显示“定位备份”。文件被移动、删除或包含链接时拒绝，不从显示名拼接路径。
 - 底部“打开输出目录”仅在本批结束且至少一张成功时显示，不在结束时自动打开。指定目录打开各成功行实际采用的根目录（保留结构也从根进入），覆盖打开结果所在目录；不使用当前设置草稿。多个目录按成功行顺序去重，显示目录名、代表任务ID/样例文件和结果数量，用户逐次选择；菜单每页最多50个目录，不同时打开多个窗口。全失败/全无收益不伪造新结果入口。
 - get_output_directories/open_output_directory绑定已ACK会话、selectionId、batchId及batchRevision，打开再指定代表成功行ID；后端解析路径，重试/清除/换批/断连后拒绝旧请求。分组在后台且不持状态锁，仅转换当前页名称；查询和打开与文件定位共享单在途许可，退出等待真实返回。打开前复查目录存在/父链，指定输出根另核对原生授权身份，被删除或同名替换不重新授权；覆盖结果父目录沿用路径级检查，不宣称文件系统CAS。不创建目录、不执行任意命令，也不自动重发打开请求。v9扩展命令与生成DTO，旧页面须更新重载。
-- `reveal_task_file`和`get_task_thumbnail`自协议v8引入，只接收已ACK的subscriptionId、selectionId、jobId、attempt、expectedState，定位再选择result/backup。Rust按当前权威终态行解析；拒绝旧会话/清单/尝试、运行行及清除/重试准备/关闭状态。不沿用批次revision作图片版本，以免其他行进度更新使已完成预览反复失效。当前协议v11，三种格式均只解析真实结果或恢复备份；旧页面须更新重载。
+- `reveal_task_file`和`get_task_thumbnail`自协议v8引入，只接收已ACK的subscriptionId、selectionId、jobId、attempt、expectedState，定位再选择result/backup。Rust按当前权威终态行解析；拒绝旧会话/清单/尝试、运行行及清除/重试准备/关闭状态。不沿用批次revision作图片版本，以免其他行进度更新使已完成预览反复失效。当前协议v12，三种格式均只解析真实结果或恢复备份；旧页面须更新重载。
 - 定位复用固定版本tauri-plugin-opener的Rust API，不安装其JS插件或授予通用路径权限；每次最多一个定位请求，Requested仅表示已请求文件管理器，系统可能只打开目录而非选中文件。macOS非UTF-8路径明确拒绝，避免其API有损转换到另一文件。Windows/macOS/Linux真实系统行为分别验收。
 - 每张图处理结束后，仅可见任务行按需申请缩略图。成功项读取当前结果文件，其余终态读取当前源文件；无备份覆盖后不会声称仍有原图预览。未处理、损坏、超限或不支持的图片回退图标/提示，不影响压缩。JPEG复用可信引擎，应用已支持的Exif方向1–8；ICC、CMYK/YCCK、不明确颜色及不支持的元数据拒绝预览。GIF复用Rust严格结构预检与可取消LZW，仅输出首幅完整透明画布的静态PNG，不播放动画；4Mi画布/单帧像素、256帧结构、32MiB缓冲及5秒协作期限进一步收紧准入。仅用于识别，不承诺ICC色彩管理或压缩前后保真对比；扫描候选/问题列表仍用文字。
 - 单解码在途、无后端等待队列；文件最多16 MiB、8,388,608像素、单边16,384，像素输出与各格式解码工作集各32 MiB。JPEG另按对齐系数/像素工作集收紧准入，单次helper期限5秒；这不包含整个文件I/O和工具身份检查耗时。图片缩放到最多128×96、不放大小图，透明度使用预乘alpha采样，方向在采样时应用而不复制全尺寸旋转图；只编码像素到最多65,536 bytes的PNG，不回传原始图片、凭据或元数据。限额不是进程RSS硬上限，所有读/解码均在后台且不持服务锁。

@@ -13,37 +13,6 @@ fn request(source: &Path, destination: &Path, q: i32) -> GifRequest {
     };
     request
 }
-fn dark_noise() -> Vec<u8> {
-    // 低亮度32阶确定性噪声：用于证明有收益也可能越过RGB质量门槛。
-    let palette: Vec<u8> = (0..32u8).flat_map(|n| [n, n, n]).collect();
-    let mut bytes = Vec::new();
-    {
-        let mut encoder = gif::Encoder::new(&mut bytes, 128, 128, &palette).unwrap();
-        encoder.set_repeat(gif::Repeat::Infinite).unwrap();
-        let mut state = 0x12345678u32;
-        for _ in 0..3 {
-            let pixels: Vec<u8> = (0..128 * 128)
-                .map(|_| {
-                    state ^= state << 13;
-                    state ^= state >> 17;
-                    state ^= state << 5;
-                    (state & 31) as u8
-                })
-                .collect();
-            encoder
-                .write_frame(&gif::Frame {
-                    width: 128,
-                    height: 128,
-                    delay: 10,
-                    dispose: gif::DisposalMethod::Keep,
-                    buffer: std::borrow::Cow::Owned(pixels),
-                    ..Default::default()
-                })
-                .unwrap();
-        }
-    }
-    bytes
-}
 pub fn run(engine: &GifEngine, fixtures: &Path, root: &Path) {
     let directory = root.join("lossy");
     fs::create_dir(&directory).unwrap();
@@ -60,8 +29,7 @@ pub fn run(engine: &GifEngine, fixtures: &Path, root: &Path) {
     let cancel = CancellationToken::default();
     let mut rows = Vec::new();
     let noisy = directory.join("dark-noise.gif");
-    let noisy_bytes = dark_noise();
-    fs::write(&noisy, &noisy_bytes).unwrap();
+    let noisy_bytes = fs::read(&noisy).unwrap();
     let noisy_output = directory.join("dark-noise-output.gif");
     let noisy_report =
         optimize_gif(&request(&noisy, &noisy_output, 60), engine, &cancel, |_| {}).unwrap();

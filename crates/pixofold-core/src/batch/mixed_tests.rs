@@ -195,51 +195,73 @@ fn header(size: u16) -> Vec<u8> {
 }
 #[test]
 fn gif_growth_after_admission_uses_frozen_limits_and_format_replacement_is_rejected() {
-    for replacement in ["gif/larger-pattern.gif", "png/rgb8.png"] {
-        let harness = Harness::new(512 * 1024 * 1024, true);
-        let request = harness.request(&[ImageKind::Gif]);
-        let source = request.items[0].source.clone();
-        let id = harness.service.start(request).unwrap();
-        let frozen = harness.entered();
-        assert_eq!(frozen.format(), ImageKind::Gif);
-        assert_eq!(frozen.limits.max_pixels, 6);
-        let bytes = fs::read(
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../tests/fixtures")
-                .join(replacement),
-        )
-        .unwrap();
-        fs::write(&source, &bytes).unwrap();
-        let running = harness.service.snapshot().unwrap();
-        assert_eq!(running.active_workers, 1);
-        assert!(running.reserved_working_bytes.0 > 0);
-        harness.runner.release(1);
-        let done = harness.service.wait(id, WAIT).unwrap();
-        assert_eq!(done.active_workers, 0);
-        assert_eq!(done.reserved_working_bytes, ByteCount(0));
-        let JobState::Failed(error) = &done.jobs[0].state else {
-            panic!("必须拒绝源变化");
-        };
-        assert_eq!(
-            error.code,
-            if replacement.starts_with("gif") {
-                JobErrorCode::ResourceLimit
-            } else {
-                JobErrorCode::InvalidInput
-            }
-        );
-        assert!(matches!(error.cause.as_deref(), Some(ImageError::Gif(_))));
-        assert_eq!(fs::read(&source).unwrap(), bytes);
+    for mode in [
+        PngMode::Lossless,
+        PngMode::Lossy {
+            quality: QualityValue::new(80).unwrap(),
+        },
+        PngMode::Lossy {
+            quality: QualityValue::new(100).unwrap(),
+        },
+    ] {
+        for replacement in ["gif/larger-pattern.gif", "png/rgb8.png"] {
+            let harness = Harness::new(512 * 1024 * 1024, true);
+            let mut request = harness.request(&[ImageKind::Gif]);
+            request.parameters.mode = mode;
+            request.parameters.gif.preparation_timeout = Duration::from_secs(7);
+            let source = request.items[0].source.clone();
+            let id = harness.service.start(request).unwrap();
+            let frozen = harness.entered();
+            assert_eq!(frozen.format(), ImageKind::Gif);
+            assert_eq!(frozen.limits.max_pixels, 6);
+            assert_eq!(frozen.mode, mode);
+            assert_eq!(
+                frozen.gif().unwrap().limits.preparation_timeout,
+                Duration::from_secs(7)
+            );
+            let bytes = fs::read(
+                Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../tests/fixtures")
+                    .join(replacement),
+            )
+            .unwrap();
+            fs::write(&source, &bytes).unwrap();
+            let running = harness.service.snapshot().unwrap();
+            assert_eq!(running.active_workers, 1);
+            assert!(running.reserved_working_bytes.0 > 0);
+            assert_eq!(
+                running.reserved_working_bytes,
+                frozen.gif().unwrap().limits.working_set().unwrap()
+            );
+            harness.runner.release(1);
+            let done = harness.service.wait(id, WAIT).unwrap();
+            assert_eq!(done.active_workers, 0);
+            assert_eq!(done.reserved_working_bytes, ByteCount(0));
+            let JobState::Failed(error) = &done.jobs[0].state else {
+                panic!("必须拒绝源变化");
+            };
+            assert_eq!(
+                error.code,
+                if replacement.starts_with("gif") {
+                    JobErrorCode::ResourceLimit
+                } else {
+                    JobErrorCode::InvalidInput
+                }
+            );
+            assert!(matches!(error.cause.as_deref(), Some(ImageError::Gif(_))));
+            assert_eq!(fs::read(&source).unwrap(), bytes);
+        }
     }
 }
 
 #[test]
 fn mixed_jobs_share_workers_and_cancellation_retains_reservations_until_return() {
-    let h = Harness::new(256 * 1024 * 1024, false);
-    let id = h
-        .service
-        .start(h.request(&[ImageKind::Png, ImageKind::Jpeg, ImageKind::Png]))
-        .unwrap();
+    let h = Harness::new(512 * 1024 * 1024, false);
+    let mut request = h.request(&[ImageKind::Gif, ImageKind::Jpeg, ImageKind::Png]);
+    request.parameters.mode = PngMode::Lossy {
+        quality: QualityValue::new(80).unwrap(),
+    };
+    let id = h.service.start(request).unwrap();
     let a = h.entered();
     let b = h.entered();
     assert_ne!(a.format(), b.format());

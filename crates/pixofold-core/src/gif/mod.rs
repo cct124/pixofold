@@ -4,6 +4,7 @@ mod comparison;
 mod engine;
 #[cfg(feature = "gif-lossy-lab")]
 pub mod lab;
+mod memory;
 mod pipeline;
 mod playback;
 mod preview;
@@ -18,6 +19,7 @@ pub use comparison::{
     Comparison as GifComparison, Metrics as GifQualityMetrics, compare as compare_gif,
 };
 pub use engine::GifEngine;
+pub(crate) use memory::validation_bound;
 pub use playback::{Event as GifEvent, Playback as GifPlayback, normalize as normalize_timeline};
 pub use preview::{GifPreview, decode_preview};
 pub use quality::{
