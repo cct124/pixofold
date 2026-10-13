@@ -1,7 +1,7 @@
 # 动画验证底座与GIF最小实验
 
 - 创建日期：2026-10-09（Asia/Shanghai）。
-- 状态：截至2026-10-13，已入库GIF无损/v11基线有0830dab三平台及用户反馈；扫描日志、4A与4B第一段本机改动尚未提交。实验边界、222组对照和单文件有损质量/收益/回退/安全输出已通过本机验证。下一步同步接入4B批量预算与4C/v12报告消费者，再推进APNG；人工观感、新SHA三平台、其他系统安装及无开发工具/后置无WebView2分别验收，完整动画任务继续活动。
+- 状态：截至2026-10-13，GIF无损/v11基线（0830dab）与扫描日志、4A及4B第一段（395a0ea）均已入库。实验边界、222组对照和单文件有损质量/收益/回退/安全输出已通过本机验证。下一步同步接入4B批量预算与4C/v12报告消费者，再推进APNG；人工观感、新SHA三平台、其他系统安装及无开发工具/后置无WebView2分别验收，完整动画任务继续活动。
 - 分支/基准：dev/0f4fcfd0825f51542d5d2658da600d21e0174350，业务a21d330，开工本地/远端一致且工作区干净。
 - 关联：[阶段计划](../260930/next-development-plan.md)、[J2桌面混合工作流](jpeg-desktop-workflow.md)、[项目方案](../../../架构设计文档/pixofold-proposal.md)。
 
@@ -384,7 +384,7 @@ A/B稳定后接GIF桌面闭环：可信资源prepare/打包与加载、supported
 
 1. 对照页为`target/gif-lossy-8ha7ol/index.html`，完整数值见同目录report.json；重点核对地球/照片在10、20下的运动纹理、文字/UI、透明边缘及循环接缝。浏览器并排GIF不保证同步，时间轴硬约束以独立验证结果为准。
 2. 4B从质量映射版本、实际路径报告、相对原图及无损候选的收益门槛、预算与取消回收契约开始；质量/收益不足可走明确报告的无损回退，结构/透明/时间轴和工具错误保留失败语义。4C随后同步DTO/生成TS/运行时验证/能力/详情与混合重试。
-3. 经用户明确授权提交推送后，以实际新SHA核对三平台统一检查/GIF有损实验/核心/部署；生产有损开放仍需新MSI与观感验收。APNG及JPEG凭据移除不在本轮实施范围。
+3. 改动已提交395a0ea并推送origin/dev，待以实际新SHA核对三平台统一检查/GIF有损实验/核心/部署；生产有损开放仍需新MSI与观感验收。APNG及JPEG凭据移除不在本轮实施范围。
 - 未提交代码：核心Cargo特性、gif/engine.rs与mod.rs、新gif/lab/*及两个example文件；桌面tasks/scan_diagnostics.rs、tasks/mod.rs/worker.rs与diagnostics/layer.rs/tests.rs。
 - 未提交工具/语料：tools/gif-lab.mjs、tools/gif-lab/lossy-check.mjs、package.json、CI配置、.gitattributes及tests/fixtures/gif-lossy/*。
 - 未提交文档：README、AGENTS、THIRD_PARTY_NOTICES、native/gif/README、tools/gif-lab/README及本记录/索引/阶段计划。target实验产物和.tools构建资源继续由Git排除；本轮未修改生产前端或生成DTO。
@@ -456,5 +456,11 @@ A/B稳定后接GIF桌面闭环：可信资源prepare/打包与加载、supported
 - 随包首轮target/gif-bundle-paQb7V/通过，包含v11、15次预览、三格式混合重试/备份/冲突/NoGain及能力独立降级。候选验证顺序调整后的最终核心/随包结果在下一条补记，旧结果不冒充最后代码结果。
 - 最终真实核心与随包顺序复验均退出0：target/gif-core-3ejglx/、target/gif-bundle-QBEbnw/，日志分别为target/gif-4b-core-confirmed-261013.log和target/gif-4b-bundle-confirmed-261013.log。照片106,036 bytes在q80输出98,179、q60/q0输出93,623；q99因额外收益不足回退105,939、q100严格无损105,939。原图/候选/备份安全及三格式混合、v11/预览兼容均保持。
 - 最终diff及9份变更文档的201个本地链接、NUL/尾随空白校验通过；新增Rust/脚本已经统一格式、lint与测试覆盖。未新增依赖或改锁文件；新素材仅为确定性生成器输出，已有公开原件未改。target报告、候选与工具构建继续由Git排除。
-- 4B第一段本机交付完成，未执行有损GUI/新MSI/人工观感/新SHA三平台，未提交或推送。历史4A与扫描日志改动完整保留；完整动画任务继续活动，下一入口为4B第二段批量/资源预算与4C/v12 DTO、生成TS和前端真实报告同批迁移，遵循前节验收。
+- 4B第一段本机交付完成并随本轮提交推送（见下节），未执行有损GUI/新MSI/人工观感/新SHA三平台。完整动画任务继续活动，下一入口为4B第二段批量/资源预算与4C/v12 DTO、生成TS和前端真实报告同批迁移，遵循前节验收。
 - 本次相对前轮新增/调整范围：核心gif/comparison/*、gif/lab.rs、gif/quality.rs、gif/pipeline.rs及pipeline/tests.rs，GifRequest/Limits/Report和批量仅无损适配；桌面ipc转换及防误报契约；实验contracts与最小样本/真实有损验收模块、core-check入口；README/AGENTS/native与实验说明、索引/阶段计划/本连续记录。既有前端与生成DTO无修改，旧png-palettes仓库未修改。
+
+## 2026-10-13 编写提交信息、提交与推送
+
+- 用户要求根据工作区内容编写提交信息、提交并推送，无需执行其它任务。复核范围：43份文件（新增核心gif/comparison、gif/lab、gif/quality、gif/pipeline与两个example；桌面scan_diagnostics与诊断回归；实验contracts/lossy-check与gif-lossy语料；README/AGENTS/第三方说明/实验与native说明及devlog），无未暂存改动与未跟踪残留（target报告与.tools构建继续排除），git diff --check通过。
+- 提交395a0ea「feat: 增加扫描拒绝分类日志与GIF保守有损单文件核心」（43 files changed、3243 insertions、114 deletions）。沙箱内.git只读，add/commit/push按规则提升同一条命令执行，未绕开沙箱约束；2a23aa5..395a0ea  dev -> dev已同步origin/dev，本地与远端一致。
+- 沿用本轮已完成验证（pnpm check：161项前端、63项核心单元、118项桌面、2项doctest与全目标Clippy；222组v2实验与2项Node契约测试；gif:core:check与gif:bundle:check在候选验证顺序调整后复验；真实质量/收益回退、透明拒绝、取消/冲突/源变化与写后复验）；本次未改业务代码，不重复构建或测试。批量有损入口、4C/v12、有损GUI/新MSI观感与新SHA三平台仍未取得，不据此声明通过。
