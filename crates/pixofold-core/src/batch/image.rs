@@ -172,6 +172,7 @@ impl ImageRequest {
             source: self.source.clone(),
             output: self.output.clone(),
             limits: options.limits(self.limits),
+            mode: crate::gif::GifMode::Lossless,
         })
     }
 }
@@ -388,6 +389,7 @@ impl GifOptions {
             max_native_bytes: self.max_native_bytes,
             process_timeout: self.process_timeout,
             validation_timeout: self.validation_timeout,
+            preparation_timeout: GifLimits::default().preparation_timeout,
         }
     }
 }

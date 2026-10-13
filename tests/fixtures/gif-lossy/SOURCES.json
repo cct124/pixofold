@@ -1,0 +1,22 @@
+{
+  "created": "2026-10-13",
+  "files": [
+    {
+      "file": "openrefine-wikidata.gif",
+      "bytes": 243942,
+      "sha256": "70f39ba759aa80551a4ef1946dae578e9f0a1dfedc2f36eb382103e4981baf61",
+      "author": "Pintoch",
+      "source": "https://commons.wikimedia.org/wiki/File:GIF_screencast_of_data_extension_on_OpenRefine_with_Wikidata.gif",
+      "download": "https://upload.wikimedia.org/wikipedia/commons/c/ce/GIF_screencast_of_data_extension_on_OpenRefine_with_Wikidata.gif",
+      "license": "CC-BY-SA-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "changed": false,
+      "purpose": "真实录屏/小字/UI运动；原件严格验证超累计解码额度。实验先用固定有界helper生成320×309衍生GIF，收益只相对衍生输入计算。"
+    },
+    {
+      "file": "CC-BY-SA-4.0.txt",
+      "sha256": "28a9529c7d0bb4dc51f4bf5c116a3d16ef247a052f7591466768ddf563fd1cf5",
+      "source": "https://creativecommons.org/licenses/by-sa/4.0/legalcode.txt"
+    }
+  ]
+}

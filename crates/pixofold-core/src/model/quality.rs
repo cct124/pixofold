@@ -4,7 +4,7 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-/// 有损质量尺度，合法范围 0–100；100 也不等同于严格像素无损。
+/// 质量输入尺度，合法范围0–100；100的实际处理由各格式映射决定，不能跨格式解释为无损。
 /// 反序列化与显式构造都执行范围检查；默认 80。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[cfg_attr(feature = "bindings", derive(ts_rs::TS))]

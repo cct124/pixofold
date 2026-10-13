@@ -168,7 +168,7 @@ fn execute(
                     shared.publish(&mut state);
                 }
                 Ok(scan) => {
-                    tracing::info!(target: "pixofold", event = "import_scan_finished", count = scan.files().len(), result = ?scan.progress().status);
+                    record_scan(&scan);
                     let scan = Arc::new(scan);
                     let ready =
                         scan.progress().status == ScanStatus::Complete && !scan.files().is_empty();

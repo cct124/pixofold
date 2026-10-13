@@ -55,12 +55,15 @@
 - PNG备份使用原文件stem-backup-6位ASCII字母数字.png；JPEG保留原始jpg/jpeg扩展名及大小写。保持独占创建/碰撞重试，不重命名历史备份；扫描排除新旧严格保留名。原始OS名称不截断或有损替换，路径过长须失败保留原图，不能静默跳过备份。
 - 日志记录任务 ID、阶段、耗时和错误，避免重复记录及泄露图片内容、原图或备份文件名、完整私人路径或凭据；backup_name不在日志白名单中，备份结果通过任务ID关联。性能优化保留样本、环境与前后对比。
 - 本地日志由桌面diagnostics统一拥有，核心只发pixofold target的白名单tracing事件；开发logs/由Git排除，release使用系统temp_dir()/pixofold-logs/。JSONL含活动文件最多10份，每份5,000,000 bytes；不能删除其他实例活动日志或因日志故障中断压缩。新增字段须检查隐私，不能传原始错误/请求Debug；“关于”只查询状态和打开后端固定目录，不开放任意路径IPC。
+- 扫描结束日志记录accepted/rejected/excluded/duplicates，并按固定error_code汇总import_scan_issue_summary；以selection_id关联，最多每类一条。APNG/动画、JPEG凭据/元数据、资源/I/O、重复/产物排除分别统计；不记录逐项路径、文件名或元数据，不从日志计数授予重试权限。
 
 ## 工具链、依赖与配置
 
 - JPEG/GIF生产与实验分别共用tools/jpeg-lab/build.mjs和tools/gif-lab/build.mjs固定配方；桌面dev/build钩子依次执行jpeg:bundle:prepare、gif:bundle:prepare，资源固定在jpeg/runtime与gif/runtime。build.rs核对目标/来源/产物并内嵌预期SHA256，运行时不信旁置清单。GIF资源含完整上游源码、封装/配方及许可。普通无工具debug可PNG-only，release必须有有效资源；修改helper/配方后重新prepare。Windows helper静态CRT，JPEG/GIF独立降级且始终保留PNG；v11工作流按启动实际能力开放，执行仍复查身份。jpeg:bundle:check及gif:bundle:check为独立无GUI部署/混合后端验收，不随默认安装包分发；运行/安装/各平台证据分别记录。
 
 - 已使用 pnpm、Vite、Oxlint、Prettier、Vitest 与 Cargo workspace；`pnpm desktop:dev` 启动桌面，`pnpm check` 执行统一检查。变更 Rust DTO 后运行 `pnpm types:generate`，CI 用 `pnpm types:check` 只读检查。
+- GIF有损4A通过pnpm gif:lossy:check和显式gif-lossy-lab特性运行；内存候选复用有界helper，双背景/时间对齐检查与误差观测分离，保持生产无损验证不变。target/gif-lossy-*保留全部候选/拒绝/采样与HTML对照；原生lossiness不是UI质量，实验筛选不是感知保证或生产能力。新增公开录屏身份与许可由fixtures:check核对，GIF job运行实验；新SHA平台结果仍单独验收。
+- GIF单文件4B已有GifMode/版本化映射/实际processing与质量及收益回退；q100无损、q80强度10、q≤60封顶20。有损需比原图/无损候选较小者再省1%且1KiB；硬语义/工具失败不转成功回退。双候选顺序执行，比较额度计入存活候选容量，准备阶段总90秒协作期限，进入共享提交层后沿用取消/临界区契约。compare_gif使用独立流式双背景/循环检查，时域RMS排除相同误差拆帧的零变化分母。批量/v11仍仅无损，转换拒绝意外有损报告；后续批量开放须同步预算公式、DTO/协议/前端，不能只删除UnsupportedMode。
 - 工程初始化时锁定 Rust、Node 和包管理器版本，在 README 记录实际命令与系统依赖；固定 Rust edition 与格式风格。本地和 CI 使用同一套配置。
 - 提交 `Cargo.lock` 与唯一的前端锁文件，使用锁定依赖的安装与构建；依赖升级尽量与功能改动分开，Git 依赖及随包编码工具固定到可复现版本。
 - 新增依赖先检查现有能力，评估用途、维护、许可证、平台和构建成本，只启用所需功能；迁移代码与分发第三方工具保留来源、版权和各自许可。

@@ -1,17 +1,28 @@
-//! GIF无损核心：严格子集结构/独立播放验证、可信有界工具和安全输出提交。
+//! GIF单文件无损/保守有损核心：严格动画语义、独立质量验证、有界工具和安全输出提交。
 //! 核心只处理可信Rust宿主请求；首帧预览独立受限，不代替完整动画验证。
+mod comparison;
 mod engine;
+#[cfg(feature = "gif-lossy-lab")]
+pub mod lab;
+mod pipeline;
 mod playback;
 mod preview;
 mod process;
+mod quality;
 mod structure;
 use crate::{
     model::*,
     output::{self, Destination, Source},
 };
+pub use comparison::{
+    Comparison as GifComparison, Metrics as GifQualityMetrics, compare as compare_gif,
+};
 pub use engine::GifEngine;
 pub use playback::{Event as GifEvent, Playback as GifPlayback, normalize as normalize_timeline};
 pub use preview::{GifPreview, decode_preview};
+pub use quality::{
+    GifFallbackReason, GifMode, GifProcessing, GifQualityMapping, meets_quality, sufficient_gain,
+};
 use std::{
     fmt, io,
     path::PathBuf,
@@ -30,6 +41,8 @@ pub struct GifLimits {
     pub max_native_bytes: ByteCount,
     pub process_timeout: Duration,
     pub validation_timeout: Duration,
+    /// 候选准备总协作期限（含源读取/两次编码/验证）；进入共享提交层后遵循其取消/临界区契约。
+    pub preparation_timeout: Duration,
 }
 impl Default for GifLimits {
     fn default() -> Self {
@@ -44,6 +57,7 @@ impl Default for GifLimits {
             max_native_bytes: ByteCount(32 * 1024 * 1024),
             process_timeout: Duration::from_secs(30),
             validation_timeout: Duration::from_secs(10),
+            preparation_timeout: Duration::from_secs(90),
         }
     }
 }
@@ -79,6 +93,8 @@ impl GifLimits {
                 .contains(&self.process_timeout)
             || !(Duration::from_millis(1)..=Duration::from_secs(120))
                 .contains(&self.validation_timeout)
+            || !(Duration::from_millis(1)..=Duration::from_secs(300))
+                .contains(&self.preparation_timeout)
         {
             return Err(GifError::InvalidLimits);
         }
@@ -127,12 +143,13 @@ pub struct GifInfo {
     pub loop_count: Option<u16>,
     pub total_decoded_bytes: ByteCount,
 }
-/// 单文件GIF无损请求；默认可恢复备份覆盖，桌面默认设置另由宿主确定。
+/// 单文件GIF请求；默认无损和可恢复备份覆盖，桌面能力另由宿主约束。
 #[derive(Debug, Clone)]
 pub struct GifRequest {
     pub source: PathBuf,
     pub output: OutputPolicy,
     pub limits: GifLimits,
+    pub mode: GifMode,
 }
 impl GifRequest {
     /// 使用默认无损执行额度和备份覆盖策略，不发起I/O。
@@ -141,10 +158,11 @@ impl GifRequest {
             source: source.into(),
             output: OutputPolicy::Overwrite,
             limits: GifLimits::default(),
+            mode: GifMode::Lossless,
         }
     }
 }
-/// 已验证的GIF无损结果；NoGain仍返回原始大小，路径仅供可信Rust调用方使用。
+/// GIF候选处理报告；NoGain仍返回原始大小，路径仅供可信Rust调用方使用。
 #[derive(Debug, Clone)]
 pub struct GifReport {
     pub image: GifInfo,
@@ -152,6 +170,10 @@ pub struct GifReport {
     pub output_bytes: ByteCount,
     pub elapsed: Duration,
     pub outcome: ProcessingOutcome,
+    pub requested_mode: GifMode,
+    pub processing: GifProcessing,
+    /// 有损候选观测，包括回退前被淘汰的候选；不能据此把NoGain称作有损输出。
+    pub quality: Option<GifComparison>,
 }
 /// 结构、资源、工具和文件错误各自保留；Display不输出原始stderr、评论或私人路径。
 #[derive(Debug)]
@@ -201,7 +223,7 @@ impl fmt::Display for GifError {
         match self {
             Self::InvalidLimits => f.write_str("GIF资源配置无效"),
             Self::UnsupportedGif => f.write_str("GIF格式或扩展名暂不支持"),
-            Self::UnsupportedMode => f.write_str("GIF当前仅支持无损模式"),
+            Self::UnsupportedMode => f.write_str("GIF批量工作流当前仅支持无损模式"),
             Self::Validation(error) => write!(f, "GIF验证拒绝：{error}"),
             Self::ResourceLimit(reason) => write!(f, "GIF资源超限：{reason}"),
             Self::ToolIdentity => f.write_str("GIF工具缺失、被替换或身份不符"),
@@ -301,86 +323,7 @@ pub fn optimize_gif(
     request: &GifRequest,
     engine: &GifEngine,
     cancel: &CancellationToken,
-    mut on_stage: impl FnMut(ProcessingStage),
+    on_stage: impl FnMut(ProcessingStage),
 ) -> Result<GifReport, GifError> {
-    let started = Instant::now();
-    request.limits.validate()?;
-    cancel.check()?;
-    on_stage(ProcessingStage::Reading);
-    cancel.check()?;
-    let mut source = Source::read(&request.source, request.limits.resources)?;
-    if !source
-        .path
-        .extension()
-        .and_then(|n| n.to_str())
-        .is_some_and(|n| n.eq_ignore_ascii_case("gif"))
-    {
-        return Err(GifError::UnsupportedGif);
-    }
-    source.use_gif_backup_suffix();
-    let image = inspect_structure(&source.bytes, request.limits, cancel)?;
-    let before = validate_gif(&source.bytes, request.limits, cancel)?;
-    let destination = Destination::plan(&source, &request.output)?;
-    on_stage(ProcessingStage::Optimizing);
-    cancel.check()?;
-    let candidate = engine.optimize(&source.bytes, request.limits, cancel)?;
-    cancel.check()?;
-    let mut temp = destination.stage()?;
-    let validated = (|| {
-        output::write_candidate(&mut temp, &candidate, &source)?;
-        on_stage(ProcessingStage::Validating);
-        cancel.check()?;
-        let stored = output::read_candidate(&temp, request.limits.resources)?;
-        if stored != candidate {
-            return Err(GifError::ValidationFailed);
-        }
-        let after = validate_gif(&stored, request.limits, cancel)?;
-        if !before.equivalent(&after) {
-            return Err(GifError::ValidationFailed);
-        }
-        source.verify_unchanged(request.limits.resources)?;
-        cancel.check()?;
-        Ok(stored)
-    })();
-    drop(candidate);
-    let stored = match validated {
-        Ok(stored) => stored,
-        Err(original) => {
-            let temporary = temp.path().to_owned();
-            return Err(match temp.close() {
-                Ok(()) => original,
-                Err(source) => GifError::Cleanup {
-                    original: Some(Box::new(original)),
-                    source,
-                    temporary,
-                },
-            });
-        }
-    };
-    let input_bytes = ByteCount(source.bytes.len() as u64);
-    let size = stored.len() as u64;
-    let (outcome, output_bytes) = if size >= input_bytes.0 {
-        output::discard_no_gain(temp)?;
-        (ProcessingOutcome::NoGain, input_bytes)
-    } else {
-        (
-            output::commit(
-                temp,
-                &stored,
-                &destination,
-                source,
-                request.limits.resources,
-                cancel,
-                &mut on_stage,
-            )?,
-            ByteCount(size),
-        )
-    };
-    Ok(GifReport {
-        image,
-        input_bytes,
-        output_bytes,
-        elapsed: started.elapsed(),
-        outcome,
-    })
+    pipeline::run(request, engine, cancel, on_stage)
 }

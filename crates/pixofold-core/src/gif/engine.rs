@@ -84,6 +84,15 @@ impl GifEngine {
         limits: GifLimits,
         cancel: &CancellationToken,
     ) -> Result<Vec<u8>, GifError> {
+        self.run(bytes, limits, cancel, None)
+    }
+    pub(super) fn run(
+        &self,
+        bytes: &[u8],
+        limits: GifLimits,
+        cancel: &CancellationToken,
+        lossiness: Option<u16>,
+    ) -> Result<Vec<u8>, GifError> {
         cancel.check()?;
         self.verify()?;
         let mut command = Command::new(&self.executable);
@@ -97,13 +106,11 @@ impl GifEngine {
         command
             .arg("--memory-bytes")
             .arg(limits.max_native_bytes.0.to_string());
-        command.args([
-            "--careful",
-            "-O2",
-            "--same-comments",
-            "--same-extensions",
-            "-",
-        ]);
+        command.args(["--careful", "-O2", "--same-comments", "--same-extensions"]);
+        if let Some(value) = lossiness {
+            command.arg(format!("--lossy={value}"));
+        }
+        command.arg("-");
         process::run(
             &mut command,
             bytes,

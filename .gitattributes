@@ -18,5 +18,6 @@ CMakeLists.txt text eol=lf
 *.[gG][iI][fF] binary
 *.[aA][pP][nN][gG] binary
 tests/manual-images/licenses/*.txt -text
+tests/fixtures/gif-lossy/CC-BY-SA-4.0.txt -text
 *.ico binary
 *.icns binary

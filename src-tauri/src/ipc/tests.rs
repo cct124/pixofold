@@ -41,6 +41,9 @@ fn protocol_v11_preserves_gif_reports_and_rejects_lossy_without_png_permission()
         output_bytes: ByteCount(1000),
         elapsed: Duration::from_millis(3),
         outcome: ProcessingOutcome::NoGain,
+        requested_mode: pixofold_core::gif::GifMode::Lossless,
+        processing: pixofold_core::gif::GifProcessing::Lossless,
+        quality: None,
     }));
     let value = wire(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).unwrap());
     assert_eq!(value["protocolVersion"], 11);
@@ -53,6 +56,24 @@ fn protocol_v11_preserves_gif_reports_and_rejects_lossy_without_png_permission()
     );
     assert_eq!(row["state"]["report"]["contentCredentialsRemoved"], false);
     assert!(row["state"]["report"]["outputName"].is_null());
+    // 单文件核心已能有损，但v11不得把意外进入的有损报告序列化为无损。
+    if let JobState::NoGain(ImageReport::Gif(report)) =
+        &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0].state
+    {
+        report.requested_mode = pixofold_core::gif::GifMode::Lossy {
+            quality: QualityValue::default(),
+        };
+    }
+    assert!(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).is_err());
+    if let JobState::NoGain(ImageReport::Gif(report)) =
+        &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0].state
+    {
+        report.requested_mode = pixofold_core::gif::GifMode::Lossless;
+        report.processing = pixofold_core::gif::GifProcessing::Lossy {
+            parameters: pixofold_core::gif::GifQualityMapping::new(QualityValue::default()),
+        };
+    }
+    assert!(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).is_err());
     let job = &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0];
     job.request.mode = PngMode::Lossy {
         quality: QualityValue::new(80).unwrap(),

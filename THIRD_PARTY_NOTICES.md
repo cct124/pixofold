@@ -36,6 +36,8 @@ PixoFold 自有代码采用 GPL-3.0-or-later；第三方组件适用其自身许
 
 应用图标沿用本仓库已确认的 PixoFold SVG 设计，桌面尺寸由 Tauri CLI 生成；本轮没有复制旧 png-palettes 业务代码。
 
+2026-10-13，GIF有损4A实验新增Pintoch在Wikimedia Commons发布的OpenRefine/Wikidata真实录屏，原件和[来源/作者/哈希清单](tests/fixtures/gif-lossy/SOURCES.json)、[CC BY-SA 4.0完整许可](tests/fixtures/gif-lossy/CC-BY-SA-4.0.txt)一同保存。原件未修改；实验目录另生成320×309缩放衍生图并保留署名/许可，不把缩放节省算作有损压缩收益。照片平移动画由已许可的Pillow hopper.gif派生，沿用其通知；独立合成UI/渐变/透明图由本项目生成，源规则和身份随报告记录。这些测试数据不随应用安装包分发。
+
 2026-10-12将32张公开手测图片整理到 [tests/manual-images](tests/manual-images/README.md)。这些图片适用各自许可，作为独立测试数据保留，不因同仓库而重许可为GPL，也不进入应用安装资源。Wikimedia Commons的三张图片选择CC BY-SA 3.0，APNG弹跳球按来源页作者公有领域授权；PngSuite保留Willem van Schaik的使用/复制/修改/分发许可；Exif方向测试集保留MIT通知；Pillow 12.0.0样本保留上游MIT-CMU通知及原始路径。逐文件作者、来源、许可链接及未改写原始字节的SHA256见 [SOURCES.json](tests/manual-images/SOURCES.json)，归属和许可原文见 [素材说明](tests/manual-images/README.md)。
 
 imagequant 来自 [ImageOptim/libimagequant](https://github.com/ImageOptim/libimagequant)，以锁定的 crates.io 源码依赖使用，未复制或修改其实现。其 COPYRIGHT 记载 Kornel Lesiński 的 GPLv3+ 改动及 Jef Poskanzer、Greg Roelofs 的原始许可/版权；分发时需保留完整 COPYRIGHT 和相应源码，不只保留本表。

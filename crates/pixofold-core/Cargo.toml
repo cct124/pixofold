@@ -27,6 +27,12 @@ sysinfo.workspace = true
 
 [features]
 bindings = ["dep:ts-rs"]
+# 显式开发实验才开放未经验证的内存候选；单文件生产核心走独立安全提交。
+gif-lossy-lab = []
+
+[[example]]
+name = "gif_lossy_lab"
+required-features = ["gif-lossy-lab"]
 
 [[bin]]
 name = "export-bindings"

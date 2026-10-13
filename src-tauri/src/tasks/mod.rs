@@ -4,8 +4,10 @@
 //! 后续IPC必须转换DTO与授权原生路径，不直接序列化本模块领域快照。
 
 mod model;
+mod scan_diagnostics;
 mod worker;
 pub use model::*;
+pub(crate) use scan_diagnostics::record_scan;
 
 use pixofold_core::{
     batch::{BatchId, BatchService, ImageEngines, ImageKind, RetryRequest},

@@ -358,6 +358,13 @@ fn jpeg_processing(value: JpegProcessing) -> JpegProcessingDto {
 }
 fn report(value: &ImageReport) -> Result<ReportDto> {
     let (elapsed, processing) = match value {
+        // v11尚未开放有损GIF；拒绝意外进入的新核心报告，避免错误标成无损。
+        ImageReport::Gif(report)
+            if report.requested_mode != pixofold_core::gif::GifMode::Lossless
+                || report.processing != pixofold_core::gif::GifProcessing::Lossless =>
+        {
+            return Err(QueryError::InvalidSnapshot);
+        }
         ImageReport::Gif(report) => (
             report.elapsed,
             ProcessingDto::Gif(GifProcessingDto::Lossless {

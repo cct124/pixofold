@@ -274,6 +274,11 @@ fn main() {
     )
     .unwrap();
     println!("GIF真实核心回归通过：{gain}收益/{no_gain}无收益及2项压力图");
+    lossy_acceptance::run(&engine, fixtures, &root);
 }
+#[path = "gif_lab/lossy_acceptance.rs"]
+mod lossy_acceptance;
 #[path = "gif_lab/memory.rs"]
 mod memory;
+#[path = "gif_lab/quality_fixtures.rs"]
+mod quality_fixtures;

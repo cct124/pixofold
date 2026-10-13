@@ -29,6 +29,18 @@ export function runCoreCheck() {
   cpSync(path.join(root, 'tests/fixtures/gif'), inputs, { recursive: true });
   writeFileSync(path.join(inputs, 'stress.gif'), stressFixture());
   writeFileSync(path.join(inputs, 'large-static.gif'), largeFixture());
+  // 与4A使用同一衍生输入，无损基准和有损收益均从缩放后开始计算。
+  execute(helper, [
+    '--memory-bytes',
+    '33554432',
+    '--careful',
+    '-O2',
+    '--resize-fit',
+    '320x320',
+    '--output',
+    path.join(inputs, 'openrefine-320.gif'),
+    path.join(root, 'tests/fixtures/gif-lossy/openrefine-wikidata.gif'),
+  ]);
   assert.throws(
     () => execute(helper, ['--memory-bytes', '512', '--allocation-self-test']),
     (error) => error.actual === 86,
@@ -61,6 +73,10 @@ export function runCoreCheck() {
   cpSync(path.join(build, 'identity.json'), path.join(directory, 'engine-identity.json'));
   assert.equal(
     JSON.parse(readFileSync(path.join(inputs, 'core-results/report.json'), 'utf8')).result,
+    'passed',
+  );
+  assert.equal(
+    JSON.parse(readFileSync(path.join(inputs, 'core-results/lossy/report.json'), 'utf8')).result,
     'passed',
   );
   const jpegTools = verifyJpegTools();

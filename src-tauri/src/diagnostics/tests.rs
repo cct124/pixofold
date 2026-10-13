@@ -137,6 +137,121 @@ fn full_queue_is_nonblocking_and_oversized_event_is_still_bounded_json() {
 }
 
 #[test]
+fn real_scan_records_bounded_rejection_categories_without_private_names() {
+    use pixofold_core::{
+        batch::ImageEngines,
+        import::{ScanOptions, scan_with_engines},
+        jpeg::JpegEngine,
+    };
+    use sha2::{Digest, Sha256};
+    let temp = tempfile::tempdir().unwrap();
+    let log_path = temp.path().join("logs");
+    let logger = Logger::start(log_path.clone(), false);
+    let tool = b"scan identity fixture; never executed";
+    let tool_name = if cfg!(windows) {
+        "pixofold-jpeg-helper.exe"
+    } else {
+        "pixofold-jpeg-helper"
+    };
+    fs::write(temp.path().join(tool_name), tool).unwrap();
+    let engines = ImageEngines::with_jpeg(
+        JpegEngine::load(temp.path(), Sha256::digest(tool).into()).unwrap(),
+    );
+    let source = temp.path().join("PRIVATE_SOURCE.png");
+    fs::write(&source, fixture("rgba8.png")).unwrap();
+    let animated = temp.path().join("PRIVATE_ANIMATION.png");
+    fs::write(&animated, fixture("animated.png")).unwrap();
+    let backup = temp.path().join("PRIVATE_BACKUP-backup-Ab12xY.png");
+    fs::write(&backup, fixture("rgba8.png")).unwrap();
+    // 上游真实JPEG插入APP11/XMP式未知APP1，在扫描元数据边界拒绝，不调用helper。
+    let jpeg = fs::read(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../tests/manual-images/jpeg/hopper_gray.jpg"),
+    )
+    .unwrap();
+    let mut roots = vec![
+        source.clone(),
+        source,
+        animated,
+        backup,
+        temp.path().join("PRIVATE_MISSING.png"),
+    ];
+    for (name, marker) in [
+        ("PRIVATE_CREDENTIALS.jpg", 0xeb),
+        ("PRIVATE_METADATA.jpg", 0xe1),
+    ] {
+        let path = temp.path().join(name);
+        let mut bytes = jpeg[..2].to_vec();
+        bytes.extend_from_slice(&[0xff, marker, 0, 5, 1, 2, 3]);
+        bytes.extend_from_slice(&jpeg[2..]);
+        fs::write(&path, bytes).unwrap();
+        roots.push(path);
+    }
+    with_logger(logger.clone(), || {
+        let span = tracing::info_span!(target: "pixofold", "selection", selection_id = 42);
+        let _entered = span.enter();
+        let scan = scan_with_engines(
+            &roots,
+            ScanOptions::default(),
+            &CancellationToken::default(),
+            &mut |_: &pixofold_core::import::ScanProgress| {},
+            &engines,
+        )
+        .unwrap();
+        crate::tasks::record_scan(&scan);
+        drop(_entered);
+        let span = tracing::info_span!(target: "pixofold", "selection", selection_id = 43);
+        let _entered = span.enter();
+        let mut options = ScanOptions::default();
+        options.probe_limits.max_input_bytes = pixofold_core::model::ByteCount(1);
+        let limited = scan_with_engines(
+            &roots[..1],
+            options,
+            &CancellationToken::default(),
+            &mut |_: &pixofold_core::import::ScanProgress| {},
+            &ImageEngines::default(),
+        )
+        .unwrap();
+        crate::tasks::record_scan(&limited);
+    });
+    logger.shutdown();
+    let values = records(&log_path);
+    let summary = values
+        .iter()
+        .find(|v| v["event"] == "import_scan_finished")
+        .unwrap();
+    assert_eq!(summary["accepted"], 1);
+    assert_eq!(summary["rejected"], 4);
+    assert_eq!(summary["duplicates"], 1);
+    assert_eq!(summary["excluded"], 1);
+    for code in [
+        "unsupported_animation",
+        "unsupported_jpeg_credentials",
+        "unsupported_metadata",
+        "io",
+        "duplicate",
+        "generated_artifact",
+    ] {
+        let entry = values
+            .iter()
+            .find(|v| v["event"] == "import_scan_issue_summary" && v["error_code"] == code)
+            .unwrap();
+        assert_eq!(entry["count"], 1);
+        assert_eq!(entry["selection_id"], 42);
+    }
+    assert!(!serde_json::to_string(&values).unwrap().contains("PRIVATE_"));
+    let resource = values
+        .iter()
+        .find(|v| v["event"] == "import_scan_issue_summary" && v["selection_id"] == 43)
+        .unwrap();
+    assert_eq!(resource["error_code"], "resource_limit");
+    assert_eq!(resource["count"], 1);
+    assert_eq!(values.last().unwrap()["event"], "session_finished");
+    assert_eq!(values.last().unwrap()["dropped_events"], 0);
+    assert_eq!(values.last().unwrap()["write_failures"], 0);
+}
+
+#[test]
 fn unavailable_logging_does_not_change_processing_and_shutdown_remains_safe() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("not-a-directory");
