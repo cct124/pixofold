@@ -13,5 +13,7 @@ pub(crate) use desktop::{engine_bundle, resources};
 #[path = "../build-support/jpeg.rs"]
 mod jpeg_build;
 
+#[path = "../build-support/identity.rs"]
+mod build_identity;
 #[path = "../build-support/gif.rs"]
 mod gif_build;

@@ -1,5 +1,9 @@
 # 可复现图像语料
 
+## APNG
+
+[APNG清单](apng/manifest.json)由[确定性生成器](../../tools/apng-lab/fixtures.mjs)生成，适用GPL-3.0-or-later。每项固定SHA256、结构、默认图及子帧摘要、原始延时、手工RGBA16合成画布或明确拒绝原因。使用`pnpm apng:fixtures:generate`生成，`pnpm apng:fixtures:check`只读核对；`pnpm apng:lab:check`执行独立验证与真实无损实验，证据写入target独立目录。支持/拒绝与资源边界见[实验说明](../../tools/apng-lab/README.md)。现有PNG目录中的动画样本仍只验证生产静态入口拒绝，不能代替APNG支持证据。
+
 ## PNG
 
 全部由本项目自生成，适用 GPL-3.0-or-later；没有用户图片或第三方图片。来源、预期和 SHA256 见 [manifest](png/manifest.json)。生成器仅用于测试，不是产品 PNG 编码器。

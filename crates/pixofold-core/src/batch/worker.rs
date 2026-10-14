@@ -91,7 +91,9 @@ fn stage(shared: &Shared, work: &Work, next: ProcessingStage) {
 pub(super) fn run(shared: Arc<Shared>, runner: Arc<dyn Runner>) {
     while let Some(work) = take(&shared) {
         let span = tracing::info_span!(target: "pixofold", "image_task",
-            batch_id = work.batch.get(), job_id = work.index + 1, attempt = work.attempt);
+            batch_id = work.batch.get(), job_id = work.index + 1, attempt = work.attempt,
+            format = work.request.log_format(), mode = work.request.log_mode(),
+            quality = work.request.log_quality());
         let _entered = span.enter();
         let started = std::time::Instant::now();
         tracing::info!(target: "pixofold", event = "job_started", reserved_bytes = work.reservation);
@@ -112,7 +114,9 @@ pub(super) fn run(shared: Arc<Shared>, runner: Arc<dyn Runner>) {
         };
         match &terminal {
             JobState::Succeeded(report) | JobState::NoGain(report) => {
+                let (processing, fallback_reason) = report.log_processing();
                 tracing::info!(target: "pixofold", event = "job_finished",
+                    processing, fallback_reason,
                     result = if matches!(&terminal, JobState::Succeeded(_)) { "succeeded" } else { "no_gain" },
                     input_bytes = report.input_bytes().0, output_bytes = report.output_bytes().0,
                     credentials_removed = report.credentials_removed(),

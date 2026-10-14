@@ -1,7 +1,7 @@
 # 动画验证底座与GIF最小实验
 
 - 创建日期：2026-10-09（Asia/Shanghai）。
-- 状态：截至2026-10-13，当前dev/b351c27（含业务1dd909a）的三平台CI run38375324845共9个jobs全部成功；4B批量/资源预算与4C/v12的统一检查、222组对照、真实核心/随包回归、新Windows MSI及包内验收通过。用户反馈新包手测暂未发现相关错误，两次新会话日志未见运行故障，GIF阶段基线收口。下一批拟补齐诊断字段并完成APNG语料/独立验证/最小无损实验，尚未实施；其他系统实际安装及无开发工具/后置无WebView2分别验收，完整动画任务继续活动。
+- 状态：截至2026-10-14，dev/2f21a50上的L0/A1/A2已完成Windows本机交付：受控日志、83项语料/11组比较、135组APNG无损实验、统一检查及真实三格式回归通过，尚未提交推送；详见末节。既有b351c27三平台9 jobs、GIF v12 Windows包及用户手测日志形成前阶段基线。APNG尚未进入生产，下一入口A3；新SHA平台、A4及其他发行环境独立验收，完整动画任务继续活动。
 - 分支/基准：dev/0f4fcfd0825f51542d5d2658da600d21e0174350，业务a21d330，开工本地/远端一致且工作区干净。
 - 关联：[阶段计划](../260930/next-development-plan.md)、[J2桌面混合工作流](jpeg-desktop-workflow.md)、[项目方案](../../../架构设计文档/pixofold-proposal.md)。
 
@@ -629,3 +629,30 @@ A/B稳定后接GIF桌面闭环：可信资源prepare/打包与加载、supported
 - 下一实施批按L0→A1→A2推进，L0不阻断独立实验。运行相关隐私/日志与PNG/JPEG/GIF回归、APNG正负语料/资源边界、实验输入哈希校验；Windows先实测，再把可复现实验接入三平台CI，最终统一检查。A3/A4届时继续冻结目标/预算、提交前复查及稳定ID重试，并按实际DTO变化升级协议。
 - 本轮只更新本连续计划、索引及阶段计划，保留既有日志记录；没有实现上述业务、升级依赖、运行新实验/GUI或重建MSI，没有提交推送。下一开发可具体采用“补齐格式和实际路径日志，并完成APNG语料、独立播放验证与最小无损实验”。
 - 交接检查：git diff --check通过；三份变更文档的122个本地链接、NUL和尾随空白检查通过。CI快照已确认受target忽略规则保护；工作区仅三份计划/交接文档，前轮日志复核内容完整保留。
+
+## 2026-10-14 L0/A1/A2实施
+
+- 用户已授权按上述计划实施。开工分支dev，HEAD 2f21a50，工作区干净且与origin/dev一致；不提交或推送。
+- 本批目标：任务/会话受控诊断字段；确定性APNG语料与独立结构、子帧、合成和精确时间轴验证；锁定png 0.18.1/oxipng 10.2.1的严格无损实验、资源/取消实测及支持矩阵。保留v12生产范围，A3/A4另批实施。
+- 实施与验收进行中：先定位现有格式报告和日志白名单，再独立建立实验模块；Windows证据写target，新增可复现命令纳入三平台CI。尚未运行本批验证，不沿用历史CI为新代码背书。
+- 依赖评审：本机png 0.18.1的decoder/zlib.rs明确兼容忽略zlib尾随字节，并可能容忍缺少校验尾。严格实验不能只靠next_frame/finish；单独增加开发依赖fdeflate =0.3.7（已由png锁定，同版、不升级、不影响生产依赖），显式核对流结束、消耗长度、解压长度及Adler32。上游MIT OR Apache-2.0，纯Rust，现有构建已使用；无新增原生部署成本。
+- L0实现：batch适配器从冻结请求抽取format/mode/数值quality，从最终报告抽取processing/fallback_reason；开始/阶段/终态沿同一任务span关联。成功、NoGain、失败语义分开，不记录淘汰候选指标。会话记录v12；仅GitHub Actions中SHA/HEAD/干净工作树一致才声明git来源，本地或无法确认时unknown。已补白名单/隐私及真实worker回归，验证中。
+- A1进展：83项确定性语料（手工RGBA16画布、原始子帧/default摘要、精确延时和结构），含11组比较；独立容器解析/CRC/序号、严格zlib、png静态子帧双解码、整数SOURCE/OVER和dispose、第二轮透明画布重置已建立。8/16位、8位索引透明、Adam7及资源负例已通过初步回归。低位深索引/灰度与ICC/Exif等未支持元数据明确拒绝。
+- 首轮A2报告target/apng-lab-ZUzIvI/report.json：当时73项语料、31个有效合成输入+6公开原件+压力图，三档共114组；16收益、95无收益、3次同一低位深索引公开图的明确拒绝，无候选验证失败。1ms取消请求后同步编码约220ms返回，1ms软期限实际5ms；均丢弃候选且源hash保持。随后增加真正覆盖完整读取/验证/编码的进程CPU/RSS采样、严格验收清单与新增语义负例，最终证据另记。
+- 发现并处理：fdeflate会提前读取最多7字节，单看read消耗量仍会漏掉短尾随数据；对最终8字节逐字节输入，新增zlib尾随/缺Adler/坏Adler/多余解压数据负例。沙箱拒绝真实路径解析，已按权限流程在沙箱外回归；没有放宽原有输出/路径规则。日志测试确认PNG q100仍依PNG实际路径报告，不套用GIF的q100无损语义。
+
+### 最终交付与证据
+
+- 新入口：pnpm apng:fixtures:generate/check及pnpm apng:lab:check；[实验说明](../../../../tools/apng-lab/README.md)给出支持/拒绝、额度、同步取消与规范依据。[清单](../../../../tests/fixtures/apng/manifest.json)共83项（38接纳、45拒绝）和11组比较；83个二进制加manifest合计83,080 bytes。公开6份原件继续复用既有来源/许可，不新增下载或修改原件。
+- 最终报告target/apng-lab-338Osf/report.json为passed，运行日志target/apng-stage-a2-delivery-261014.log。38个接纳合成输入+6个公开输入+1个压力输入，O0/O1/O2共135组：18 gain、114 no_gain、3次预定低位深索引拒绝（同一mode_palette_alpha.apng在三档均为unsupported_representation），无预期外编码/验证拒绝。全部输入SHA256保持，11组等价/不等价比较及默认图/隐藏RGB/分数/循环变化均符合预期。
+- 公开beach_ball.png为61,968 bytes，O1为61,657、O2为61,508；其余公开输入多数无收益，两个O0候选仅各省2 bytes。合成512×256×12帧压力图6,295,849 bytes，O0/O1/O2为17,173/15,817/15,817 bytes，编码32/140/236ms；该图刻意冗余，不能作真实素材收益承诺。固定O1可作为后续受限核心候选起点，不将三档搜索直接接入生产。
+- 完整进程采样峰值29,155,328 bytes（约27.8MiB）；压力O0/O1/O2的进程CPU累计391/469/625ms，含读取/独立验证与采样器。取消在编码中请求，编码242ms返回，取消后等待240ms；1ms编码软期限实际6ms返回。两者均不落候选、原件不变。采样为10ms周期+起止，不能当作RSS硬上限；A3需直到同步编码返回才释放worker/预算，要求强制终止时另做受限子进程。
+- engine-identity.json记录锁定png/oxipng/fdeflate、Cargo.lock、源码配方/平台/工作树与二进制SHA256：0586abe0ccbb607df6a07c9d63a9b593aa3329208b04d7b6664dabce9e55390f。最后复核修正源与候选共享累计解码/像素预算，两份压缩输入均计入验证存活量；CLI对参数/I/O返回错误，边界不符的报告保留并让命令失败。
+
+### 验收与后续
+
+- pnpm check通过，日志target/apng-unified-check-261014.log：前端15文件/163测试，Rust合计275项测试及2项doctest，格式、lint、类型、83项APNG/既有PNG/GIF/32份公开原件与许可、生成类型、全workspace Clippy通过。包含9项日志事件/隐私/真实worker回归及构建来源的脏/缺失/不匹配拒绝测试。最终APNG额度/CLI收尾后已重跑apng:lab:check，并复验format:check、lint、全workspace Clippy，日志target/apng-final-*-261014.log均通过。
+- pnpm gif:core:check通过，日志target/apng-three-format-regression-261014.log，证据target/gif-core-tB9hxf/：GIF真实核心25收益/2无收益及2压力图、有损质量/两类回退/原图安全/提交竞争、PNG/JPEG/GIF真实混批通过。已有v12 DTO及前端未改变，未要求重复用户已完成的GUI手测。
+- 三平台新增APNG job与artifact上传已配置，尚无本批新SHA的远端运行证据。未构建新Windows MSI、未进行新安装/GUI/外部播放验收；本批交付为实验与诊断源码，APNG仍不出现在生产supportedFormats。
+- 当前分支dev、HEAD/origin/dev仍为2f21a50；本批代码、语料、CI、许可与说明均为本机未提交修改。未提交、未推送，完整动画任务保持活动。下一入口为A3：沿已证明范围接APNG无损单文件和候选落盘复验/安全输出，覆盖备份、冲突、源变化、取消与NoGain，再做A4批量预算/协议/预览/桌面与新MSI。
+- 最终交接核对：target/apng-delivery-audit-261014.mjs确认8份文档/199个本地链接、NUL及尾随空白、8份实验配方哈希、Cargo.lock及二进制哈希与最终报告一致；清单实际为83项/11组比较（已更正实施过程中的12组误计）。git diff --check通过，实验报告/日志受target忽略保护。

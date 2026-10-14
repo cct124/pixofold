@@ -1,0 +1,3061 @@
+{
+  "schema": 1,
+  "origin": "PixoFold generated APNG; GPL-3.0-or-later",
+  "generator": "tools/apng-lab/fixtures.mjs",
+  "canvasEncoding": "RGBA16 integers; 8-bit channels multiply 257; row major; manual expectations",
+  "samples": [
+    {
+      "file": "default-in.png",
+      "sha256": "deb45b759ad46f16a09186f593654d07000fae1afe03396b2b75af00c8c2797e",
+      "expect": "ok",
+      "defaultRawSha256": "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+      "frameRawSha256": [
+        "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+        "b7d1b3a1104cc86b1cea310793cf777002db0517281d135a02de079b0ea87c23"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 1,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "extension.APNG",
+      "sha256": "deb45b759ad46f16a09186f593654d07000fae1afe03396b2b75af00c8c2797e",
+      "expect": "ok",
+      "defaultRawSha256": "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+      "frameRawSha256": [
+        "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+        "b7d1b3a1104cc86b1cea310793cf777002db0517281d135a02de079b0ea87c23"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 1,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "extension.PNG",
+      "sha256": "deb45b759ad46f16a09186f593654d07000fae1afe03396b2b75af00c8c2797e",
+      "expect": "ok",
+      "defaultRawSha256": "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+      "frameRawSha256": [
+        "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+        "b7d1b3a1104cc86b1cea310793cf777002db0517281d135a02de079b0ea87c23"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 1,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "default-out.apng",
+      "sha256": "3783ef147456db35b74ac55832b1f269d4166770314c8f13cff861bb99a5ca0a",
+      "expect": "ok",
+      "defaultRawSha256": "12a3ae445661ce5dee78d0650d33362dec29c4f82af05e7e57fb595bbbacf0ca",
+      "frameRawSha256": [
+        "b7d1b3a1104cc86b1cea310793cf777002db0517281d135a02de079b0ea87c23",
+        "34aaa746c25a0f105c4316bbb1f009aa359f49582656ee97d73c58132d563423"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": false
+      },
+      "controls": [
+        {
+          "width": 1,
+          "height": 1,
+          "x": 1,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ]
+        ],
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "over.apng",
+      "sha256": "c4122efeae3ff31e43f970d2d2ffb33876397d9941fd7b40af5677cbe981726e",
+      "expect": "ok",
+      "defaultRawSha256": "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+      "frameRawSha256": [
+        "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+        "ee9c1470b119a6302d9d54ad4c65d8b5c4f65c6bf12d7db1630eb0181563f64c"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 1,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 1
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            32639,
+            0,
+            32896,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "background.apng",
+      "sha256": "9278ebd45d8bf45180f06785de75af1d4196e6937cb3cac964b768d751a08176",
+      "expect": "ok",
+      "defaultRawSha256": "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+      "frameRawSha256": [
+        "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+        "b7d1b3a1104cc86b1cea310793cf777002db0517281d135a02de079b0ea87c23",
+        "7a7bf454c5f3cb1b9d9a20f81417f98d976fe3b3dd52c1b9968f02e89e7e8a2f"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 1,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 1,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            0,
+            0,
+            65535,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            65535,
+            0,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "previous.apng",
+      "sha256": "410a7c76fffc2ce53bfb2e4f57abd868e0e6cea8a37f1aa45fcac5e344b81137",
+      "expect": "ok",
+      "defaultRawSha256": "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+      "frameRawSha256": [
+        "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+        "b7d1b3a1104cc86b1cea310793cf777002db0517281d135a02de079b0ea87c23",
+        "7a7bf454c5f3cb1b9d9a20f81417f98d976fe3b3dd52c1b9968f02e89e7e8a2f"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 2,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 1,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            0,
+            0,
+            65535,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            65535,
+            0,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "first-previous.apng",
+      "sha256": "7e38427b5754cdd7db335616a9961dcf915bd0f04008793bb053733812734e8e",
+      "expect": "ok",
+      "defaultRawSha256": "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+      "frameRawSha256": [
+        "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+        "b7d1b3a1104cc86b1cea310793cf777002db0517281d135a02de079b0ea87c23"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 2,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 1,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "first-over-transparent.apng",
+      "sha256": "28bad4e3a9f9b3223f30a9e5c655f0adb96b14de02e804016ae6f38d3f92682f",
+      "expect": "ok",
+      "defaultRawSha256": "12a3ae445661ce5dee78d0650d33362dec29c4f82af05e7e57fb595bbbacf0ca",
+      "frameRawSha256": [
+        "c40b4ac0514f62ad2d8677e8f8bc53ed5a80582c5ea3afc395e2d0df6d8828a1",
+        "b7d1b3a1104cc86b1cea310793cf777002db0517281d135a02de079b0ea87c23"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": false
+      },
+      "controls": [
+        {
+          "width": 1,
+          "height": 1,
+          "x": 1,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 1
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            65535,
+            0,
+            0,
+            32896
+          ]
+        ],
+        [
+          [
+            0,
+            0,
+            65535,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            32896
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "hidden-rgb.apng",
+      "sha256": "001deaecfb53469c32b0e4781a87a07bbda8ee60cf0c34bfab94776df50c1323",
+      "expect": "ok",
+      "defaultRawSha256": "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+      "frameRawSha256": [
+        "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+        "b4c0ea6044eb9c51fa7d4a9e6fcdfe712b5464507106456c14a8d9cde6aba52c",
+        "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 1
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            4369,
+            8481,
+            14135,
+            0
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            4369,
+            8481,
+            14135,
+            0
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "zero-and-denominator.apng",
+      "sha256": "c6dd61e2c6da14636072c03c0770010d096bb2544bd2f9a54893a3e68fd70feb",
+      "expect": "ok",
+      "defaultRawSha256": "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+      "frameRawSha256": [
+        "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+        "b7d1b3a1104cc86b1cea310793cf777002db0517281d135a02de079b0ea87c23",
+        "7a7bf454c5f3cb1b9d9a20f81417f98d976fe3b3dd52c1b9968f02e89e7e8a2f"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 2,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 0,
+          "delayDen": 0,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 1,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 3,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 65535,
+          "delayDen": 65535,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ]
+        ],
+        [
+          [
+            0,
+            65535,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "one-play.apng",
+      "sha256": "d2196ad0ee36d097c6fcfaa1681275af938ee2c10df4a50b6284dea1848bc3b0",
+      "expect": "ok",
+      "defaultRawSha256": "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+      "frameRawSha256": [
+        "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+        "b7d1b3a1104cc86b1cea310793cf777002db0517281d135a02de079b0ea87c23"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 1,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 1,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "split-data.apng",
+      "sha256": "f1eb63cad0291c7f81df69ec209dfbb9be9d45ba4107e4f346cdd920518933cb",
+      "expect": "ok",
+      "defaultRawSha256": "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+      "frameRawSha256": [
+        "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+        "b7d1b3a1104cc86b1cea310793cf777002db0517281d135a02de079b0ea87c23"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 1,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "gray8.apng",
+      "sha256": "0335dac4a488dd866bd66d4f6773186a13e06c625127d6373fdbf7bbb3880b19",
+      "expect": "ok",
+      "defaultRawSha256": "31c582d77ca1621094462c2334cd89d161e98e5773f0e1594d355dbdaa23dcce",
+      "frameRawSha256": [
+        "31c582d77ca1621094462c2334cd89d161e98e5773f0e1594d355dbdaa23dcce"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 0,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            4369,
+            4369,
+            4369,
+            65535
+          ],
+          [
+            65535,
+            65535,
+            65535,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "gray-alpha8.apng",
+      "sha256": "919e676a44606643328d6b197465634a5f92fbd2e6ae3c30fd1de77fb9125f3f",
+      "expect": "ok",
+      "defaultRawSha256": "d526c2d5480bcbef3777623ef9aa4b751cc8ff36f64c5d57aa87ba685e9b67bc",
+      "frameRawSha256": [
+        "d526c2d5480bcbef3777623ef9aa4b751cc8ff36f64c5d57aa87ba685e9b67bc"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 4,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            4369,
+            4369,
+            4369,
+            0
+          ],
+          [
+            65535,
+            65535,
+            65535,
+            32896
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "rgb8.apng",
+      "sha256": "2dadd535fd1582b6b631fa907c1ebcffb05de3674e03d936ed160e37dc31df67",
+      "expect": "ok",
+      "defaultRawSha256": "ca5cc6d6fb20a0af14a7964e9ca8656880d62f7d55df12171ac14d3a858590aa",
+      "frameRawSha256": [
+        "ca5cc6d6fb20a0af14a7964e9ca8656880d62f7d55df12171ac14d3a858590aa"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 2,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "rgb-trns.apng",
+      "sha256": "e964fab73708a8ba2ce142e750bc3fc48c6cef1048dbb99f891e35546bbb96da",
+      "expect": "ok",
+      "defaultRawSha256": "ca5cc6d6fb20a0af14a7964e9ca8656880d62f7d55df12171ac14d3a858590aa",
+      "frameRawSha256": [
+        "ca5cc6d6fb20a0af14a7964e9ca8656880d62f7d55df12171ac14d3a858590aa"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 2,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "gray-trns.apng",
+      "sha256": "5e350c4f918f7ae8810040b5c54c28e4f0efbe9769af1ccfe01f358dba4464b7",
+      "expect": "ok",
+      "defaultRawSha256": "31c582d77ca1621094462c2334cd89d161e98e5773f0e1594d355dbdaa23dcce",
+      "frameRawSha256": [
+        "31c582d77ca1621094462c2334cd89d161e98e5773f0e1594d355dbdaa23dcce"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 0,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            4369,
+            4369,
+            4369,
+            0
+          ],
+          [
+            65535,
+            65535,
+            65535,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "palette.apng",
+      "sha256": "ae76153defe0f39d8482cb047709bd86d451e66d3f9c13f37e04427c00298a60",
+      "expect": "ok",
+      "defaultRawSha256": "b413f47d13ee2fe6c845b2ee141af81de858df4ec549a58b7970bb96645bc8d2",
+      "frameRawSha256": [
+        "b413f47d13ee2fe6c845b2ee141af81de858df4ec549a58b7970bb96645bc8d2"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 3,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            65535,
+            32896
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "gray16.apng",
+      "sha256": "3e9b03ea7f4986e350085b51028edc3712eb1975c82fbcb297a94567f3ffdc11",
+      "expect": "ok",
+      "defaultRawSha256": "289fbdad837f0760bfc995218ebfa2e1d2b639a3f4139bb6d01e4a8658881cad",
+      "frameRawSha256": [
+        "289fbdad837f0760bfc995218ebfa2e1d2b639a3f4139bb6d01e4a8658881cad"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 16,
+        "color": 0,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            4660,
+            4660,
+            4660,
+            65535
+          ],
+          [
+            65535,
+            65535,
+            65535,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "rgb16.apng",
+      "sha256": "44674dde2b2b725a79ca6de59644285d85907e427863b305df53e9aaae1b425c",
+      "expect": "ok",
+      "defaultRawSha256": "e892f87c1b143af283e54ada426ca29a7492663124fad141ef22fe572c182738",
+      "frameRawSha256": [
+        "e892f87c1b143af283e54ada426ca29a7492663124fad141ef22fe572c182738"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 16,
+        "color": 2,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            4660,
+            9029,
+            13398,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "gray-alpha16.apng",
+      "sha256": "f94a9edd3512987a8ba33ccd5f05afc30dd4fac8303882282122a1411aa2dcac",
+      "expect": "ok",
+      "defaultRawSha256": "284f4000c5069e631c1ad1c6c17ef1c2598f14d8982556a4f20e33504fddb97d",
+      "frameRawSha256": [
+        "284f4000c5069e631c1ad1c6c17ef1c2598f14d8982556a4f20e33504fddb97d"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 16,
+        "color": 4,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            4660,
+            4660,
+            4660,
+            0
+          ],
+          [
+            65535,
+            65535,
+            65535,
+            17767
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "rgba16.apng",
+      "sha256": "756bf35b5b8044bae3ed73d24abd74139e9ad7a4c94d1e4227fa8d336f8eff2d",
+      "expect": "ok",
+      "defaultRawSha256": "30fcce8fad9a7b2de0722dc960e2174b217d7e95b3cc43e313945c91ffaad5f9",
+      "frameRawSha256": [
+        "30fcce8fad9a7b2de0722dc960e2174b217d7e95b3cc43e313945c91ffaad5f9"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 16,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            4660,
+            9029,
+            13398,
+            0
+          ],
+          [
+            0,
+            0,
+            65535,
+            17767
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "adam7.apng",
+      "sha256": "493f755ce92cee9d88cf471f0e6704f64be713f9c8603307e5c24789b0c8c679",
+      "expect": "ok",
+      "defaultRawSha256": "57e0429b59819129b1b972c7d08bf45b0f72fba1b3d7a42b175a3357efff043b",
+      "frameRawSha256": [
+        "57e0429b59819129b1b972c7d08bf45b0f72fba1b3d7a42b175a3357efff043b",
+        "b7d1b3a1104cc86b1cea310793cf777002db0517281d135a02de079b0ea87c23"
+      ],
+      "structure": {
+        "width": 4,
+        "height": 4,
+        "depth": 8,
+        "color": 6,
+        "interlace": 1,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 4,
+          "height": 4,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 1,
+          "y": 2,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            65535,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ],
+          [
+            65535,
+            65535,
+            65535,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            65535,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ],
+          [
+            65535,
+            65535,
+            65535,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            65535,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ],
+          [
+            65535,
+            65535,
+            65535,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            65535,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ],
+          [
+            65535,
+            65535,
+            65535,
+            65535
+          ]
+        ],
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            65535,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ],
+          [
+            65535,
+            65535,
+            65535,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            65535,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ],
+          [
+            65535,
+            65535,
+            65535,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ],
+          [
+            65535,
+            65535,
+            65535,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            65535,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ],
+          [
+            65535,
+            65535,
+            65535,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "metadata.apng",
+      "sha256": "bcf4d9987039532cf88e36f857dc6f9588270b1450d667276abb0803423590f4",
+      "expect": "ok",
+      "defaultRawSha256": "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+      "frameRawSha256": [
+        "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+        "b7d1b3a1104cc86b1cea310793cf777002db0517281d135a02de079b0ea87c23"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 1,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "changed-pixel.apng",
+      "sha256": "e0116af5445caa1ff703ffcd39e34b22311f886bdfb262ed0b96cbde3d526d38",
+      "expect": "ok",
+      "defaultRawSha256": "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+      "frameRawSha256": [
+        "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+        "7a7bf454c5f3cb1b9d9a20f81417f98d976fe3b3dd52c1b9968f02e89e7e8a2f"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 1,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            65535,
+            0,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "changed-delay.apng",
+      "sha256": "ef9bcefc2efb7323798465d57266eef36f8e27cff165e6dddd28cefd6c507c64",
+      "expect": "ok",
+      "defaultRawSha256": "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+      "frameRawSha256": [
+        "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+        "b7d1b3a1104cc86b1cea310793cf777002db0517281d135a02de079b0ea87c23"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 1,
+          "y": 0,
+          "delayNum": 2,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "changed-offset.apng",
+      "sha256": "45f09243824d9de3eab68f3a2a7d40256f7132f2290fd85f8724ec20df09ce97",
+      "expect": "ok",
+      "defaultRawSha256": "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+      "frameRawSha256": [
+        "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+        "b7d1b3a1104cc86b1cea310793cf777002db0517281d135a02de079b0ea87c23"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            0,
+            0,
+            65535,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "changed-loop.apng",
+      "sha256": "aad648c30917237f77ea080e575133b0b5f5fdab91a7cc900aadfa167cc86af1",
+      "expect": "ok",
+      "defaultRawSha256": "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+      "frameRawSha256": [
+        "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+        "b7d1b3a1104cc86b1cea310793cf777002db0517281d135a02de079b0ea87c23"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 3,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 1,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "changed-poster.apng",
+      "sha256": "95f5c8d2f5e0b9443d3fa203c38fef6deecce62a29ad72f4c91fff4730cf74da",
+      "expect": "ok",
+      "defaultRawSha256": "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+      "frameRawSha256": [
+        "b7d1b3a1104cc86b1cea310793cf777002db0517281d135a02de079b0ea87c23",
+        "34aaa746c25a0f105c4316bbb1f009aa359f49582656ee97d73c58132d563423"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": false
+      },
+      "controls": [
+        {
+          "width": 1,
+          "height": 1,
+          "x": 1,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ]
+        ],
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "changed-metadata.apng",
+      "sha256": "a8b7421a310b533a3b5cae21f0490f0f2b35639e0b51811ec49bf53664f84fbd",
+      "expect": "ok",
+      "defaultRawSha256": "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+      "frameRawSha256": [
+        "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+        "b7d1b3a1104cc86b1cea310793cf777002db0517281d135a02de079b0ea87c23"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 1,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "denominator-zero.apng",
+      "sha256": "12c88e69c07228a32d30593940d517d0d03a2176f03cc67492d8e779ff5d753a",
+      "expect": "ok",
+      "defaultRawSha256": "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+      "frameRawSha256": [
+        "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+        "b7d1b3a1104cc86b1cea310793cf777002db0517281d135a02de079b0ea87c23"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 0,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 1,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "denominator-hundred.apng",
+      "sha256": "bc9b3ac88c5be20a5aacd82ebebf2ebdaeca1bbb7c473ba67c5369df935b31f1",
+      "expect": "ok",
+      "defaultRawSha256": "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+      "frameRawSha256": [
+        "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+        "b7d1b3a1104cc86b1cea310793cf777002db0517281d135a02de079b0ea87c23"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 100,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 1,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "changed-dispose.apng",
+      "sha256": "41ee3fafa2d9bf82d61b8f3eda2698b73fae1f4af6f7c33eca3c991ce9ea8f89",
+      "expect": "ok",
+      "defaultRawSha256": "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+      "frameRawSha256": [
+        "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+        "b7d1b3a1104cc86b1cea310793cf777002db0517281d135a02de079b0ea87c23"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 1,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 1,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            65535,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "changed-blend.apng",
+      "sha256": "9530bbd47bece316803c8614ec101481ac6af66ca34f666934ee6af3b529c71b",
+      "expect": "ok",
+      "defaultRawSha256": "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+      "frameRawSha256": [
+        "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+        "ee9c1470b119a6302d9d54ad4c65d8b5c4f65c6bf12d7db1630eb0181563f64c"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 1,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            0,
+            0,
+            65535,
+            32896
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "half-over-half.apng",
+      "sha256": "c82a3478b1abc163453357803d80dce0f79c839a76ca34eafd4cb1a6100499db",
+      "expect": "ok",
+      "defaultRawSha256": "48fc81606ae5a774a875fbfb373799ab7ece705dfede754905300a4f8dfc5bf1",
+      "frameRawSha256": [
+        "48fc81606ae5a774a875fbfb373799ab7ece705dfede754905300a4f8dfc5bf1",
+        "ee9c1470b119a6302d9d54ad4c65d8b5c4f65c6bf12d7db1630eb0181563f64c"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 1
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            32896
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            21788,
+            0,
+            43747,
+            49279
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "rgba16-over.apng",
+      "sha256": "9a5a14571faaa43b32f7a2a821a5920c0dcc3e30619fdf71614ccd8c8813b648",
+      "expect": "ok",
+      "defaultRawSha256": "5a73df4ffa0172003f78c214b3d4dbdc9678936fb2795d085b9ce715e8853618",
+      "frameRawSha256": [
+        "5a73df4ffa0172003f78c214b3d4dbdc9678936fb2795d085b9ce715e8853618",
+        "75bc7d958c517d8fe7353406e3065c06a0d2ba5161bb37ae5b37fbc00db15f12"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 16,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 1,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 1
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            32767,
+            0,
+            32768,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "changed-hidden.apng",
+      "sha256": "110c557f6592b8d46f098cca7e5c92fd2d109601b535e23c6783d46cca41ff8d",
+      "expect": "ok",
+      "defaultRawSha256": "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+      "frameRawSha256": [
+        "42af801193fad22a2c6b98d9fe22f22d9c00f8f927539f65d98a41178fa31142",
+        "ff27280b162cac4133f0ce3799ac6418f6d28a536005e5416ad11ec8893d26e2",
+        "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+      ],
+      "structure": {
+        "width": 2,
+        "height": 1,
+        "depth": 8,
+        "color": 6,
+        "interlace": 0,
+        "plays": 0,
+        "defaultParticipates": true
+      },
+      "controls": [
+        {
+          "width": 2,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 0
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "x": 0,
+          "y": 0,
+          "delayNum": 1,
+          "delayDen": 10,
+          "dispose": 0,
+          "blend": 1
+        }
+      ],
+      "canvases": [
+        [
+          [
+            65535,
+            0,
+            0,
+            65535
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            4626,
+            8481,
+            14135,
+            0
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ],
+        [
+          [
+            4626,
+            8481,
+            14135,
+            0
+          ],
+          [
+            65535,
+            0,
+            0,
+            65535
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "palette-index.apng",
+      "sha256": "1764b58a2b8c18170da8c49135e8787725d204315489f40066def3a6ed05960f",
+      "expect": "decode"
+    },
+    {
+      "file": "idat-gap.apng",
+      "sha256": "a14fcf4480aa540e2368962521b1813dbfbc26c86db5ebfcbe581f3e23096cf3",
+      "expect": "idat_order"
+    },
+    {
+      "file": "fdat-before-control.apng",
+      "sha256": "af8302717e58eddae17206784b324aa0b258948008ea80658cecdee86651101a",
+      "expect": "fdat_order"
+    },
+    {
+      "file": "truncated.apng",
+      "sha256": "775e032c6d032da1d54f7b4f2b3296ac1348160964279d75d75edba8676d6647",
+      "expect": "truncated_or_trailing"
+    },
+    {
+      "file": "trailing.apng",
+      "sha256": "c2d384159da86af9d6a5703ffccedd84d6130e7968755c6c1f28eacebd5cc67b",
+      "expect": "truncated_or_trailing"
+    },
+    {
+      "file": "bad-crc.apng",
+      "sha256": "12584bd75bf1836d387d039b5f4d9d5ebee06bfbbb28615683d0aa7b469ffa45",
+      "expect": "crc"
+    },
+    {
+      "file": "fake-extension.apng",
+      "sha256": "2aade9c49b9414c70f452b226271ef5066e2894cdd0557f54857819fb7bcc782",
+      "expect": "signature"
+    },
+    {
+      "file": "missing-actl.apng",
+      "sha256": "5280c343ac8eb7375b7492cb25a9b91caf448e5671ced7a52da5570781400b25",
+      "expect": "fctl_order"
+    },
+    {
+      "file": "late-actl.apng",
+      "sha256": "622f92c883e20f961024860ebbc80eabc0ea37c5092dbfe513b4eb74f3ce13a6",
+      "expect": "fctl_order"
+    },
+    {
+      "file": "duplicate-actl.apng",
+      "sha256": "a6367b67d3d16693afed8c12028488393334e5cb208c9819cd9c82eb789b10e5",
+      "expect": "actl_order"
+    },
+    {
+      "file": "bad-sequence.apng",
+      "sha256": "dd2e5f2fe99e7d6213ef34bef5e68fc93c9496f34cc91285c66ae696a258e916",
+      "expect": "sequence"
+    },
+    {
+      "file": "duplicate-sequence.apng",
+      "sha256": "a4196da41152e061adea0206b8b4c17826dcd2f6a7c206f7c4efcc0305b1d1b9",
+      "expect": "sequence"
+    },
+    {
+      "file": "wrong-count.apng",
+      "sha256": "2728f7774a4ccca31c54dafdf4866fbe30c865b7050ef5b1183dd6a2822df9f3",
+      "expect": "frame_count"
+    },
+    {
+      "file": "zero-count.apng",
+      "sha256": "fa23fd5d63a40b9542b9f74ee5cf63230f4e48b70bfda50891711c9ba6fda788",
+      "expect": "frame_count"
+    },
+    {
+      "file": "zero-canvas.apng",
+      "sha256": "eeb831394182ba5f1afbdc6ff0935698eba39eb30affb11db80614ad720d9bcc",
+      "expect": "dimensions"
+    },
+    {
+      "file": "zero-frame.apng",
+      "sha256": "034ed6744f3aa4b003315783dc1a64a7c3054d2a50127709e34a73b4cebefbb7",
+      "expect": "frame_bounds"
+    },
+    {
+      "file": "outside.apng",
+      "sha256": "e8fc841a1a25fef72771e20ede09d0e5f8c927c9db78fa0decf7c7b695ca5a0c",
+      "expect": "frame_bounds"
+    },
+    {
+      "file": "first-offset.apng",
+      "sha256": "9953785cc1f0e887dcf939c45349f9a934c61e187f29bb5add1b5c2fb915b3f0",
+      "expect": "default_frame_bounds"
+    },
+    {
+      "file": "bad-dispose.apng",
+      "sha256": "300baaecf6bd876ee77adb910bfc89e769ca8bd704ca1e00233221249f5592de",
+      "expect": "frame_operation"
+    },
+    {
+      "file": "bad-blend.apng",
+      "sha256": "d3f2bbde1c51a8620451f6cec582352357b4e48195d5df5a3d50b9ac56409ef3",
+      "expect": "frame_operation"
+    },
+    {
+      "file": "missing-frame-data.apng",
+      "sha256": "19a7d80d4f2cf085057eb96df3424096873bf3b4f041a6f68c846054c7c857de",
+      "expect": "missing_frame_data"
+    },
+    {
+      "file": "bad-deflate.apng",
+      "sha256": "969056b26d3c0e85fb81dd35373f22a2be3d521a88f7c9a1a7072b5a33ee10e0",
+      "expect": "decode"
+    },
+    {
+      "file": "missing-adler.apng",
+      "sha256": "950db66ed1b6a04e3d40d66f6174309e96a59316c1068f3fe3be1d337caf5136",
+      "expect": "decode"
+    },
+    {
+      "file": "bad-adler.apng",
+      "sha256": "5adcc70d77f3d3688fa5a79876bc2ffa3f8df632de52acf673de7b6cfdc1e690",
+      "expect": "decode"
+    },
+    {
+      "file": "zlib-trailing.apng",
+      "sha256": "b3b5e8ab6f7740ceceb59b3cc1cf8a467e9ff5c2801ec640fe92d7fde9643de3",
+      "expect": "decode"
+    },
+    {
+      "file": "extra-decoded.apng",
+      "sha256": "933aae107f0d64eb0128e041fcd8efda1d4351f06ee6839ab8bc64bfdc50d414",
+      "expect": "decode"
+    },
+    {
+      "file": "unknown-critical.apng",
+      "sha256": "ab86141f5c0a139739aee41103445bc32bc6359a5625e80204c9765c0014cf98",
+      "expect": "unknown_critical"
+    },
+    {
+      "file": "metadata-caBX.apng",
+      "sha256": "47aae4720d7eba20b3b94f7db0ce81ae9f3f1615e4f62c7cbebe07ced2411297",
+      "expect": "unsupported_metadata"
+    },
+    {
+      "file": "metadata-iCCP.apng",
+      "sha256": "365a5fc5353ea5241e18c3a1d4b599d4b1327638236c279995d4aac64efa44e9",
+      "expect": "unsupported_metadata"
+    },
+    {
+      "file": "metadata-eXIf.apng",
+      "sha256": "f28248137a80d428f51e9b2d5b6fc1a937bc9be5926e9db269228c06da0f96ea",
+      "expect": "unsupported_metadata"
+    },
+    {
+      "file": "metadata-vpAg.apng",
+      "sha256": "a2fc5f0005e615695076c066740fb4e0082b7c71c9ec56214d8d2988351959d7",
+      "expect": "unsupported_metadata"
+    },
+    {
+      "file": "metadata-zTXt.apng",
+      "sha256": "c445c6ad8b31c188df2ac86de96ec25ba50a57edb6b66bc09b4b0629e8c470cf",
+      "expect": "unsupported_metadata"
+    },
+    {
+      "file": "metadata-sBIT.apng",
+      "sha256": "fa56690914384f0c584913460c8b5c92cf9f99c33f6cbd8a34234d2a12633a97",
+      "expect": "unsupported_metadata"
+    },
+    {
+      "file": "metadata-bKGD.apng",
+      "sha256": "2dda40a5dcfcdc751149f90e149fc72d4d58a2311040c9a274c331c674900680",
+      "expect": "unsupported_metadata"
+    },
+    {
+      "file": "low-depth.apng",
+      "sha256": "618cf15e74407801eb6f8111bfcc614fbc04f80910974528073c448a1b96def7",
+      "expect": "unsupported_representation"
+    },
+    {
+      "file": "budget-input.apng",
+      "sha256": "deb45b759ad46f16a09186f593654d07000fae1afe03396b2b75af00c8c2797e",
+      "expect": "input_budget",
+      "limits": {
+        "maxInputBytes": 8
+      }
+    },
+    {
+      "file": "budget-canvas.apng",
+      "sha256": "deb45b759ad46f16a09186f593654d07000fae1afe03396b2b75af00c8c2797e",
+      "expect": "canvas_budget",
+      "limits": {
+        "maxCanvasPixels": 1
+      }
+    },
+    {
+      "file": "budget-frame-pixel.apng",
+      "sha256": "deb45b759ad46f16a09186f593654d07000fae1afe03396b2b75af00c8c2797e",
+      "expect": "frame_pixel_budget",
+      "limits": {
+        "maxFramePixels": 1
+      }
+    },
+    {
+      "file": "budget-total-pixel.apng",
+      "sha256": "deb45b759ad46f16a09186f593654d07000fae1afe03396b2b75af00c8c2797e",
+      "expect": "total_pixel_budget",
+      "limits": {
+        "maxTotalPixels": 2
+      }
+    },
+    {
+      "file": "budget-decoded.apng",
+      "sha256": "deb45b759ad46f16a09186f593654d07000fae1afe03396b2b75af00c8c2797e",
+      "expect": "decoded_budget",
+      "limits": {
+        "maxDecodedBytes": 1
+      }
+    },
+    {
+      "file": "budget-frames.apng",
+      "sha256": "deb45b759ad46f16a09186f593654d07000fae1afe03396b2b75af00c8c2797e",
+      "expect": "frame_budget",
+      "limits": {
+        "maxFrames": 1
+      }
+    },
+    {
+      "file": "budget-chunks.apng",
+      "sha256": "deb45b759ad46f16a09186f593654d07000fae1afe03396b2b75af00c8c2797e",
+      "expect": "chunk_budget",
+      "limits": {
+        "maxChunks": 2
+      }
+    },
+    {
+      "file": "budget-validation.apng",
+      "sha256": "deb45b759ad46f16a09186f593654d07000fae1afe03396b2b75af00c8c2797e",
+      "expect": "validation_budget",
+      "limits": {
+        "maxValidationBytes": 10
+      }
+    },
+    {
+      "file": "budget-deadline.apng",
+      "sha256": "deb45b759ad46f16a09186f593654d07000fae1afe03396b2b75af00c8c2797e",
+      "expect": "deadline",
+      "limits": {
+        "deadlineMs": 0
+      }
+    },
+    {
+      "file": "budget-metadata.apng",
+      "sha256": "bcf4d9987039532cf88e36f857dc6f9588270b1450d667276abb0803423590f4",
+      "expect": "metadata_budget",
+      "limits": {
+        "maxMetadataBytes": 1
+      }
+    }
+  ],
+  "comparisons": [
+    {
+      "a": "default-in.png",
+      "b": "changed-pixel.apng",
+      "equivalent": false
+    },
+    {
+      "a": "default-in.png",
+      "b": "changed-delay.apng",
+      "equivalent": false
+    },
+    {
+      "a": "default-in.png",
+      "b": "changed-offset.apng",
+      "equivalent": false
+    },
+    {
+      "a": "default-in.png",
+      "b": "changed-loop.apng",
+      "equivalent": false
+    },
+    {
+      "a": "default-in.png",
+      "b": "split-data.apng",
+      "equivalent": true
+    },
+    {
+      "a": "default-out.apng",
+      "b": "changed-poster.apng",
+      "equivalent": false
+    },
+    {
+      "a": "metadata.apng",
+      "b": "changed-metadata.apng",
+      "equivalent": false
+    },
+    {
+      "a": "denominator-zero.apng",
+      "b": "denominator-hundred.apng",
+      "equivalent": false
+    },
+    {
+      "a": "default-in.png",
+      "b": "changed-dispose.apng",
+      "equivalent": false
+    },
+    {
+      "a": "over.apng",
+      "b": "changed-blend.apng",
+      "equivalent": false
+    },
+    {
+      "a": "hidden-rgb.apng",
+      "b": "changed-hidden.apng",
+      "equivalent": false
+    }
+  ]
+}

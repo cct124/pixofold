@@ -22,6 +22,8 @@ tracing.workspace = true
 ts-rs = { workspace = true, optional = true }
 
 [dev-dependencies]
+# png已锁定的同版解码依赖；实验显式检查zlib结束/Adler/尾随字节，弥补png宽容读取。
+fdeflate = "=0.3.7"
 serde_json.workspace = true
 sysinfo.workspace = true
 

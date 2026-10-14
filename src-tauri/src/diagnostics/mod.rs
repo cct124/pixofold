@@ -138,6 +138,8 @@ impl Logger {
             "INFO",
             json!({
                 "event": "session_started", "version": env!("CARGO_PKG_VERSION"),
+                "protocol_version": crate::ipc::TASK_PROTOCOL_VERSION,
+                "build_source": env!("PIXOFOLD_BUILD_SOURCE"),
                 "build_mode": if cfg!(debug_assertions) {"development"} else {"release"},
                 "os": std::env::consts::OS, "arch": std::env::consts::ARCH,
                 "max_files": storage::MAX_FILES, "max_file_bytes": storage::MAX_BYTES,

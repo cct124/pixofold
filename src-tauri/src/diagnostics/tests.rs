@@ -89,19 +89,29 @@ fn structured_events_keep_task_context_but_exclude_paths_messages_and_third_part
     with_logger(logger.clone(), || {
         let span = tracing::info_span!(target: "pixofold", "task", batch_id = 4, job_id = 2, attempt = 3, path = "PRIVATE_SOURCE", backup_name = "PRIVATE_SPAN-backup-Ab12xY.png");
         let _entered = span.enter();
-        tracing::info!(target: "pixofold", event = "job_started", input_bytes = 123, path = "PRIVATE_SOURCE", backup_name = "PRIVATE_EVENT-backup-Ab12xY.png", error = ?"PRIVATE_ERROR", "PRIVATE_MESSAGE");
+        tracing::info!(target: "pixofold", event = "job_started", format="gif",mode="lossy",quality=80_u64,processing="lossless_fallback",fallback_reason="insufficient_gain",input_bytes = 123, request=?"PRIVATE_REQUEST",report=?"PRIVATE_REPORT",metadata="PRIVATE_METADATA",path = "PRIVATE_SOURCE", backup_name = "PRIVATE_EVENT-backup-Ab12xY.png", error = ?"PRIVATE_ERROR", "PRIVATE_MESSAGE");
         tracing::info!(target: "third_party", event = "PRIVATE_THIRD_PARTY");
         tracing::info!(target: "pixofold", event = "bounded", stage = ?"长".repeat(20000));
     });
     logger.shutdown();
     let values = records(&path);
     assert_eq!(values[0]["event"], "session_started");
+    assert_eq!(
+        values[0]["protocol_version"],
+        crate::ipc::TASK_PROTOCOL_VERSION
+    );
+    assert_eq!(values[0]["build_source"], env!("PIXOFOLD_BUILD_SOURCE"));
     assert_eq!(values.last().unwrap()["event"], "session_finished");
     let line = values.iter().find(|v| v["event"] == "job_started").unwrap();
     assert_eq!(line["batch_id"], 4);
     assert_eq!(line["job_id"], 2);
     assert_eq!(line["attempt"], 3);
     assert_eq!(line["input_bytes"], 123);
+    assert_eq!(line["format"], "gif");
+    assert_eq!(line["mode"], "lossy");
+    assert_eq!(line["quality"], 80);
+    assert_eq!(line["processing"], "lossless_fallback");
+    assert_eq!(line["fallback_reason"], "insufficient_gain");
     assert!(line.get("backup_name").is_none());
     assert!(!serde_json::to_string(&values).unwrap().contains("PRIVATE_"));
     assert!(
@@ -447,11 +457,92 @@ fn real_worker_pool_logs_each_image_with_its_own_batch_job_and_attempt() {
         assert_eq!(row["batch_id"], 1);
         assert_eq!(row["attempt"], 1);
         assert_eq!(row["result"], "succeeded");
+        assert_eq!(row["format"], "png");
+        assert_eq!(row["mode"], "lossless");
+        assert!(row.get("quality").is_none());
+        assert_eq!(row["processing"], "lossless");
+        assert_eq!(row["fallback_reason"], "none");
         assert!(
             values
                 .iter()
                 .any(|v| v["event"] == "output_commit_succeeded" && v["job_id"] == job)
         );
+    }
+    assert!(!serde_json::to_string(&values).unwrap().contains("PRIVATE_"));
+}
+
+#[test]
+fn real_worker_no_gain_and_failure_do_not_claim_committed_lossy_outputs() {
+    use pixofold_core::{
+        batch::{BatchConfig, BatchItem, BatchPhase, BatchRequest, BatchService, ImageKind},
+        model::{PngMode, QualityValue},
+    };
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("logs");
+    let logger = Logger::start(path.clone(), false);
+    with_logger(logger.clone(), || {
+        let source = temp.path().join("PRIVATE_good.png");
+        fs::write(&source, fixture("rgba16.png")).unwrap();
+        let mut seed = PngRequest::new(&source);
+        seed.output = OutputPolicy::OverwriteWithoutBackup;
+        optimize_png(&seed, &CancellationToken::default(), |_| {}).unwrap();
+        let invalid = temp.path().join("PRIVATE_bad.png");
+        fs::write(&invalid, b"invalid").unwrap();
+        let mut service = BatchService::new(BatchConfig::default()).unwrap();
+        let parameters = pixofold_core::batch::BatchParameters {
+            mode: PngMode::Lossy {
+                quality: QualityValue::new(100).unwrap(),
+            },
+            ..Default::default()
+        };
+        let id = service
+            .start(BatchRequest {
+                engines: Default::default(),
+                parameters,
+                items: vec![
+                    BatchItem {
+                        format: ImageKind::Png,
+                        source,
+                        output: OutputPolicy::Copy {
+                            destination: temp.path().join("out.png"),
+                        },
+                    },
+                    BatchItem {
+                        format: ImageKind::Png,
+                        source: invalid,
+                        output: OutputPolicy::Copy {
+                            destination: temp.path().join("bad-out.png"),
+                        },
+                    },
+                ],
+            })
+            .unwrap();
+        let result = service.wait(id, Duration::from_secs(15)).unwrap();
+        assert_eq!(result.phase, BatchPhase::Finished);
+        assert_eq!(result.summary.no_gain, 1);
+        assert_eq!(result.summary.failed, 1);
+        service.shutdown().unwrap();
+    });
+    logger.shutdown();
+    let values = records(&path);
+    let finished: Vec<_> = values
+        .iter()
+        .filter(|v| v["event"] == "job_finished")
+        .collect();
+    assert_eq!(finished.len(), 2);
+    for row in finished {
+        assert_eq!(row["format"], "png");
+        assert_eq!(row["mode"], "lossy");
+        assert_eq!(row["quality"], 100);
+        if row["result"] == "failed" {
+            assert!(row.get("processing").is_none());
+            assert!(row.get("fallback_reason").is_none());
+        } else {
+            assert_eq!(row["result"], "no_gain");
+            assert_eq!(row["processing"], "lossless_fallback");
+            assert_eq!(row["fallback_reason"], "high_bit_depth");
+            assert_eq!(row["input_bytes"], row["output_bytes"]);
+        }
     }
     assert!(!serde_json::to_string(&values).unwrap().contains("PRIVATE_"));
 }

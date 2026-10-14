@@ -125,3 +125,28 @@ jobs:
           path: target/jpeg-lab-*/
           if-no-files-found: ignore
           retention-days: 14
+
+  apng-lab:
+    name: APNG strict lossless lab (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-24.04, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+      - name: Install pinned Rust toolchain
+        run: rustup show
+      - name: Check corpus, independent playback and strict lossless candidates
+        run: node tools/apng-lab.mjs check
+      - name: Retain APNG evidence and source licenses
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: apng-lab-${{ matrix.os }}
+          path: target/apng-lab-*/
+          if-no-files-found: ignore
+          retention-days: 14

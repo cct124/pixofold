@@ -2,6 +2,7 @@
 //! 状态只在短临界区更新，路径I/O、编码、等待join均在锁外。同步pipeline是唯一处理入口。
 //! worker持有Shared而非BatchService，避免所有权环；取消和Drop不等同于强杀编码器。
 
+mod diagnostics;
 mod image;
 #[cfg(test)]
 mod mixed_tests;

@@ -78,6 +78,8 @@ pnpm desktop:dev
 | `pnpm gif:fixtures:generate` / `pnpm gif:fixtures:check` | 生成 / 只读核对 GIF 首轮语料和人工画布、时间轴预期 |
 | `pnpm gif:lab:build` | 下载并校验固定 Gifsicle 1.96 源码，独立构建开发实验工具；Windows 使用 MSVC 与 CMake |
 | `pnpm gif:lab:check` | 独立 GIF 播放验证、真实 Gifsicle 六组无损配方与隔离输出实验；须先 build |
+| `pnpm apng:fixtures:check` | 只读核对APNG确定性语料、哈希及人工画布/时间预期 |
+| `pnpm apng:lab:check` | 独立APNG结构/子帧/合成/循环验证及锁定oxipng三档严格无损实验；报告、CPU/RSS和取消证据写target |
 | `pnpm gif:lossy:check` | 固定有界helper的4A有损实验，输出双背景时间轴/透明检查、画质/时域误差/资源对照及HTML报告；须先gif:lab:build，不开放产品有损 |
 | `pnpm gif:core:check` | 真实GIF无损/单文件有损、质量/收益回退、原图安全及三格式混合无损验收；须先构建固定GIF/JPEG工具 |
 | `pnpm gif:bundle:prepare` | 复用固定配方生成可信 GIF 资源、完整对应源码与许可资料 |
@@ -101,6 +103,8 @@ GIF 提供 [独立实验入口](tools/gif-lab/README.md) 和 [45项确定性语�
 4A的`gif:lossy:check`及显式`gif-lossy-lab`特性使用原生强度lossless/0/10/20/40/80，`target/gif-lossy-*/index.html`保留对照动画。生产单文件、批量与桌面共用v1策略：q100严格无损，q80原生10，q60及更低值原生20；质量/额外收益不足时无损回退，无收益保留原图。批量按模式计算验证缓冲并冻结准备期限，预约与实际执行使用同一额度。API及v12迁移、期限与边界见[GIF核心说明](native/gif/README.md)。
 
 独立的 `pixofold_core::jpeg` 提供无损与保守有损入口，受控字节helper复用可靠输出层；PNG/JPEG共用模型、worker与工作集预约。桌面通过 `TaskRuntime::with_engines` 将同一能力注入扫描、规划、批次和受限预览；默认服务与扫描仍为PNG-only。模式/质量映射、元数据保护/回退、资源、工具信任及Rust API迁移见[JPEG核心说明](native/jpeg/README.md)。JPEG凭据移除尚未开放。应用统一检查不自动下载/构建JPEG工具，真实核心回归由上述显式命令和三平台JPEG job执行，实际平台结果见[开发日志](docs/devlog/README.md)。
+
+APNG已建立[严格无损开发实验](tools/apng-lab/README.md)：83项确定性语料、11组结构/播放比较、6份公开原件及压力图，独立验证默认图、子帧、RGBA16合成、精确时间分数和第二轮播放。O0/O1/O2候选、资源与取消证据写入target；支持/拒绝范围以实验说明为准。它尚未接入生产输出、批量或桌面。
 
 ## GIF单文件核心开发入口
 
@@ -283,6 +287,7 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 - 多实例通过目录协调锁与活动文件锁保护写入；全部槽位被活动实例占用时停止新增文件并报告丢失事件，不删除活动日志。安全目录/写入检查失败、磁盘满或队列满不会中断压缩；查看“关于 → 诊断日志”的状态、丢失计数与写入失败计数，可刷新及打开固定目录。
 - 核心经 `tracing` 发出受控事件，桌面唯一后台写入器使用1024项有界队列；业务线程不写日志磁盘。字段包含时间、会话、批次/图片ID、尝试号、冻结输出策略、处理阶段、耗时及稳定错误类别。重点事件为等待凭据确认、确认校验/接纳、内存移除、备份创建/保留和覆盖提交，不改变既有业务行为。
 - 扫描结束的`import_scan_finished`增加accepted/rejected/excluded/duplicates；`import_scan_issue_summary`按固定类别汇总count，区分APNG/动画、JPEG APP11凭据、其他元数据、资源/I/O、重复及保留产物排除。按selection_id关联，最多每类一条；0候选也可定位拒绝类别，不输出路径或逐文件记录。
+- 任务span记录冻结的format/mode/数值quality（无损不写quality）；job_finished从最终报告提取processing/fallback_reason。result=no_gain表示仍保留原图，processing不表示已提交有损文件；失败不填造候选处理结果。session_started记录protocol_version及build_source；本地或无法确认时unknown，仅受控GitHub Actions且SHA/HEAD/干净工作树一致时标记git来源。
 - 不记录图片内容、原图文件名、备份文件名、完整私人路径、凭据正文或原始错误。新备份名包含原名，`backup_retained`不再记录`backup_name`，日志白名单也拒绝该字段；实际备份名只经现有脱敏结果DTO在界面展示，不构成任意路径授权。日志只供诊断，不是授权记录、完整事务审计或自动恢复依据；多线程事件可交错，应以 `sessionId + batch_id + job_id + attempt` 关联，不用界面顺序判断线程数。
 - 正常退出先等待任务安全收尾，再排空日志并同步磁盘，日志等待上限2秒；强杀、崩溃、磁盘失败可能丢失尾部记录。正式日志属于临时文件，可能被系统清理，复现后应及时保留相关日志。
 - 固定目录拒绝符号链接/Windows reparse point及身份替换；Unix新目录0700、文件0600，拒绝不属于当前用户或权限过宽的既有目录，不更改其权限。若多个系统用户实际共享同一个临时根目录，其他用户创建的目录可能导致安全降级，**不承诺跨用户混写**；Windows继承系统临时目录ACL。本机Windows验证与未执行的跨平台验证见开发记录。

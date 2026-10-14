@@ -1,9 +1,12 @@
 #[path = "build-support/gif.rs"]
 mod gif;
+#[path = "build-support/identity.rs"]
+mod identity;
 #[path = "build-support/jpeg.rs"]
 mod jpeg;
 
 fn main() {
+    identity::generate();
     jpeg::generate().expect("JPEG资源无效；请运行pnpm jpeg:bundle:prepare后重新构建");
     gif::generate().expect("GIF资源无效；请运行pnpm gif:bundle:prepare后重新构建");
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(

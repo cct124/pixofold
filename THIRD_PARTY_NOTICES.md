@@ -16,6 +16,7 @@ PixoFold 自有代码采用 GPL-3.0-or-later；第三方组件适用其自身许
 | oxipng 10.2.1 | 单线程 PNG 无损 IDAT 优化，关闭 binary / parallel / zopfli 默认功能 | MIT |
 | imagequant 4.4.1 | PNG 有损调色板量化，关闭默认 threads | GPL-3.0-or-later |
 | png 0.18.1、crc32fast 1.5.2 | 完整 PNG 解码验证、chunk CRC 校验 | MIT OR Apache-2.0 |
+| fdeflate 0.3.7（既有间接依赖，APNG实验另显式开发引用） | 严格zlib结束、长度与Adler32检查；无版本升级或新增生产能力 | MIT OR Apache-2.0 |
 | Gifsicle 1.96 | GIF实验与核心独立CLI；当前安装包尚不包含GIF helper | GPL-2.0-only（本项目选择；上游另有替代条款） |
 | gif 0.14.2、weezl 0.1.12 | 生产核心独立GIF帧结构读取及有界LZW解码；实验复用同一路径 | MIT OR Apache-2.0（选择MIT） |
 | native/gif/budget.h、budget.c、entry.c（本项目新增） | 独立入口和有界分配；未重许可既有Rust主体 | GPL-2.0-only OR GPL-3.0-or-later，helper按GPLv2组合 |

@@ -18,6 +18,8 @@
 
 ## 接手与修改
 
+- APNG A1/A2位于tools/apng-lab和core examples/apng_lab，仅开发实验；83项语料/11组比较，png静态子帧双解码+fdeflate严格zlib+独立RGBA16合成。保留默认图、原始分数、num_plays和第二轮透明画布；比较的源/候选共用累计工作预算。8/16位与8位索引可验，低位深及ICC/Exif/保护/未知元数据明确拒绝。pnpm apng:lab:check报告CPU/RSS/软期限/取消，oxipng同步返回前不得释放生产许可；详细范围见tools/apng-lab/README.md。A3/A4尚未接入，静态PNG动画拒绝和v12能力保持。
+
 - GIF无损/保守有损核心与桌面v12已有PNG/JPEG/GIF混合入口；GIF能力取决于独立随包校验。报告区分请求模式和实际Lossless/Lossy/LosslessFallback，q100无损，回退只有质量不足/额外收益不足；frames为输入帧数，保留原始loopCount，不暴露被淘汰候选quality指标。核心使用固定Gifsicle有界helper及gif/weezl独立验证，默认原生请求分配32MiB、累计解码与验证缓冲各64MiB，预约另计输入/系统余量；真实执行沿用按模式收紧的同一额度。取消/超时先回收child/管道/临时目录再释放许可；GIF不继承PNG凭据许可，备份保留原始gif扩展名大小写。GIF预览在Rust合成首幅透明画布，不执行helper；16MiB输入/4Mi画布与单帧像素/32MiB缓冲/5秒协作期限，撤销沿用单解码许可与缓存失效。具体边界及迁移见native/gif/README.md，GUI/安装/平台证据以devlog为准。
 
 - 先检查分支与工作区改动、相关目录的 `AGENTS.md`；已有 `docs/devlog/README.md` 时，读取索引和对应任务记录，再核对代码。
