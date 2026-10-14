@@ -34,6 +34,7 @@ pub struct BatchParameters {
     pub limits: ResourceLimits,
     pub jpeg: JpegOptions,
     pub gif: GifOptions,
+    pub apng: ApngOptions,
 }
 
 /// 已选定的一个源及其显式输出策略；P1 不扫描目录或自动生成副本名。
@@ -63,6 +64,7 @@ impl BatchParameters {
                 ImageKind::Png => FormatOptions::Png(PngMetadataPolicy::Preserve),
                 ImageKind::Jpeg => FormatOptions::Jpeg(self.jpeg),
                 ImageKind::Gif => FormatOptions::Gif(self.gif),
+                ImageKind::Apng => FormatOptions::Apng(self.apng),
             },
         }
     }
@@ -137,6 +139,8 @@ pub enum JobErrorCode {
     InvalidInput,
     UnsupportedFormat,
     UnsupportedAnimation,
+    UnsupportedApng,
+    UnsupportedApngMetadata,
     UnsupportedContentCredentials,
     UnsupportedMetadata,
     ResourceLimit,
@@ -168,6 +172,25 @@ impl JobFailure {
     }
     pub(crate) fn image(error: ImageError) -> Self {
         let code = match &error {
+            ImageError::Apng(crate::apng::ApngError::File(e)) => Self::processing_code(e),
+            ImageError::Apng(e) => {
+                use crate::apng::ApngError as A;
+                match e {
+                    A::InvalidLimits => JobErrorCode::InvalidInput,
+                    A::ResourceLimit(_) => JobErrorCode::ResourceLimit,
+                    A::Validation(e) => match e.0 {
+                        "signature" | "unsupported_representation" => JobErrorCode::UnsupportedApng,
+                        "unsupported_metadata" => JobErrorCode::UnsupportedApngMetadata,
+                        "decode" => JobErrorCode::Decode,
+                        _ => JobErrorCode::InvalidInput,
+                    },
+                    A::Encoding(_) => JobErrorCode::Encode,
+                    A::ValidationFailed => JobErrorCode::Validation,
+                    A::Timeout => JobErrorCode::TimedOut,
+                    A::Cleanup { .. } => JobErrorCode::CleanupFailed,
+                    A::Cancelled | A::File(_) => JobErrorCode::ServiceFault,
+                }
+            }
             ImageError::Gif(crate::gif::GifError::File(error)) => Self::processing_code(error),
             ImageError::Gif(error) => {
                 use crate::gif::{GifError as G, GifValidationCode as C};

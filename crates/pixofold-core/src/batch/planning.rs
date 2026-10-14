@@ -126,6 +126,11 @@ pub(super) fn prepare(
             }
         };
         // 头探测只能收紧有效的配置，格式专属上限须在收紧前校验。
+        if let FormatOptions::Apng(options) = request.options
+            && let Err(error) = options.limits.check()
+        {
+            failure.get_or_insert_with(|| JobFailure::image(error.into()));
+        }
         if let FormatOptions::Gif(options) = request.options
             && let Err(error) = options.limits(request.limits).validate()
         {
@@ -142,6 +147,20 @@ pub(super) fn prepare(
             request.limits
         };
         let reservation = match request.options {
+            FormatOptions::Apng(options) => {
+                if !engines.supports(ImageKind::Apng) {
+                    failure
+                        .get_or_insert_with(|| JobFailure::fault(JobErrorCode::UnsupportedFormat));
+                }
+                let limits = options.limits(execution_limits);
+                match limits.working_set(limits.validation.max_canvas_pixels) {
+                    Ok(bytes) => bytes,
+                    Err(error) => {
+                        failure.get_or_insert_with(|| JobFailure::image(error.into()));
+                        ByteCount(0)
+                    }
+                }
+            }
             FormatOptions::Gif(options) => {
                 if !engines.supports(ImageKind::Gif) {
                     failure.get_or_insert_with(|| {

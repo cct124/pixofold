@@ -2,7 +2,7 @@
 
 基于 Tauri、React 和 Rust 的本地批量图片压缩工具，计划支持 PNG、JPEG、GIF 和 APNG，由 png-palettes 重构演进。
 
-当前已接通 **静态 PNG / JPEG / GIF 混合工作台**：Tauri 2 + React 界面经受控原生选择/拖放、应用级任务协调和有界快照驱动独立 Rust 核心，支持文件/目录导入、批量处理、可选备份覆盖、同目录或指定目录副本、重试与清除记录。指定目录可选保留输入目录结构，授权仅本次连接有效。启动后不提供主动取消操作，退出时仍保留底层安全收尾。大小、状态和进度均来自实际任务，结果/备份定位与可见终态行缩略图已接入。**JPEG/GIF 各自在随包引擎通过身份校验后开放；GIF 支持无损与保守有损，APNG 尚未接入。** compressionAvailable=true不表示全部plannedFormats已实现，实际启动能力由v12快照supportedFormats提供。GIF质量100按无损处理，质量或额外收益不足时回退无损，无收益保留原图；结果详情显示实际处理路径和回退原因，预览仍为首帧。JPEG暂仅接受8位Huffman基线/渐进及已支持的元数据，复杂Exif/XMP/APP11等保留原图并拒绝，具体边界见[JPEG说明](native/jpeg/README.md)和[GIF说明](native/gif/README.md)。自动验证、GUI/安装和新SHA平台结果分别见[开发记录](docs/devlog/_plan/261009/animation-foundation.md)，不沿用旧GUI/CI作为新代码证据。
+当前已接通 **PNG / JPEG / GIF / APNG 混合工作台**：Tauri 2 + React 界面经受控原生选择/拖放、应用级任务协调和有界快照驱动独立 Rust 核心，支持文件/目录导入、批量处理、可选备份覆盖、同目录或指定目录副本、重试与清除记录。指定目录可选保留输入目录结构，授权仅本次连接有效。启动后不提供主动取消操作，退出时仍保留底层安全收尾。大小、状态和进度均来自实际任务，结果/备份定位与可见终态行缩略图已接入。**JPEG/GIF 各自在随包引擎通过身份校验后开放；GIF 支持无损与保守有损，内建 APNG 始终严格无损。** compressionAvailable=true不表示全部plannedFormats已实现，实际启动能力由v13快照supportedFormats提供。GIF质量100按无损处理，质量或额外收益不足时回退无损，无收益保留原图；结果详情显示实际处理路径和回退原因，预览仍为首帧。JPEG暂仅接受8位Huffman基线/渐进及已支持的元数据，复杂Exif/XMP/APP11等保留原图并拒绝，具体边界见[JPEG说明](native/jpeg/README.md)和[GIF说明](native/gif/README.md)。自动验证、GUI/安装和新SHA平台结果分别见[开发记录](docs/devlog/_plan/261009/animation-foundation.md)，不沿用旧GUI/CI作为新代码证据。
 
 UI 设计与可交互 HTML 原型保留作为实现依据：质量采用 0–100 连续滑块和精细输入，默认 80；当前质量描述以纯文字显示在标题行右侧。
 
@@ -80,6 +80,8 @@ pnpm desktop:dev
 | `pnpm gif:lab:check` | 独立 GIF 播放验证、真实 Gifsicle 六组无损配方与隔离输出实验；须先 build |
 | `pnpm apng:fixtures:check` | 只读核对APNG确定性语料、哈希及人工画布/时间预期 |
 | `pnpm apng:lab:check` | 独立APNG结构/子帧/合成/循环验证及锁定oxipng三档严格无损实验；报告、CPU/RSS和取消证据写target |
+| `pnpm apng:core:check` | 固定O1 APNG真实单文件与安全输出验收；包含完整语料拒绝、原图/备份/冲突/取消及45项隔离真实输入 |
+| `pnpm apng:bundle:check` | 复用GIF随包验收入口，真实四格式混批、APNG无损报告/冻结重试/冲突/备份/受限预览及引擎独立降级 |
 | `pnpm gif:lossy:check` | 固定有界helper的4A有损实验，输出双背景时间轴/透明检查、画质/时域误差/资源对照及HTML报告；须先gif:lab:build，不开放产品有损 |
 | `pnpm gif:core:check` | 真实GIF无损/单文件有损、质量/收益回退、原图安全及三格式混合无损验收；须先构建固定GIF/JPEG工具 |
 | `pnpm gif:bundle:prepare` | 复用固定配方生成可信 GIF 资源、完整对应源码与许可资料 |
@@ -98,29 +100,31 @@ Windows 可执行文件位于 `target/release/pixofold.exe`，安装包位于 `t
 
 JPEG 开发实验的版本、构建参数和限制见 [实验入口说明](tools/jpeg-lab/README.md)，历史结果见 [JPEG实验记录](docs/devlog/_fin/260930/jpeg-engine-lab.md)。实验工具留在 `.tools/`，语料与报告留在独立的 `target/jpeg-lab-*/`；桌面使用固定随包资源。CI 的三平台实验配置须以实际运行结果验收。
 
-GIF 提供 [独立实验入口](tools/gif-lab/README.md) 和 [45项确定性语料](tests/fixtures/gif/manifest.json)，逐帧合成、精确厘秒时间轴及循环接缝由 Rust gif/weezl 路径核对。实验结果保留于独立的 `target/gif-lab-*/`，作为核心参数和拒绝边界依据；桌面v12接通GIF无损与保守有损，APNG待后续。实际本机结果及三平台待验项见 [动画开发记录](docs/devlog/_plan/261009/animation-foundation.md)。
+GIF 提供 [独立实验入口](tools/gif-lab/README.md) 和 [45项确定性语料](tests/fixtures/gif/manifest.json)，逐帧合成、精确厘秒时间轴及循环接缝由 Rust gif/weezl 路径核对。实验结果保留于独立的 `target/gif-lab-*/`，作为核心参数和拒绝边界依据；桌面v13接通GIF无损与保守有损、APNG严格无损。实际本机结果及三平台待验项见 [动画开发记录](docs/devlog/_plan/261009/animation-foundation.md)。
 
-4A的`gif:lossy:check`及显式`gif-lossy-lab`特性使用原生强度lossless/0/10/20/40/80，`target/gif-lossy-*/index.html`保留对照动画。生产单文件、批量与桌面共用v1策略：q100严格无损，q80原生10，q60及更低值原生20；质量/额外收益不足时无损回退，无收益保留原图。批量按模式计算验证缓冲并冻结准备期限，预约与实际执行使用同一额度。API及v12迁移、期限与边界见[GIF核心说明](native/gif/README.md)。
+4A的`gif:lossy:check`及显式`gif-lossy-lab`特性使用原生强度lossless/0/10/20/40/80，`target/gif-lossy-*/index.html`保留对照动画。生产单文件、批量与桌面共用v1策略：q100严格无损，q80原生10，q60及更低值原生20；质量/额外收益不足时无损回退，无收益保留原图。批量按模式计算验证缓冲并冻结准备期限，预约与实际执行使用同一额度。API及v13迁移、期限与边界见[GIF核心说明](native/gif/README.md)。
 
-独立的 `pixofold_core::jpeg` 提供无损与保守有损入口，受控字节helper复用可靠输出层；PNG/JPEG共用模型、worker与工作集预约。桌面通过 `TaskRuntime::with_engines` 将同一能力注入扫描、规划、批次和受限预览；默认服务与扫描仍为PNG-only。模式/质量映射、元数据保护/回退、资源、工具信任及Rust API迁移见[JPEG核心说明](native/jpeg/README.md)。JPEG凭据移除尚未开放。应用统一检查不自动下载/构建JPEG工具，真实核心回归由上述显式命令和三平台JPEG job执行，实际平台结果见[开发日志](docs/devlog/README.md)。
+独立的 `pixofold_core::jpeg` 提供无损与保守有损入口，受控字节helper复用可靠输出层；四格式共用worker与工作集预约。桌面通过 `TaskRuntime::with_engines` 将同一能力注入扫描、规划、批次和受限预览；默认核心服务与扫描仍为PNG-only，桌面显式启用内建APNG及已校验的JPEG/GIF。模式/质量映射、元数据保护/回退、资源、工具信任及Rust API迁移见[JPEG核心说明](native/jpeg/README.md)。JPEG凭据移除尚未开放。应用统一检查不自动下载/构建JPEG工具，真实核心回归由上述显式命令和三平台JPEG job执行，实际平台结果见[开发日志](docs/devlog/README.md)。
 
-APNG已建立[严格无损开发实验](tools/apng-lab/README.md)：83项确定性语料、11组结构/播放比较、6份公开原件及压力图，独立验证默认图、子帧、RGBA16合成、精确时间分数和第二轮播放。O0/O1/O2候选、资源与取消证据写入target；支持/拒绝范围以实验说明为准。它尚未接入生产输出、批量或桌面。
+APNG已接通[受限无损核心与桌面](crates/pixofold-core/src/apng/README.md)：固定O1、实际候选落盘独立复验、共享安全输出及恢复备份，批量按同一冻结额度预约与执行。[实验](tools/apng-lab/README.md)复用核心验证器，保留83项确定性语料、11组结构/播放比较、6份公开原件及压力图。保留默认图、原始子帧/隐藏RGB、精确时间分数与循环；低位深及复杂/保护元数据明确拒绝。同步编码取消需等待真实返回。v13新增apng能力、专属错误及实际无损报告（帧数、总播放次数、默认图参与状态）；全局有损时APNG也保持无损，不继承PNG凭据移除许可。旧v12页面须更新重载。
+
+APNG缩略图只显示第一动画子帧在透明画布上的合成，独立默认图不参与；后续帧像素由完整压缩验证。输入16MiB、画布/帧4Mi像素、32MiB缓冲估算及5秒协作期限同时约束，输出最多128×96/64KiB PNG，沿用单解码许可与撤销/缓存契约。GUI、安装和平台证据独立记录。
 
 ## GIF单文件核心开发入口
 
-独立Rust GIF核心已提供无损/保守有损优化、严格播放验证、安全输出和三格式混合批次。固定Gifsicle helper采用有界分配，验证与原生额度分别计费；命令、范围和迁移见 [GIF核心说明](native/gif/README.md)。桌面v12按实际能力开放GIF，报告包含实际处理路径、原图帧数及原始循环扩展值，不展示淘汰候选指标；受限预览仅显示首幅合成画布。真实核心命令为 `pnpm gif:core:check`，须先构建固定GIF与JPEG工具；GUI、安装及平台证据见 [开发记录](docs/devlog/_plan/261009/animation-foundation.md)。
+独立Rust GIF核心已提供无损/保守有损优化、严格播放验证、安全输出和三格式混合批次。固定Gifsicle helper采用有界分配，验证与原生额度分别计费；命令、范围和迁移见 [GIF核心说明](native/gif/README.md)。桌面v13按实际能力开放GIF，报告包含实际处理路径、原图帧数及原始循环扩展值，不展示淘汰候选指标；受限预览仅显示首幅合成画布。真实核心命令为 `pnpm gif:core:check`，须先构建固定GIF与JPEG工具；GUI、安装及平台证据见 [开发记录](docs/devlog/_plan/261009/animation-foundation.md)。
 
 ## GIF随包资源（第三阶段）
 
 - 桌面dev/build钩子在JPEG资源之后运行pnpm gif:bundle:prepare，复用固定Gifsicle 1.96及有界helper配方，资源映射到gif/runtime。内含完整上游源码归档、native/gif封装、构建配方和许可原文；Windows helper使用静态CRT。
-- build.rs核对目标、源码/配方与产物，将预期SHA256编入程序；普通无资源debug可保持PNG-only，release必须有有效资源。运行时不从旁置清单或PATH取得信任，JPEG/GIF分别验证，单个工具失败只撤销该格式能力；执行时继续复查身份。
-- pnpm gif:bundle:check在仓库外、中文空格路径和无开发PATH环境运行真实GIF处理、PNG/JPEG/GIF桌面混合/重试/备份/预览，以及缺失或替换工具的独立降级。可传--resources后接已解包的绝对资源根目录；只在副本上测试，验收程序不随默认安装包分发。GUI与实际安装另行验收。
+- build.rs核对目标、源码/配方与产物，将预期SHA256编入程序；普通无资源debug可保持内建PNG/APNG，release必须有有效资源。运行时不从旁置清单或PATH取得信任，JPEG/GIF分别验证，单个工具失败只撤销该格式能力；执行时继续复查身份。
+- pnpm gif:bundle:check在仓库外、中文空格路径和无开发PATH环境运行真实GIF处理、PNG/JPEG/GIF/APNG桌面混合/重试/备份/预览，以及缺失或替换工具的独立降级。可传--resources后接已解包的绝对资源根目录；只在副本上测试，验收程序不随默认安装包分发。GUI与实际安装另行验收。
 
 ## JPEG随包资源（J2第一段）
 
 - 桌面dev/build钩子先运行pnpm jpeg:bundle:prepare，复用固定MozJPEG配方生成资源、目标身份及许可资料。构建需CMake 3.15+、C编译器和tar；首次下载固定归档，之后复核归档与源码缓存。CMake可在PATH或通过CMAKE指定，Windows还会查询Visual Studio安装位置。安装后的应用无需开发工具。
 - 固定资源映射至应用资源目录的jpeg/runtime，Rust内嵌构建时验证的SHA256，运行时旁置manifest不能改变信任。Windows helper使用静态CRT；启动缺工具/被替换时记录稳定类别并保留PNG功能，不自动下载或搜索PATH。先加载能力/创建任务与展示服务，再创建main窗口，首次握手即可取得实际能力；运行中工具身份变化仍拒绝执行并显示工具错误。
-- 普通无工具debug检查可保持PNG-only；正式release构建必须先prepare，资源缺失/过期/目标不匹配即失败。脚本只构建Rust原生目标，不隐式交叉编译；已有暂存资源失效时需重新prepare。
+- 普通无工具debug检查可保持内建PNG/APNG；正式release构建必须先prepare，资源缺失/过期/目标不匹配即失败。脚本只构建Rust原生目标，不隐式交叉编译；已有暂存资源失效时需重新prepare。
 - pnpm jpeg:bundle:check在仓库外/中文空格路径/无开发PATH环境，复用生产加载器验证真实无损、有损、NoGain、预取消与缺失/替换拒绝，结果经独立工具复验。可传--resources后接已解包绝对资源根目录。程序受bundle-check特性控制，不随默认安装包分发。
 - Windows产物仍位于target/release/bundle；安装/启动/卸载、其他平台和签名发行分别验收，详见[连续记录](docs/devlog/_plan/261009/jpeg-desktop-bundle.md)。签名若改变helper字节，须先确定最终字节再生成可信身份。
 
@@ -178,7 +182,7 @@ P1 新增的 19 项批量回归及 1 项编译型 doctest 在本轮 Windows 检�
 
 - 文件与目录列表共用入口，目录内排序、根列表按传入顺序；重叠目录和已接受候选的硬链接去重，以首次归属决定输出布局。不跟随叶节点或枚举节点的符号链接/Windows reparse；显式祖先别名仍沿用规范化边界，不是文件系统沙箱。
 - 显式根硬上限为 1000，且不得超过条目限制；默认 1000 个候选、10000 个发现条目、32 层目录及累计读取 1 GiB，单文件沿用 64 MiB 等资源限制。候选数可设 1–100000、条目数 1–1000000、深度 0–256（0 允许根目录直接文件），累计读取预算须非零。条目与每 64 KiB 读取边界检查取消；一次只保留一张图片的压缩数据，不展开像素。句柄数量有界但仍可能受系统限制，OS 调用和单次 CRC 不能硬中断。
-- 默认scan按内容识别静态PNG，检查chunk/CRC、头部资源上限并拒绝APNG；JPEG/GIF/WebP明确反馈未支持。可信宿主显式使用scan_with_engines时可加入JPEG/GIF，保存格式专属头信息，JPEG仍须使用jpg/jpeg扩展名、GIF使用gif扩展名；真实PNG误命名.jpg的契约保持。扫描不启动编码工具，候选不是完整解码成功的保证，坏像素数据仍可能在流水线失败；逐项错误不阻断其他条目。
+- 默认scan按内容识别静态PNG，检查chunk/CRC、头部资源上限并拒绝APNG；JPEG/GIF/WebP明确反馈未支持。可信宿主显式使用scan_with_engines时可加入JPEG/GIF/APNG，APNG按动画块内容分流并保留专属属性，保存格式专属头信息，JPEG仍须使用jpg/jpeg扩展名、GIF使用gif扩展名；真实PNG误命名.jpg的契约保持。扫描不启动编码工具，候选不是完整解码成功的保证，坏像素数据仍可能在流水线失败；逐项错误不阻断其他条目。
 - 仅完整扫描且有候选时允许规划。取消或触及全局限制返回可展示的部分结果，**不得自动启动部分批次**；空输入不建立批次。无效参数等整批准入错误保留冻结清单，修正后可重新规划；单文件/目标错误保留全部任务，由start复查并标记该行失败。冻结的是路径与归属，不锁定文件内容，实际处理仍重新校验。
 - `Overwrite` 保持覆盖备份契约；`CopyTo` 支持指定目录的扁平或 `PreserveRoots` 布局。副本保留完整原文件名（包含大小写和扩展名、原始OS字符），不增加后缀、不自动编号或覆盖。保留结构时为 `目标/导入根名/相对父目录/原文件名`，单独文件直接放目标根；无名称的文件系统根用 `_root`。不同根同名允许合并布局，仅实际冲突的文件失败。`CopyBeside` 同目录同名会与原图冲突并逐项失败，应另选目录，不能回退成覆盖。识别仍看文件内容，不是扩展名转换功能。
 - 选定目标根必须已存在；`OutputPolicy::CopyTree { root, relative }` 只接受普通相对组件，规划不创建目录。只有 output 暂存阶段创建必要子目录，最终仍执行 noclobber；取消/失败/无收益可能保留空结构目录，避免并发任务误删共有目录。P5增加`OutputDirectory`及`CopyToAuthorized`/`CopyTreeAuthorized`，共享身份句柄并在规划、暂存和提交前复查，目录被替换或删除后拒绝写入；这是路径级检查，不是文件系统CAS。旧`CopyTo`/`CopyTree`/`Copy`契约保留，Rust下游完整匹配需处理新变体；桌面DTO随协议v7更新。
@@ -257,7 +261,7 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 - jobs/candidates/issues每页50项；状态更新时回到首屏，额外分页最多一个在途查询。过期页不拼接，按最新revision恢复。未知大小显示“—”，精确字节按bigint计算；进度为processed/total，取消不冒充100%成功。
 - 重试只接纳当前同revision可见页内失败/取消行的稳定ID，使用草稿模式但保留原输出位置；清除需确认，仅清记录，不删除文件。结果展示实际回退原因、输出/备份名及失败恢复信息；展示名不是可访问路径，截断或替换明确标注。
 - main页面Started生命周期在同一订阅锁域撤销会话与授权，不清除或重跑任务；尚未关闭的物理对话框仍占槽，晚到结果拒绝后才释放。非main或Finished事件不撤销新会话，不依赖unload必达。
-- 浏览器仅预览布局，不读取图片或模拟业务。桌面拖放接入上述受控入口；缩略图和结果定位使用下文的任务绑定窄命令，未开放高级编码参数或通用fs/dialog/event/opener权限。v12按实际能力开放PNG/JPEG/GIF混合输入，自选输出目录使用下节的窄命令，原生GUI覆盖范围按开发记录独立验收。
+- 浏览器仅预览布局，不读取图片或模拟业务。桌面拖放接入上述受控入口；缩略图和结果定位使用下文的任务绑定窄命令，未开放高级编码参数或通用fs/dialog/event/opener权限。v13按实际能力开放PNG/JPEG/GIF/APNG混合输入，自选输出目录使用下节的窄命令，原生GUI覆盖范围按开发记录独立验收。
 
 ## 指定输出目录（P5，协议v7）
 
@@ -268,16 +272,16 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 - caBX弹窗固定打开时的目录/布局，只给选中行授权移除；使用Rust保存的导入来源和同一个`ImportOutput::outputs_for`规划目标，不把所有普通成功项搬到新目录。指定目录副本同样不显示备份模块，目标存在则拒绝覆盖。
 - 默认扁平输出，保留原文件名；保留结构时映射为`目标/导入根名/相对父目录/原文件名`，单独选择的文件放目标根。目标已存在或冲突只使相关图片失败，其他任务继续；普通重试保留原目标、caBX确认同样逐项检查，均不自动编号或覆盖已有副本。无收益不生成副本，失败/无收益可能留下空结构目录。输出位于输入树内时只在完整扫描后写入；历史_compressed文件仍是普通候选，不一律排除。此命名/错误语义更新不改变协议v7形状；显式核心Copy目标路径不被改名。
 
-## 结果定位、批次目录与真实缩略图（协议v12）
+## 结果定位、批次目录与真实缩略图（协议v13）
 
 - 任务表最右侧“操作”列常显“详情”和“在文件夹中查看”。详情悬停或键盘聚焦即弹出非模态浮层，不展开表格行；鼠标可移入面板阅读，Tab可访问其中的真实备份定位，Escape、外部点击、来源列表滚动或行失效会关闭。实际结果可直接定位；无收益定位保留原图，没有可用结果的行禁用查看。成功备份或失败恢复报告确有备份才在浮层内显示“定位备份”。文件被移动、删除或包含链接时拒绝，不从显示名拼接路径。
 - 底部“打开输出目录”仅在本批结束且至少一张成功时显示，不在结束时自动打开。指定目录打开各成功行实际采用的根目录（保留结构也从根进入），覆盖打开结果所在目录；不使用当前设置草稿。多个目录按成功行顺序去重，显示目录名、代表任务ID/样例文件和结果数量，用户逐次选择；菜单每页最多50个目录，不同时打开多个窗口。全失败/全无收益不伪造新结果入口。
 - get_output_directories/open_output_directory绑定已ACK会话、selectionId、batchId及batchRevision，打开再指定代表成功行ID；后端解析路径，重试/清除/换批/断连后拒绝旧请求。分组在后台且不持状态锁，仅转换当前页名称；查询和打开与文件定位共享单在途许可，退出等待真实返回。打开前复查目录存在/父链，指定输出根另核对原生授权身份，被删除或同名替换不重新授权；覆盖结果父目录沿用路径级检查，不宣称文件系统CAS。不创建目录、不执行任意命令，也不自动重发打开请求。v9扩展命令与生成DTO，旧页面须更新重载。
-- `reveal_task_file`和`get_task_thumbnail`自协议v8引入，只接收已ACK的subscriptionId、selectionId、jobId、attempt、expectedState，定位再选择result/backup。Rust按当前权威终态行解析；拒绝旧会话/清单/尝试、运行行及清除/重试准备/关闭状态。不沿用批次revision作图片版本，以免其他行进度更新使已完成预览反复失效。当前协议v12，三种格式均只解析真实结果或恢复备份；旧页面须更新重载。
+- `reveal_task_file`和`get_task_thumbnail`自协议v8引入，只接收已ACK的subscriptionId、selectionId、jobId、attempt、expectedState，定位再选择result/backup。Rust按当前权威终态行解析；拒绝旧会话/清单/尝试、运行行及清除/重试准备/关闭状态。不沿用批次revision作图片版本，以免其他行进度更新使已完成预览反复失效。当前协议v13，四种格式均只解析真实结果或恢复备份；旧页面须更新重载。
 - 定位复用固定版本tauri-plugin-opener的Rust API，不安装其JS插件或授予通用路径权限；每次最多一个定位请求，Requested仅表示已请求文件管理器，系统可能只打开目录而非选中文件。macOS非UTF-8路径明确拒绝，避免其API有损转换到另一文件。Windows/macOS/Linux真实系统行为分别验收。
 - 每张图处理结束后，仅可见任务行按需申请缩略图。成功项读取当前结果文件，其余终态读取当前源文件；无备份覆盖后不会声称仍有原图预览。未处理、损坏、超限或不支持的图片回退图标/提示，不影响压缩。JPEG复用可信引擎，应用已支持的Exif方向1–8；ICC、CMYK/YCCK、不明确颜色及不支持的元数据拒绝预览。GIF复用Rust严格结构预检与可取消LZW，仅输出首幅完整透明画布的静态PNG，不播放动画；4Mi画布/单帧像素、256帧结构、32MiB缓冲及5秒协作期限进一步收紧准入。仅用于识别，不承诺ICC色彩管理或压缩前后保真对比；扫描候选/问题列表仍用文字。
 - 单解码在途、无后端等待队列；文件最多16 MiB、8,388,608像素、单边16,384，像素输出与各格式解码工作集各32 MiB。JPEG另按对齐系数/像素工作集收紧准入，单次helper期限5秒；这不包含整个文件I/O和工具身份检查耗时。图片缩放到最多128×96、不放大小图，透明度使用预乘alpha采样，方向在采样时应用而不复制全尺寸旋转图；只编码像素到最多65,536 bytes的PNG，不回传原始图片、凭据或元数据。限额不是进程RSS硬上限，所有读/解码均在后台且不持服务锁。
-- Rust缓存最多64项/4 MiB，命中也复查文件存在、大小和时间，读取前后再检查路径/文件身份；检测到变化拒绝，不宣称文件系统CAS或持续监视外部修改。前端最多64项/一个读取在途，IntersectionObserver按可见区域申请，离屏/翻页释放Blob URL；清除、换批、重载/断开及退出回收缓存，迟到响应丢弃。撤销同时取消JPEG/GIF预览，真实回收前不释放许可，退出等待在途解码返回。Busy只对读取有限退避，定位不自动重发。
+- Rust缓存最多64项/4 MiB，命中也复查文件存在、大小和时间，读取前后再检查路径/文件身份；检测到变化拒绝，不宣称文件系统CAS或持续监视外部修改。前端最多64项/一个读取在途，IntersectionObserver按可见区域申请，离屏/翻页释放Blob URL；清除、换批、重载/断开及退出回收缓存，迟到响应丢弃。撤销同时取消JPEG/GIF/APNG预览，真实回收前不释放许可，退出等待在途解码返回。Busy只对读取有限退避，定位不自动重发。
 - CSP仅增加img-src的blob:，不启用任意本地asset协议、data:或远程图片源。JSONL只记录任务数字身份、展示操作、耗时和无路径错误类别，不记录缩略图/原图/文件名/路径。
 
 ## 本地诊断日志

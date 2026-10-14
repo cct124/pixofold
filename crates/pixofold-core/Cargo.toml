@@ -8,6 +8,8 @@ description = "PixoFold 独立图片处理核心"
 publish = false
 
 [dependencies]
+# png已锁定同版；APNG核心显式检查zlib结束、Adler32及尾随数据。
+fdeflate = "=0.3.7"
 gif = { version = "=0.14.2", default-features = false, features = ["std"] }
 weezl = { version = "=0.1.12", default-features = false, features = ["std"] }
 crc32fast.workspace = true
@@ -22,8 +24,6 @@ tracing.workspace = true
 ts-rs = { workspace = true, optional = true }
 
 [dev-dependencies]
-# png已锁定的同版解码依赖；实验显式检查zlib结束/Adler/尾随字节，弥补png宽容读取。
-fdeflate = "=0.3.7"
 serde_json.workspace = true
 sysinfo.workspace = true
 

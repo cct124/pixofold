@@ -101,7 +101,8 @@ const checked = run([install, input, output]);
 assert.equal(checked.status, 0, checked.stderr?.toString());
 const report = JSON.parse(checked.stdout);
 assert.equal(report.result, 'passed');
-assert.equal(report.desktop.protocolVersion, 12);
+assert.equal(report.desktop.protocolVersion, 13);
+assert.equal(report.desktop.apng.result, 'passed');
 assert.equal(report.desktop.result, 'passed');
 assert.equal(report.desktop.previews, 15);
 assert.equal(report.desktop.gifLossy.result, 'passed');
@@ -110,26 +111,26 @@ const capabilities = () => {
   assert.equal(value.status, 0, value.stderr?.toString());
   return JSON.parse(value.stdout);
 };
-assert.deepEqual(capabilities(), ['png', 'jpeg', 'gif']);
+assert.deepEqual(capabilities(), ['png', 'jpeg', 'gif', 'apng']);
 const jpegBinary = path.join(install, 'jpeg/runtime/pixofold-jpeg-helper' + extension);
 renameSync(jpegBinary, jpegBinary + '.saved');
-assert.deepEqual(capabilities(), ['png', 'gif'], 'JPEG失效不得撤销GIF能力');
+assert.deepEqual(capabilities(), ['png', 'gif', 'apng'], 'JPEG失效不得撤销其他格式能力');
 renameSync(jpegBinary + '.saved', jpegBinary);
 const runtime = path.join(install, 'gif/runtime');
 const binary = path.join(runtime, 'pixofold-gif-helper' + extension);
 const helperSha256 = digest(readFileSync(binary));
 renameSync(binary, binary + '.saved');
 assert.notEqual(run([install]).status, 0, '缺工具必须拒绝');
-assert.deepEqual(capabilities(), ['png', 'jpeg'], 'GIF失效不得撤销JPEG能力');
+assert.deepEqual(capabilities(), ['png', 'jpeg', 'apng'], 'GIF失效不得撤销其他格式能力');
 writeFileSync(binary, Buffer.from('untrusted replacement'));
 writeFileSync(
   path.join(runtime, 'manifest.json'),
   JSON.stringify({ files: { [path.basename(binary)]: digest(readFileSync(binary)) } }),
 );
 assert.notEqual(run([install]).status, 0, '篡改旁置清单不得授权新工具');
-assert.deepEqual(capabilities(), ['png', 'jpeg']);
+assert.deepEqual(capabilities(), ['png', 'jpeg', 'apng']);
 renameSync(jpegBinary, jpegBinary + '.saved');
-assert.deepEqual(capabilities(), ['png'], '两个工具失效仍须保留PNG');
+assert.deepEqual(capabilities(), ['png', 'apng'], '两个工具失效仍须保留内建PNG/APNG');
 assert.equal(digest(readFileSync(input)), digest(original));
 const evidence = mkdtempSync(path.join(root, 'target/gif-bundle-'));
 cpSync(output, path.join(evidence, 'outputs'), { recursive: true });

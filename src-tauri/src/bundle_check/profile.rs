@@ -190,10 +190,11 @@ pub fn profile(engine: JpegEngine, inputs: &Path, root: &Path, mode: PngMode) ->
                 }
                 ImageReport::Png(_) => mode == PngMode::Lossless,
                 ImageReport::Gif(_) => true,
+                ImageReport::Apng(_) => true,
             });
             Ok(json!({
                 "file": name(&job.request.source)?,
-                "format": match job.request.format() { ImageKind::Png => "png", ImageKind::Jpeg => "jpeg", ImageKind::Gif => "gif" },
+                "format": match job.request.format() { ImageKind::Png => "png", ImageKind::Jpeg => "jpeg", ImageKind::Gif => "gif", ImageKind::Apng => "apng" },
                 "state": state, "errorCode": error, "lossless": lossless,
                 "inputBytes": job.input_bytes.map(|bytes| bytes.0),
                 "outputBytes": report.map(ImageReport::output_bytes).map(|bytes| bytes.0),

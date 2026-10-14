@@ -20,7 +20,7 @@ fn request(collection: TaskCollection) -> TaskPageRequest {
     }
 }
 #[test]
-fn protocol_v12_preserves_gif_actual_paths_and_rejects_inconsistent_mapping() {
+fn protocol_v13_preserves_gif_actual_paths_and_rejects_inconsistent_mapping() {
     use pixofold_core::gif::{GifError, GifInfo, GifReport};
     let (_dir, _runtime, mut snapshot) = completed();
     snapshot
@@ -46,7 +46,7 @@ fn protocol_v12_preserves_gif_actual_paths_and_rejects_inconsistent_mapping() {
         quality: None,
     }));
     let value = wire(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).unwrap());
-    assert_eq!(value["protocolVersion"], 12);
+    assert_eq!(value["protocolVersion"], 13);
     assert_eq!(value["supportedFormats"], json!(["png", "jpeg", "gif"]));
     let row = &value["page"]["items"][0];
     assert_eq!(row["format"], "gif");
@@ -177,6 +177,64 @@ fn sample(dir: &Path, name: &str, fixture: &str) -> std::path::PathBuf {
     .unwrap();
     path
 }
+#[test]
+fn apng_real_task_reports_actual_lossless_and_never_grants_png_credentials() {
+    for mode in [
+        PngMode::Lossless,
+        PngMode::Lossy {
+            quality: QualityValue::new(80).unwrap(),
+        },
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("animation.PNG");
+        fs::write(
+            &source,
+            include_bytes!("../../../tests/fixtures/apng/split-data.apng"),
+        )
+        .unwrap();
+        let signed = dir.path().join("signed.apng");
+        fs::write(
+            &signed,
+            include_bytes!("../../../tests/fixtures/apng/metadata-caBX.apng"),
+        )
+        .unwrap();
+        let runtime =
+            TaskRuntime::with_engines(TaskConfig::default(), ImageEngines::default().add_apng())
+                .unwrap();
+        let control = runtime.control();
+        control
+            .import(
+                vec![source, signed],
+                Some(TaskSettings {
+                    parameters: BatchParameters {
+                        mode,
+                        ..Default::default()
+                    },
+                    output: ImportOutput::Overwrite,
+                }),
+            )
+            .unwrap();
+        let mut snapshot = phase(&control, TaskPhase::Finished);
+        let value = wire(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).unwrap());
+        assert_eq!(value["supportedFormats"], json!(["png", "apng"]));
+        let report = &value["page"]["items"][0]["state"]["report"];
+        assert_eq!(
+            report["processing"],
+            json!({"format":"apng","details":{"kind":"lossless","frames":2,"numPlays":0,"defaultParticipates":true}})
+        );
+        assert_eq!(report["contentCredentialsRemoved"], false);
+        let issues = wire(convert::snapshot(&snapshot, &request(TaskCollection::Issues)).unwrap());
+        assert_eq!(
+            issues["page"]["items"][0]["issue"]["failure"]["code"],
+            "unsupported_apng_metadata"
+        );
+        let job = &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0];
+        assert!(job.content_credentials_source().is_none());
+        job.request.options = FormatOptions::Png(PngMetadataPolicy::Preserve);
+        assert!(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).is_err());
+    }
+}
+
 fn completed() -> (tempfile::TempDir, TaskRuntime, TaskSnapshot) {
     let dir = tempfile::tempdir().unwrap();
     let good = sample(dir.path(), "good.png", "rgb8.png");
@@ -668,7 +726,7 @@ fn lossy_fallback_mapping_and_elapsed_milliseconds_come_from_actual_report() {
 }
 
 #[test]
-fn protocol_v12_preserves_jpeg_formats_errors_and_quality_without_png_semantics() {
+fn protocol_v13_preserves_jpeg_formats_errors_and_quality_without_png_semantics() {
     use pixofold_core::{
         batch::{FormatOptions, ImageError, JobErrorCode, JobFailure},
         jpeg::{

@@ -76,6 +76,10 @@ pub(crate) async fn select_native_import<R: tauri::Runtime>(
         .control
         .engines()
         .supports(pixofold_core::batch::ImageKind::Gif);
+    let apng_available = tasks
+        .control
+        .engines()
+        .supports(pixofold_core::batch::ImageKind::Apng);
     // 单槽先占位才spawn；等待原生UI不占事件循环/异步executor线程，不持任何服务锁。
     tauri::async_runtime::spawn_blocking(move || {
         let dialog = window.dialog().file().set_parent(&window);
@@ -90,6 +94,10 @@ pub(crate) async fn select_native_import<R: tauri::Runtime>(
                 if gif_available {
                     extensions.push("gif");
                     labels.push("GIF");
+                }
+                if apng_available {
+                    extensions.push("apng");
+                    labels.push("APNG");
                 }
                 dialog
                     .add_filter(labels.join(" / "), &extensions)

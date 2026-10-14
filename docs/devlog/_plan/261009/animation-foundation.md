@@ -1,7 +1,7 @@
 # 动画验证底座与GIF最小实验
 
 - 创建日期：2026-10-09（Asia/Shanghai）。
-- 状态：截至2026-10-14，L0/A1/A2已完成Windows本机交付并提交7555823推送origin/dev：受控日志、83项语料/11组比较、135组APNG无损实验、统一检查及真实三格式回归通过；详见末节。既有b351c27三平台9 jobs、GIF v12 Windows包及用户手测日志形成前阶段基线。APNG尚未进入生产，下一入口A3；新SHA平台、A4及其他发行环境独立验收，完整动画任务继续活动。
+- 状态：截至2026-10-14，A3/A4 APNG严格无损核心、安全输出、四格式批量/资源预算、v13报告/预览/桌面及Windows新MSI已完成本机交付，未提交推送。167前端/300 Rust/2 doctest、45项真实核心、四格式隔离桌面、旧格式回归及MSI包内资源通过；实际安装、原生APNG GUI及新SHA三平台另验。前阶段8b89bba三平台12个CI jobs全部通过，完整动画任务继续活动。
 - 分支/基准：dev/0f4fcfd0825f51542d5d2658da600d21e0174350，业务a21d330，开工本地/远端一致且工作区干净。
 - 关联：[阶段计划](../260930/next-development-plan.md)、[J2桌面混合工作流](jpeg-desktop-workflow.md)、[项目方案](../../../架构设计文档/pixofold-proposal.md)。
 
@@ -656,3 +656,57 @@ A/B稳定后接GIF桌面闭环：可信资源prepare/打包与加载、supported
 - 三平台新增APNG job与artifact上传已配置，尚无本批新SHA的远端运行证据。未构建新Windows MSI、未进行新安装/GUI/外部播放验收；本批交付为实验与诊断源码，APNG仍不出现在生产supportedFormats。
 - 开工基准为dev/2f21a50；本批代码、语料、CI、许可与说明已提交7555823并同步origin/dev（2f21a50..7555823）。完整动画任务保持活动。下一入口为A3：沿已证明范围接APNG无损单文件和候选落盘复验/安全输出，覆盖备份、冲突、源变化、取消与NoGain，再做A4批量预算/协议/预览/桌面与新MSI。
 - 最终交接核对：target/apng-delivery-audit-261014.mjs确认8份文档/199个本地链接、NUL及尾随空白、8份实验配方哈希、Cargo.lock及二进制哈希与最终报告一致；清单实际为83项/11组比较（已更正实施过程中的12组误计）。git diff --check通过，实验报告/日志受target忽略保护。
+
+## 2026-10-14 A3无损单文件核心实施
+
+- 用户授权执行下一步开发任务，范围为A3。开工dev/8b89bba，工作区干净，与origin/dev一致；上一批业务7555823及交接8b89bba已提交，不覆盖既有记录。本批未经授权不提交/推送。
+- 验收：迁移已验证APNG结构/原始子帧/合成/时间轴验证至核心，保持拒绝边界；固定O1严格无损，实际候选落盘复验后走唯一output提交层；覆盖/备份/副本冲突/源变化/取消/NoGain/权限/临时清理真实回归。APNG特有错误及资源/总准备期限独立，不接批量/DTO/GUI/MSI。
+- 平台只读复核：8b89bba的CI run38520805992尚在执行；前一7555823的run38520748136被后续同分支run取消。先实施独立核心并跟进本轮现有run结果，不将旧基线算作新代码通过。
+- 依赖/迁移：fdeflate 0.3.7从开发依赖提升为核心显式依赖，仍为png已锁定同版（MIT OR Apache-2.0），不升级、不新增二进制工具。实验复用核心验证入口，保留人工语料oracle，避免双份验证器分叉。
+
+### 实施进展
+
+- 核心src/apng新增ApngRequest/Limits/Info/Report/Error及optimize_apng、validate_apng、compare_apng。结构/严格zlib/原始与展开解码/合成由examples迁至私有validation模块，实验适配器复用公开验证入口，83项语料和11组人工比较不改写。fdeflate提升为同版核心依赖，Cargo.lock无需改版本。
+- 固定O1关闭alpha/位深/颜色/调色板/交错转换、修复与剥离。准备阶段先准入/源验证，源与候选共享累计工作；释放编码候选后复读落盘文件，哈希和独立语义全部一致才进入共享output提交。NoGain也先复查源，失败/取消明确清理，清理失败保留原错和残留路径。
+- 准备总30秒，单次验证和编码软期限至多10秒；工作集512MiB上限为保守准入估算，非RSS硬限。实际画布在解码前用于收紧估算；保持源/候选/复读/摘要与原生余量计费。同步编码调用不脱离任务，受控通道证明取消后仍等编码返回；注入时钟验证编码后总期限到期必丢弃，无固定休眠。
+- 备份复用原名stem-backup-6位规则，APNG原始.png/.apng扩展名大小写保留；误扩展名回退.png。扫描只扩展严格保留名后缀识别，不开放APNG导入/批量/DTO/预览。Windows无法提交时保留可恢复备份、无法清理时携带取消原因与临时路径均已实测。
+- 初轮本机回归：6项内部故障/资源/同步取消/期限测试、11项真实核心集成测试通过；集成遍历全部83项语料。pnpm apng:core:check报告target/apng-core-DhOZmt/report.json为passed：45个输入=6 gain/38 no_gain/1预定低位深索引拒绝；压力图6,295,849→15,817 bytes，覆盖备份与再次NoGain通过，所有隔离源hash保持。最终源码与证据收尾继续进行中。
+- 8b89bba的APNG/JPEG/GIF三平台实验及macOS/Ubuntu Check已通过，Windows Check仍执行；这只覆盖上一阶段提交。A3 CI追加真实核心步骤与artifact保留，未触发重跑或提交推送。
+- 后续只读复核：8b89bba的run38520805992全部12个jobs均completed/success，前阶段三平台门槛收口，快照target/apng-a3-ci-8b89bba-261014.json；不再等待7555823被后续替代取消的run。本次A3修改仍没有远端新SHA证据。
+- pnpm apng:lab:check迁移复验通过，报告target/apng-lab-82RkOY/report.json、日志target/apng-a3-lab-261014.log：83项语料/11组比较保持，135组结果仍为18收益/114无收益/3次预定拒绝；取消后223ms同步返回，1ms软期限实际6ms，候选丢弃且原件不变。首轮统一检查仅有新增测试的cloned_ref_to_slice_refs警告，已修正并启动完整重验，没有关闭lint或跳过测试。
+
+### A3最终交付
+
+- pnpm check完整通过（target/apng-a3-unified-final-261014.log）：前端15文件/163测试，Rust合计292项测试及2项doctest，格式/lint/类型/生成类型/Clippy/全部语料哈希通过。新增6项核心内部确定性测试及11项APNG真实集成测试（含全部83项语料）；共享PNG/GIF/JPEG测试保持。
+- 最终pnpm apng:core:check通过（target/apng-a3-core-final-261014.log），报告target/apng-core-wWnihm/report.json：45项输入为6 gain、38 no_gain、1预定unsupported_representation；全部源hash保持，压力输入6,295,849→15,817 bytes，单次核心377ms；同压力图真实覆盖备份及再次NoGain通过。整个验证程序采样峰值32,550,912 bytes（约31.0MiB）、CPU累计1985ms，覆盖全部样本/额外比较/压力覆盖与采样器，不是单图峰值或RSS配额。
+- 最终核心identity.json的二进制SHA256为f868f277647bbd28d5afa5ba4ac95fe00a73a4af90a34acf1654a2187dea720a，固定O1、png/oxipng/fdeflate版本、源码配方/Cargo.lock及平台已记录；无依赖版本升级。迁移后的实验135组结果与上一阶段保持，报告见前节。
+- pnpm gif:core:check通过（target/apng-a3-three-format-261014.log），证据target/gif-core-Bg2HCw：GIF无损25收益/2无收益及2压力图、保守有损质量/收益回退/原图安全/提交竞争、PNG/JPEG/GIF混合核心均通过；本批仅扩展严格备份保留名，不改变既有压缩入口。
+- [核心说明](../../../../crates/pixofold-core/src/apng/README.md)、README、AGENTS、许可与实验说明均已同步；APNG job追加core-check与artifact上传，但本批A3代码未提交，没有新SHA平台结果。未升级DTO/协议、未接批量/GUI/预览、未构建或安装新MSI。
+- 本机工作区包括新apng核心/验证模块与测试/命令、原实验验证器迁移、输出后缀与保留名、Cargo依赖归属、CI及文档；HEAD/origin/dev仍8b89bba，未提交/推送。下一步按A4接相同冻结额度的批量预约、格式专属请求/报告/错误、实际能力与协议/预览/桌面；同步编码返回前保留worker及预算，再验新Windows包。
+- 最终交接核对通过：target/apng-a3-audit-261014.mjs检查8份文档/196个本地链接、NUL及尾随空白、20份配方哈希、两份验证二进制与Cargo.lock身份均与报告一致；迁移的结构与解码模块相对原件仅调整可见性，逻辑未分叉。git diff --check通过，报告、日志及CI快照均受target忽略保护。
+
+## 2026-10-14 A4批量/桌面与Windows新包实施
+
+- 用户明确授权APNG批量、资源预算、协议/报告、受限预览、桌面接入及验证后构建Windows MSI。开工dev/8b89bba，保留完整A3未提交修改，本批继续同一连续记录；未经明确要求不提交推送。
+- 范围：显式APNG能力贯穿扫描/规划/任务服务/资源准入；协议迁移v13及生成类型/运行时检查；APNG保持严格无损，全局有损请求下也明确报告实际无损并展示说明。默认核心服务仍PNG-only，桌面主动启用内建APNG，JPEG/GIF独立随包验证保持。
+- 预览只显示首幅动画合成画布，独立默认图不冒充首帧；复用应用单解码许可、撤销/缓存契约与小尺寸PNG输出。验证真实四格式混批、稳定ID重试、备份/冲突/NoGain、资源/取消和预览边界；统一检查/后端与界面验收后构建并核对新MSI，GUI/安装与平台证据分开。
+
+### 实现与首轮验证
+
+- 显式ImageEngines::add_apng贯穿按内容扫描、规划、四格式共用worker、单行冻结选项及重试；默认核心服务仍PNG-only。APNG头部只收紧实际执行上限，预约复用ApngLimits::working_set；源尺寸变化/超预算按行拒绝，取消保留资源许可直到同步返回。
+- 协议v13生成类型与运行时验证同步，APNG无损报告含frames/numPlays/defaultParticipates；有损请求保留但实际无损，保护元数据和低位深使用专属错误，不继承PNG凭据许可。原生文件过滤加入apng，工作台中英提示/详情按实际能力开放。
+- 核心首帧解码复用严格zlib/子帧解码与透明画布合成；32MiB缓冲、5秒期限及现有单解码/撤销/缓存契约，独立默认图不参与。预览不解码后续帧，因此后续deflate损坏可预览首帧但完整验证必拒绝；首帧流头/Adler损坏另有真实负例。
+- 初轮发现旧界面测试仍断言“APNG尚未接入”、预览负例误把后续帧损坏当首帧损坏，分别更正预期并补足首帧故障注入。当前pnpm check全部通过（167前端测试；Rust含新增批量/预览/协议/额度与同步收尾），日志target/apng-a4-check-261014.log。
+- 正在运行release核心及隔离桌面验收。gif:bundle:check/apng:bundle:check复用一次四格式检查，在原有GIF矩阵之外增加APNG两模式混批/NoGain/冲突/稳定ID重试/备份/首帧和迟到缓存撤销；CI沿该入口执行。MSI尚未构建，平台新SHA与实际安装未验。
+
+### A4本机交付与验证收口
+
+- `pnpm check`通过：167前端、300 Rust及2 doctest；包括83项语料/11组比较、APNG内容分流、损坏/低位深/保护元数据拒绝、三项真实批量输出测试、首帧独立预期画布、排队源尺寸变化、四格式共享取消许可、v13实际报告与拒绝、不跨格式凭据授权。最终`pnpm rust:check`通过，生成类型只读核对和git diff --check通过。
+- `pnpm apng:core:check`通过，target/apng-core-Iy4v2f：45项为6收益/38无收益/1预定拒绝，源hash均保持；配方及二进制身份随报告保存。`pnpm gif:core:check`通过，target/gif-core-2RoqzY保留GIF单文件无损/有损、压力图、提交竞争和原三格式真实混批回归；`pnpm jpeg:bundle:check`通过，target/jpeg-bundle-pKeUtH。
+- `pnpm apng:bundle:check`通过，target/gif-bundle-6KtJyw。既有部署断言原写死三格式能力，首轮“能力未贯通”后按实际显式能力更新；真实JPEG/GIF流程保持。新增两轮APNG四格式混批（无损、有损80），各8行，冲突重试后5成功/2无收益/1预定损坏失败；保护元数据在扫描阶段单独拒绝。v13报告、独立播放比较、稳定ID/冻结目标、备份、首帧/迟到缓存撤销均通过。
+- 布局验证使用真实WorkspaceSettings/WorkspaceRows组件与显式模拟报告，只用于视觉：中文/英文×亮/暗，1100×760及840×640视口，新增提示和详情可读；截图target/apng-a4-visual/。临时页面/本机Vite服务已关闭；该证据不代替Windows原生窗口、DPI、文件选择/拖放或安装验收。
+- 验证后运行`pnpm tauri build --bundles msi --ci`成功，日志target/apng-a4-msi-261014.log。交付副本为target/deliverables/261014-apng-v13/PixoFold_0.1.0_x64_en-US.msi，5,021,696 bytes；SHA256 `bf8694a33e2f9155b3322a70d7a9677fff6f12ffc4d1a845657fcafaa8daefbd`。开发版版本保持0.1.0，协议迁移v13，旧页必须更新重载。
+- WiX dark解包及target/apng-v13-261014/check-msi.ps1通过：24个安装文件，JPEG清单5项/GIF清单14项，与本次构建逐文件相符；主程序仅Tauri预期UNK→MSI标记变化，开发checker/测试素材未随包。dark有7条既有ControlEvent反编译DARK1059警告，不影响本次文件提取/哈希结果；不据解包证明安装UI。报告target/apng-v13-261014/msi/report.json明确installed=false。
+- `pnpm apng:bundle:check --resources E:/Project/pixofold/target/apng-v13-261014/msi/restored`通过，target/gif-bundle-r4GfhZ；实际MSI资源在仓库外、中文空格路径、无开发PATH复验四格式/五质量GIF/APNG双模式、独立降级、输出/预览与退出。日志target/apng-v13-261014/msi-resources.log。
+- 本机改动包含A3迁移/核心及本批APNG扫描/资源/协议/预览/前端/真实部署检查与所属文档；仍在dev/8b89bba，未提交推送。下一步入口为新MSI的APNG增量手测和日志复核，重点png/apng内容分流、四格式混批、实际无损、输出/备份/重试、独立默认图/透明首帧与外部播放；新SHA三平台须提交后另验。APNG有损、JPEG凭据移除、无WebView2/其他平台实际安装不在本批完成范围。
+- 最终证据审计target/apng-a4-audit-261014.mjs通过：8份文档/197个本地链接、当前核心配方/二进制/Cargo.lock身份、统一检查计数、原始及实际包内四格式报告、MSI哈希一致；59个改动源码/配置条目身份写入target/apng-v13-261014/audit.json。代码diff及新文件已审阅，git diff --check通过。

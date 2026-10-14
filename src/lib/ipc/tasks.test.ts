@@ -98,7 +98,66 @@ it('validates actual format capabilities and JPEG reports at the IPC boundary', 
   }
 });
 
-it('validates v12 GIF actual paths, loops, mapping and credentials', async () => {
+it('validates APNG lossless reports in both requested modes and rejects forged semantics', async () => {
+  vi.mocked(isTauri).mockReturnValue(true);
+  const details = { kind: 'lossless', frames: 2, numPlays: 0, defaultParticipates: false } as const;
+  const report = {
+    inputBytes: '500',
+    outputBytes: '500',
+    elapsedMs: '2',
+    outputName: null,
+    backupName: null,
+    contentCredentialsRemoved: false,
+    processing: { format: 'apng', details },
+  } as const;
+  const job: JobDto = {
+    id: 1,
+    attempt: 1,
+    format: 'apng',
+    sourceName: { text: 'animation.PNG', lossy: false, truncated: false, sanitized: false },
+    inputBytes: '500',
+    mode: { kind: 'lossy', quality: 80 },
+    state: { kind: 'no_gain', report },
+  };
+  const resolve = (row: unknown, formats = ['png', 'jpeg', 'gif', 'apng']) => {
+    vi.mocked(invoke).mockResolvedValue({
+      ...snapshot(),
+      supportedFormats: formats,
+      page: { kind: 'jobs', offset: 0, total: 1, items: [row] },
+    });
+    return getTaskSnapshot(request());
+  };
+  await expect(resolve(job)).resolves.toBeDefined();
+  await expect(resolve({ ...job, mode: { kind: 'lossless' } })).resolves.toBeDefined();
+  await expect(resolve(job, ['png'])).rejects.toThrow('image contract');
+  for (const invalid of [
+    { ...details, kind: 'lossy' },
+    { ...details, frames: 0 },
+    { ...details, frames: 257 },
+    { ...details, numPlays: null },
+    { ...details, numPlays: -1 },
+    { ...details, numPlays: 0x100000000 },
+    { ...details, defaultParticipates: 1 },
+  ]) {
+    await expect(
+      resolve({
+        ...job,
+        state: {
+          kind: 'no_gain',
+          report: { ...report, processing: { format: 'apng', details: invalid } },
+        },
+      }),
+    ).rejects.toThrow('image contract');
+  }
+  await expect(
+    resolve({
+      ...job,
+      state: { kind: 'no_gain', report: { ...report, contentCredentialsRemoved: true } },
+    }),
+  ).rejects.toThrow('image contract');
+});
+
+it('validates v13 GIF actual paths, loops, mapping and credentials', async () => {
   vi.mocked(isTauri).mockReturnValue(true);
   const report = {
     inputBytes: '500',
@@ -152,7 +211,8 @@ it('validates v12 GIF actual paths, loops, mapping and credentials', async () =>
   }
   await expect(resolve(job, ['png', 'jpeg', 'gif'])).resolves.toBeDefined();
   await expect(resolve(job, ['png'])).rejects.toThrow('image contract');
-  await expect(resolve(job, ['png', 'gif', 'apng'])).rejects.toThrow('image contract');
+  await expect(resolve(job, ['png', 'gif', 'apng'])).resolves.toBeDefined();
+  await expect(resolve(job, ['png', 'gif', 'webp'])).rejects.toThrow('image contract');
   await expect(resolve(job, ['png', 'gif'], TASK_PROTOCOL_VERSION - 1)).rejects.toThrow();
   for (const details of [
     { kind: 'lossy', frames: 3, loopCount: 0 },

@@ -53,7 +53,7 @@ fn complete(frame: Option<&Frame<'_>>) -> Result<()> {
     }
     Ok(())
 }
-pub fn parse<'a>(bytes: &'a [u8], limits: &Limits, guard: &Guard<'_>) -> Result<Parsed<'a>> {
+pub(super) fn parse<'a>(bytes: &'a [u8], limits: &Limits, guard: &Guard<'_>) -> Result<Parsed<'a>> {
     guard.check()?;
     require(bytes.len() <= limits.max_input_bytes, "input_budget")?;
     require(bytes.starts_with(SIGNATURE), "signature")?;
@@ -109,6 +109,10 @@ pub fn parse<'a>(bytes: &'a [u8], limits: &Limits, guard: &Guard<'_>) -> Result<
                 require(
                     w > 0 && h > 0 && w <= 0x7fff_ffff && h <= 0x7fff_ffff,
                     "dimensions",
+                )?;
+                require(
+                    w <= limits.max_dimension && h <= limits.max_dimension,
+                    "dimension_budget",
                 )?;
                 require(
                     u64::from(w) * u64::from(h) <= limits.max_canvas_pixels,

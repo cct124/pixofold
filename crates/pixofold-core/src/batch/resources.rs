@@ -58,6 +58,49 @@ pub(super) fn image_limits(
     request: &ImageRequest,
     input_bytes: Option<ByteCount>,
 ) -> ResourceLimits {
+    if let FormatOptions::Apng(options) = request.options {
+        let limits = options.limits(request.limits);
+        let mut original = request.limits;
+        original.max_input_bytes = ByteCount(
+            limits
+                .validation
+                .max_input_bytes
+                .max(limits.validation.max_candidate_bytes) as u64,
+        );
+        original.max_decoded_bytes = ByteCount(limits.validation.max_validation_bytes);
+        original.max_pixels = limits.validation.max_canvas_pixels;
+        original.max_dimension = limits.validation.max_dimension;
+        let mut header = [0; probe::PNG_HEADER_LEN];
+        let info = File::open(&request.source)
+            .and_then(|mut file| file.read_exact(&mut header))
+            .ok()
+            .and_then(|()| probe::inspect_header(&header, original).ok());
+        if let Some(info) = info {
+            let pixels = u64::from(info.width) * u64::from(info.height);
+            original.max_pixels = pixels;
+            original.max_dimension = info.width.max(info.height);
+            if let Some(bytes) = input_bytes {
+                // 多帧候选按输入+所有帧最坏原始数据留空间，不能只用首帧大小判无收益。
+                original.max_input_bytes.0 = original.max_input_bytes.0.min(
+                    bytes
+                        .0
+                        .saturating_add(
+                            pixels
+                                .saturating_mul(8)
+                                .saturating_mul(limits.validation.max_frames as u64),
+                        )
+                        .saturating_add(BUFFER_MARGIN),
+                );
+            }
+            original.max_decoded_bytes.0 = original.max_decoded_bytes.0.min(
+                pixels * 64
+                    + original.max_input_bytes.0 * 4
+                    + limits.validation.max_frames as u64 * 8192
+                    + BUFFER_MARGIN,
+            );
+        }
+        return original;
+    }
     if let FormatOptions::Gif(options) = request.options {
         let original = options.limits(request.limits).resources;
         let mut header = [0; 13];

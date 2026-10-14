@@ -105,7 +105,19 @@ const copy = {
     'Drop images or folders here · Starts automatically',
   ],
   scope: ['当前可处理：', 'Available formats: '],
-  scopeEnd: ['；APNG 尚未接入。', '. APNG is not supported yet.'],
+  scopeEnd: ['。', '.'],
+  apngHint: [
+    'APNG 始终按无损处理，不受质量设置影响；缩略图仅展示动画首帧。',
+    'APNG always uses lossless processing, regardless of quality. Thumbnails show the first animation frame only.',
+  ],
+  apngPlays: ['总播放次数', 'Total plays'],
+  apngDefaultIncluded: ['默认图参与动画', 'Default image is part of animation'],
+  apngDefaultSeparate: ['默认图独立于动画', 'Default image is separate'],
+  unsupported_apng: ['暂不支持此 APNG 像素表示', 'This APNG pixel representation is not supported'],
+  unsupported_apng_metadata: [
+    'APNG 包含暂不支持或受保护的元数据',
+    'APNG contains unsupported or protected metadata',
+  ],
   gifUnavailable: [
     'GIF 暂不可用，请使用包含 GIF 引擎的完整安装包。',
     'GIF is unavailable. Use a complete installation with the GIF engine.',

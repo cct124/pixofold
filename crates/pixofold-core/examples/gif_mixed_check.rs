@@ -310,7 +310,7 @@ fn main() {
     assert!(!conflict.jobs[1].state.can_retry());
     assert_eq!(fs::read(occupied).unwrap(), b"occupied");
     service.shutdown().unwrap();
-    let rows:Vec<_>=finished.jobs.iter().map(|row|json!({"file":row.request.source.file_name().unwrap().to_str().unwrap(),"format":match row.request.format(){ImageKind::Png=>"png",ImageKind::Jpeg=>"jpeg",ImageKind::Gif=>"gif"},"state":match row.state{JobState::Succeeded(_)=>"succeeded",JobState::NoGain(_)=>"no_gain",JobState::Failed(_)=>"failed",_=>"unexpected"}})).collect();
+    let rows:Vec<_>=finished.jobs.iter().map(|row|json!({"file":row.request.source.file_name().unwrap().to_str().unwrap(),"format":match row.request.format(){ImageKind::Png=>"png",ImageKind::Jpeg=>"jpeg",ImageKind::Gif=>"gif",ImageKind::Apng=>"apng"},"state":match row.state{JobState::Succeeded(_)=>"succeeded",JobState::NoGain(_)=>"no_gain",JobState::Failed(_)=>"failed",_=>"unexpected"}})).collect();
     fs::write(root.join("report.json"),serde_json::to_vec_pretty(&json!({"result":"passed","jobs":rows,"retryStableId":stable.get(),"workerBudgetMiB":256,"sourceGifSha256":format!("{:x}",Sha256::digest(&gif)),"boundaries":["bad pixels","NoGain","native quota retry","total budget","lossy request with lossless result","per-row conflicts"]})).unwrap()).unwrap();
     fs::write(
         root.join("metrics.json"),

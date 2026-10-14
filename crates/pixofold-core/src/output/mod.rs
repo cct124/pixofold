@@ -119,6 +119,23 @@ impl Source {
     pub(crate) fn use_gif_backup_suffix(&mut self) {
         self.backup_suffix = paths::backup_suffix(&self.path);
     }
+    /// APNG按已验证内容进入；.png/.apng保持大小写，误扩展名统一使用.png。
+    pub(crate) fn use_apng_backup_suffix(&mut self) {
+        self.backup_suffix = self
+            .path
+            .extension()
+            .filter(|extension| {
+                extension.to_str().is_some_and(|s| {
+                    s.eq_ignore_ascii_case("png") || s.eq_ignore_ascii_case("apng")
+                })
+            })
+            .map(|extension| {
+                let mut suffix = OsString::from(".");
+                suffix.push(extension);
+                suffix
+            })
+            .unwrap_or_else(|| OsString::from(".png"));
+    }
 
     pub fn verify_unchanged(&self, limits: ResourceLimits) -> Result<(), ProcessingError> {
         let current = Self::read(&self.path, limits).map_err(|error| match error {

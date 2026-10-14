@@ -2,6 +2,7 @@
 //! 引擎由可信宿主持有并显式传递；扫描、规划和运行须使用同一共享实例。
 
 use crate::{
+    apng::{ApngError, ApngInfo, ApngLimits, ApngReport, ApngRequest},
     gif::{GifEngine, GifError, GifInfo, GifLimits, GifReport, GifRequest, GifValidationLimits},
     jpeg::{JpegEngine, JpegError, JpegInfo, JpegLimits, JpegMode, JpegReport, JpegRequest},
     model::*,
@@ -20,17 +21,20 @@ pub enum ImageKind {
     Png,
     Jpeg,
     Gif,
+    Apng,
 }
 
 /// 默认仅PNG。JPEG/GIF工具只能由宿主通过对应Engine::load验证后注入。
 #[derive(Clone, Default)]
 pub struct ImageEngines {
+    pub(super) apng: bool,
     pub(super) jpeg: Option<Arc<JpegEngine>>,
     pub(super) gif: Option<Arc<GifEngine>>,
 }
 impl std::fmt::Debug for ImageEngines {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ImageEngines")
+            .field("apng_available", &self.apng)
             .field("jpeg_available", &self.jpeg.is_some())
             .field("gif_available", &self.gif.is_some())
             .finish()
@@ -50,6 +54,7 @@ impl ImageEngines {
             ImageKind::Png => true,
             ImageKind::Jpeg => self.jpeg.is_some(),
             ImageKind::Gif => self.gif.is_some(),
+            ImageKind::Apng => self.apng,
         }
     }
     /// 借用已验证的同一JPEG引擎；用于宿主有界预览，执行仍复查工具身份。
@@ -69,17 +74,24 @@ impl ImageEngines {
     pub fn gif(&self) -> Option<&GifEngine> {
         self.gif.as_deref()
     }
+    /// 显式启用内建APNG；默认服务仍PNG-only，宿主须将同一能力传入扫描/规划/执行。
+    pub fn add_apng(mut self) -> Self {
+        self.apng = true;
+        self
+    }
     pub(super) fn accepts(&self, other: &Self) -> bool {
         let jpeg = match (&self.jpeg, &other.jpeg) {
             (_, None) => true,
             (Some(a), Some(b)) => Arc::ptr_eq(a, b),
             _ => false,
         };
-        jpeg && match (&self.gif, &other.gif) {
-            (_, None) => true,
-            (Some(a), Some(b)) => Arc::ptr_eq(a, b),
-            _ => false,
-        }
+        (!other.apng || self.apng)
+            && jpeg
+            && match (&self.gif, &other.gif) {
+                (_, None) => true,
+                (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+                _ => false,
+            }
     }
 }
 
@@ -113,6 +125,7 @@ pub enum FormatOptions {
     Png(PngMetadataPolicy),
     Jpeg(JpegOptions),
     Gif(GifOptions),
+    Apng(ApngOptions),
 }
 
 /// 冻结的单行请求；limits同时用于预约和实际读取/编码/验证，不接受路径IPC。
@@ -130,6 +143,7 @@ impl ImageRequest {
             FormatOptions::Png(_) => ImageKind::Png,
             FormatOptions::Jpeg(_) => ImageKind::Jpeg,
             FormatOptions::Gif(_) => ImageKind::Gif,
+            FormatOptions::Apng(_) => ImageKind::Apng,
         }
     }
     /// 转为PNG单文件请求；复制参数并共享输出目录句柄，其他格式返回None。
@@ -178,6 +192,17 @@ impl ImageRequest {
             CompressionMode::Lossy { quality } => crate::gif::GifMode::Lossy { quality },
         }
     }
+    /// 全局模式保持在任务快照中；APNG当前总是严格无损，不继承PNG凭据许可。
+    pub fn apng(&self) -> Result<ApngRequest, ApngError> {
+        let FormatOptions::Apng(options) = self.options else {
+            return Err(ApngError::InvalidLimits);
+        };
+        Ok(ApngRequest {
+            source: self.source.clone(),
+            output: self.output.clone(),
+            limits: options.limits(self.limits),
+        })
+    }
 }
 impl From<PngRequest> for ImageRequest {
     fn from(p: PngRequest) -> Self {
@@ -196,6 +221,7 @@ pub enum ImportedImage {
     Png(ImageInfo),
     Jpeg(JpegInfo),
     Gif(GifInfo),
+    Apng(ApngInfo),
 }
 impl ImportedImage {
     pub fn format(&self) -> ImageKind {
@@ -203,6 +229,7 @@ impl ImportedImage {
             Self::Png(_) => ImageKind::Png,
             Self::Jpeg(_) => ImageKind::Jpeg,
             Self::Gif(_) => ImageKind::Gif,
+            Self::Apng(_) => ImageKind::Apng,
         }
     }
 }
@@ -212,6 +239,7 @@ pub enum ImageReport {
     Png(ProcessingReport),
     Jpeg(JpegReport),
     Gif(GifReport),
+    Apng(ApngReport),
 }
 impl ImageReport {
     pub fn input_bytes(&self) -> ByteCount {
@@ -219,6 +247,7 @@ impl ImageReport {
             Self::Png(r) => r.input_bytes,
             Self::Jpeg(r) => r.input_bytes,
             Self::Gif(r) => r.input_bytes,
+            Self::Apng(r) => r.input_bytes,
         }
     }
     pub fn output_bytes(&self) -> ByteCount {
@@ -226,6 +255,7 @@ impl ImageReport {
             Self::Png(r) => r.output_bytes,
             Self::Jpeg(r) => r.output_bytes,
             Self::Gif(r) => r.output_bytes,
+            Self::Apng(r) => r.output_bytes,
         }
     }
     pub fn outcome(&self) -> &ProcessingOutcome {
@@ -233,6 +263,7 @@ impl ImageReport {
             Self::Png(r) => &r.outcome,
             Self::Jpeg(r) => &r.outcome,
             Self::Gif(r) => &r.outcome,
+            Self::Apng(r) => &r.outcome,
         }
     }
     pub fn png(&self) -> Option<&ProcessingReport> {
@@ -252,11 +283,22 @@ pub enum ImageError {
     Png(ProcessingError),
     Jpeg(JpegError),
     Gif(GifError),
+    Apng(ApngError),
 }
 impl ImageError {
     /// 沿清理错误查找实际提交失败留下的备份；不猜测文件名、不执行I/O。
     pub fn recovery_backup(&self) -> Option<&Path> {
         let mut file = match self {
+            Self::Apng(error) => {
+                let mut current = error;
+                loop {
+                    match current {
+                        ApngError::File(error) => break Some(error),
+                        ApngError::Cleanup { original, .. } => current = original,
+                        _ => break None,
+                    }
+                }
+            }
             Self::Gif(error) => {
                 let mut current = Some(error);
                 let mut found = None;
@@ -310,6 +352,7 @@ impl ImageError {
             Self::Png(ProcessingError::Cancelled)
                 | Self::Jpeg(JpegError::Cancelled)
                 | Self::Gif(GifError::Cancelled)
+                | Self::Apng(ApngError::Cancelled)
         )
     }
 }
@@ -328,12 +371,18 @@ impl From<GifError> for ImageError {
         Self::Gif(error)
     }
 }
+impl From<ApngError> for ImageError {
+    fn from(error: ApngError) -> Self {
+        Self::Apng(error)
+    }
+}
 impl std::fmt::Display for ImageError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Png(e) => e.fmt(f),
             Self::Jpeg(e) => e.fmt(f),
             Self::Gif(e) => e.fmt(f),
+            Self::Apng(e) => e.fmt(f),
         }
     }
 }
@@ -343,6 +392,7 @@ impl std::error::Error for ImageError {
             Self::Png(e) => e,
             Self::Jpeg(e) => e,
             Self::Gif(e) => e,
+            Self::Apng(e) => e,
         })
     }
 }
@@ -352,6 +402,37 @@ pub enum QualityMapping {
     Png(PngQualityMapping),
     Jpeg(crate::jpeg::JpegQualityMapping),
     Gif(crate::gif::GifQualityMapping),
+}
+/// APNG冻结专属额度；公共准入收紧值必须用于同一次真实执行。
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ApngOptions {
+    pub limits: ApngLimits,
+}
+impl ApngOptions {
+    pub(crate) fn limits(self, resources: ResourceLimits) -> ApngLimits {
+        let mut limits = self.limits;
+        limits.validation.max_input_bytes = limits
+            .validation
+            .max_input_bytes
+            .min(resources.max_input_bytes.0 as usize);
+        limits.validation.max_candidate_bytes = limits
+            .validation
+            .max_candidate_bytes
+            .min(resources.max_input_bytes.0 as usize);
+        limits.validation.max_canvas_pixels = limits
+            .validation
+            .max_canvas_pixels
+            .min(resources.max_pixels);
+        limits.validation.max_frame_pixels =
+            limits.validation.max_frame_pixels.min(resources.max_pixels);
+        limits.validation.max_dimension =
+            limits.validation.max_dimension.min(resources.max_dimension);
+        limits.validation.max_validation_bytes = limits
+            .validation
+            .max_validation_bytes
+            .min(resources.max_decoded_bytes.0);
+        limits
+    }
 }
 /// GIF格式硬上限与公共资源取较小值，额外约束固定到每行请求。
 #[derive(Debug, Clone, Copy)]

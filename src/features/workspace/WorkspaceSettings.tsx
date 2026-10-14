@@ -88,6 +88,9 @@ export function WorkspaceSettings({
         {view.snapshot?.supportedFormats.includes('gif') && (
           <p className={styles.scope}>{t(lossless ? 'gifPreviewHint' : 'gifLossyHint')}</p>
         )}
+        {view.snapshot?.supportedFormats.includes('apng') && (
+          <p className={styles.scope}>{t('apngHint')}</p>
+        )}
         <section className={styles.quality} aria-labelledby="qualityTitle">
           <div className={styles.qualityHeading}>
             <h3 id="qualityTitle">{t('quality')}</h3>

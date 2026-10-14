@@ -29,6 +29,45 @@ const access = { assets: new TaskAssets(() => null), selectionId: '1', enabled: 
 const page: TaskPageDto = { kind: 'jobs', offset: 0, total: 1, items: [job] };
 
 it.each(['zh-CN', 'en'] as const)(
+  'shows APNG actual lossless and total plays in %s',
+  (language) => {
+    if (job.state.kind !== 'succeeded') throw new Error('fixture');
+    const apng: JobDto = {
+      ...job,
+      format: 'apng',
+      mode: { kind: 'lossy', quality: 80 },
+      state: {
+        kind: 'succeeded',
+        report: {
+          ...job.state.report,
+          processing: {
+            format: 'apng',
+            details: { kind: 'lossless', frames: 2, numPlays: 3, defaultParticipates: false },
+          },
+        },
+      },
+    };
+    render(
+      <WorkspaceRows
+        page={{ kind: 'jobs', offset: 0, total: 1, items: [apng] }}
+        language={language}
+        access={access}
+      />,
+    );
+    expect(screen.getByText('APNG · #1')).toBeVisible();
+    fireEvent.mouseEnter(
+      screen.getByRole('button', { name: language === 'en' ? 'Details' : '详情' }),
+    );
+    const details = screen.getByRole('dialog');
+    expect(details).toHaveTextContent(language === 'en' ? 'Lossless' : '无损优化');
+    expect(details).toHaveTextContent(language === 'en' ? 'Total plays: 3' : '总播放次数: 3');
+    expect(details).toHaveTextContent(
+      language === 'en' ? 'Default image is separate' : '默认图独立于动画',
+    );
+  },
+);
+
+it.each(['zh-CN', 'en'] as const)(
   'shows mixed formats and JPEG fallback honestly in %s',
   (language) => {
     if (job.state.kind !== 'succeeded') throw new Error('fixture');

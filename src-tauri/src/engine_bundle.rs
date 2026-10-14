@@ -19,7 +19,7 @@ pub(crate) fn load(root: Option<&Path>) -> ImageEngines {
             tracing::warn!(target: "pixofold", event = "jpeg_engine_unavailable", error_code = code);
             ImageEngines::default()
         }
-    };
+    }.add_apng();
     let gif = root.ok_or("resource_directory").and_then(|root| {
         gif_bundle::load(root).map_err(|error| match error {
             pixofold_core::gif::GifError::ToolIo { .. } => "tool_io",

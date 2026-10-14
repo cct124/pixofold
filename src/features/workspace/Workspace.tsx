@@ -64,6 +64,7 @@ export function Workspace({
   const snapshot = view.snapshot;
   const jpegAvailable = snapshot?.supportedFormats.includes('jpeg') ?? false;
   const gifAvailable = snapshot?.supportedFormats.includes('gif') ?? false;
+  const apngAvailable = snapshot?.supportedFormats.includes('apng') ?? false;
   const summary = snapshot?.batch?.summary;
   const canChange = controller.canChange;
   const clearable =
@@ -269,7 +270,10 @@ export function Workspace({
                 >
                   GIF
                 </span>
-                <span aria-disabled="true" title={t('formatUnavailable')}>
+                <span
+                  aria-disabled={!apngAvailable}
+                  title={t(apngAvailable ? 'apngHint' : 'formatUnavailable')}
+                >
                   APNG
                 </span>
               </div>
@@ -277,9 +281,12 @@ export function Workspace({
               <p className={styles.dropHint}>{t('emptyHint')}</p>
               <p className={styles.scope}>
                 {t('scope')}
-                {['PNG', ...(jpegAvailable ? ['JPEG'] : []), ...(gifAvailable ? ['GIF'] : [])].join(
-                  ' / ',
-                )}
+                {[
+                  'PNG',
+                  ...(jpegAvailable ? ['JPEG'] : []),
+                  ...(gifAvailable ? ['GIF'] : []),
+                  ...(apngAvailable ? ['APNG'] : []),
+                ].join(' / ')}
                 {t('scopeEnd')}
               </p>
             </div>

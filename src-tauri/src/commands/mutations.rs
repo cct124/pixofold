@@ -167,6 +167,7 @@ pub(crate) fn mutate(
                             limits: batch.parameters.limits,
                             jpeg: batch.parameters.jpeg,
                             gif: batch.parameters.gif,
+                            apng: batch.parameters.apng,
                         },
                     },
                 )
@@ -279,6 +280,7 @@ pub(crate) fn mutate(
                             limits: batch.parameters.limits,
                             jpeg: batch.parameters.jpeg,
                             gif: batch.parameters.gif,
+                            apng: batch.parameters.apng,
                         },
                     },
                 )

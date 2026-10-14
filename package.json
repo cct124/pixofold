@@ -26,6 +26,8 @@
     "apng:fixtures:generate": "node tools/apng-lab/fixtures.mjs",
     "apng:fixtures:check": "node tools/apng-lab/fixtures.mjs --check",
     "apng:lab:check": "node tools/apng-lab.mjs check",
+    "apng:core:check": "node tools/apng-core-check.mjs",
+    "apng:bundle:check": "node tools/gif-bundle-check.mjs",
     "samples:check": "node tools/manual-images.mjs check",
     "samples:prepare": "node tools/manual-images.mjs prepare",
     "gif:fixtures:generate": "node tools/gif-lab/fixtures.mjs",

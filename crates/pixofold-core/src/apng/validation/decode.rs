@@ -195,7 +195,59 @@ fn canvas_hash(canvas: &[[u16; 4]]) -> String {
     }
     format!("{:x}", digest.finalize())
 }
-pub fn inspect(
+
+pub(super) fn preview(
+    p: &Parsed<'_>,
+    input_bytes: usize,
+    limits: &Limits,
+    guard: &Guard<'_>,
+) -> Result<super::super::ApngPreview> {
+    let width = structure::u32_at(p.ihdr, 0);
+    let height = structure::u32_at(p.ihdr, 4);
+    let frame = p.frames.first().ok_or(Error("frame_count"))?;
+    let c = &frame.control;
+    let canvas_pixels = u64::from(width) * u64::from(height);
+    let frame_pixels = u64::from(c.width) * u64::from(c.height);
+    require(
+        frame_pixels <= limits.max_total_pixels,
+        "total_pixel_budget",
+    )?;
+    require(
+        frame_pixels * 25 <= limits.max_decoded_bytes,
+        "decoded_budget",
+    )?;
+    // 共享双解码/严格zlib，先按其最坏缓冲及压缩流副本计费再分配；不解码独立默认图。
+    let bound = canvas_pixels * 4
+        + frame_pixels * 48
+        + input_bytes as u64 * 3
+        + p.frames.len() as u64 * 8192
+        + (1 << 20);
+    require(bound <= limits.max_validation_bytes, "validation_budget")?;
+    let (_, pixels) = decode(p, frame, limits, guard)?;
+    let mut canvas = vec![0; canvas_pixels as usize * 4];
+    for y in 0..c.height {
+        guard.check()?;
+        for x in 0..c.width {
+            let source = pixels[(y * c.width + x) as usize];
+            let value = if c.blend == 0 {
+                source
+            } else {
+                over(source, [0; 4])
+            };
+            let pos = ((y + c.y) * width + x + c.x) as usize * 4;
+            for n in 0..4 {
+                canvas[pos + n] = ((u32::from(value[n]) + 128) / 257) as u8;
+            }
+        }
+    }
+    guard.check()?;
+    Ok(super::super::ApngPreview {
+        width,
+        height,
+        pixels: canvas,
+    })
+}
+pub(super) fn inspect(
     p: &Parsed<'_>,
     input_bytes: usize,
     limits: &Limits,

@@ -4,6 +4,7 @@
 mod directories;
 mod dto;
 pub(crate) use directories::{directory_page, resolve_directory, validate_batch};
+mod apng;
 #[cfg(test)]
 mod directory_tests;
 mod gif;
@@ -218,6 +219,11 @@ impl AssetService {
                     jpeg::decode(&input, &self.engines, &permit.cancel)?
                 } else if input.starts_with(b"GIF87a") || input.starts_with(b"GIF89a") {
                     gif::decode(&input, &permit.cancel)?
+                } else if pixofold_core::apng::has_animation_chunks(&input) {
+                    if !self.engines.supports(pixofold_core::batch::ImageKind::Apng) {
+                        return Err(AssetError::Unavailable);
+                    }
+                    apng::decode(&input, &permit.cancel)?
                 } else {
                     png::decode(&input)?
                 }

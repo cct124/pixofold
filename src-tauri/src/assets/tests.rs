@@ -112,6 +112,26 @@ fn png_variants_decode_to_small_sanitized_previews_without_mutating_input() {
 }
 
 #[test]
+fn apng_preview_uses_animation_not_poster_and_preserves_transparent_canvas() {
+    let bytes = include_bytes!("../../../tests/fixtures/apng/first-over-transparent.apng");
+    let image = apng::decode(bytes, &Default::default()).unwrap();
+    assert_eq!((image.width, image.height), (2, 1));
+    let mut reader = ::png::Decoder::new(Cursor::new(image.png))
+        .read_info()
+        .unwrap();
+    let mut pixels = vec![0; reader.output_buffer_size().unwrap()];
+    reader.next_frame(&mut pixels).unwrap();
+    assert_eq!(pixels, [0, 0, 0, 0, 255, 0, 0, 128]);
+    assert!(
+        apng::decode(
+            include_bytes!("../../../tests/fixtures/apng/metadata-iCCP.apng"),
+            &Default::default()
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn preview_applies_all_eight_orientations_without_a_second_full_size_buffer() {
     let original = [1, 2, 3, 4, 5, 6];
     let expected = [

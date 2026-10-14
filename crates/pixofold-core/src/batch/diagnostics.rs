@@ -12,6 +12,7 @@ impl ImageRequest {
             ImageKind::Png => "png",
             ImageKind::Jpeg => "jpeg",
             ImageKind::Gif => "gif",
+            ImageKind::Apng => "apng",
         }
     }
     pub(super) fn log_mode(&self) -> &'static str {
@@ -35,6 +36,7 @@ impl ImageReport {
             Self::Png(r) => png(r.processing),
             Self::Jpeg(r) => jpeg(r.processing),
             Self::Gif(r) => gif(r.processing),
+            Self::Apng(_) => ("lossless", "none"),
         }
     }
 }

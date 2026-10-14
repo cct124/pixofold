@@ -55,6 +55,20 @@ function JobResult({ job, language }: { job: JobDto; language: Language }) {
               {t('outputName')}: <Name value={state.report.outputName} t={t} />
             </small>
           )}
+          {state.report.processing.format === 'apng' && (
+            <small>
+              {t('gifFrames')}: {state.report.processing.details.frames} · {t('apngPlays')}:{' '}
+              {state.report.processing.details.numPlays === 0
+                ? t('gifInfiniteLoop')
+                : state.report.processing.details.numPlays}
+              {' · '}
+              {t(
+                state.report.processing.details.defaultParticipates
+                  ? 'apngDefaultIncluded'
+                  : 'apngDefaultSeparate',
+              )}
+            </small>
+          )}
           {state.report.backupName && (
             <small>
               {t('backup')}: <Name value={state.report.backupName} t={t} />

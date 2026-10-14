@@ -15,6 +15,8 @@ const failures = {
   unsupported_content_credentials: true,
   unsupported_jpeg_credentials: true,
   unsupported_gif_mode: true,
+  unsupported_apng: true,
+  unsupported_apng_metadata: true,
   unsupported_metadata: true,
   resource_limit: true,
   decode: true,
@@ -76,8 +78,10 @@ function report(job: JobDto): void {
   const details = value.details;
   requireContract(['lossless', 'lossy', 'lossless_fallback'].includes(details.kind));
   if (details.kind === 'lossless') {
-    // GIF允许有损请求实际得到严格无损（q100或候选像素完全等价）。
-    requireContract(value.format === 'gif' || job.mode.kind === 'lossless');
+    // GIF可实际无损；APNG当前在所有请求模式下均保持严格无损。
+    requireContract(
+      value.format === 'gif' || value.format === 'apng' || job.mode.kind === 'lossless',
+    );
   } else {
     requireContract(
       job.mode.kind === 'lossy' &&
@@ -116,6 +120,20 @@ function report(job: JobDto): void {
     );
     const loops = value.details.loopCount;
     requireContract(loops === null || (Number.isInteger(loops) && loops >= 0 && loops <= 65535));
+  } else if (value.format === 'apng') {
+    requireContract(value.details.kind === 'lossless');
+    requireContract(job.state.report.contentCredentialsRemoved === false);
+    requireContract(
+      Number.isInteger(value.details.frames) &&
+        value.details.frames > 0 &&
+        value.details.frames <= 256,
+    );
+    requireContract(
+      Number.isInteger(value.details.numPlays) &&
+        value.details.numPlays >= 0 &&
+        value.details.numPlays <= 0xffffffff,
+    );
+    requireContract(typeof value.details.defaultParticipates === 'boolean');
   } else {
     if (value.details.kind === 'lossy') requireContract(quality(value.details.measuredQuality));
     if (value.details.kind === 'lossless_fallback') {
@@ -128,13 +146,15 @@ function report(job: JobDto): void {
   }
 }
 
-/** v12格式边界：GIF区分请求与实际路径，JPEG/GIF不继承PNG凭据许可。 */
+/** v13格式边界：APNG实际无损；JPEG/GIF/APNG不继承PNG凭据许可。 */
 export function validateImages(snapshot: TaskSnapshotDto): void {
   const formats = snapshot.supportedFormats;
-  requireContract(Array.isArray(formats) && formats.length >= 1 && formats.length <= 3);
+  requireContract(Array.isArray(formats) && formats.length >= 1 && formats.length <= 4);
   requireContract(formats.includes('png') && new Set(formats).size === formats.length);
   requireContract(
-    formats.every((format) => format === 'png' || format === 'jpeg' || format === 'gif'),
+    formats.every(
+      (format) => format === 'png' || format === 'jpeg' || format === 'gif' || format === 'apng',
+    ),
   );
   if (snapshot.error?.code === 'file') failure(snapshot.error.failure);
   const page = snapshot.page;

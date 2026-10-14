@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 
 pub(super) const MAX_PAGE_SIZE: u16 = 100;
 pub(super) const MAX_DISPLAY_CHARS: usize = 240;
-// v12增加GIF有损/回退报告并区分请求与实际模式；旧页面须更新重载，ACK/背压沿用。
-pub(crate) const TASK_PROTOCOL_VERSION: u32 = 12;
+// v13增加APNG能力、无损报告与专属拒绝；旧页面须更新重载，ACK/背压沿用。
+pub(crate) const TASK_PROTOCOL_VERSION: u32 = 13;
 
 /// 无符号64位十进制字符串；拒绝数字JSON、符号、空白、前导零及溢出。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -171,6 +171,7 @@ pub(crate) enum ImageKindDto {
     Png,
     Jpeg,
     Gif,
+    Apng,
 }
 impl TryFrom<pixofold_core::batch::ImageKind> for ImageKindDto {
     type Error = QueryError;
@@ -179,6 +180,7 @@ impl TryFrom<pixofold_core::batch::ImageKind> for ImageKindDto {
             pixofold_core::batch::ImageKind::Png => Ok(Self::Png),
             pixofold_core::batch::ImageKind::Jpeg => Ok(Self::Jpeg),
             pixofold_core::batch::ImageKind::Gif => Ok(Self::Gif),
+            pixofold_core::batch::ImageKind::Apng => Ok(Self::Apng),
         }
     }
 }
@@ -202,6 +204,8 @@ pub(crate) enum JobErrorDto {
     UnsupportedContentCredentials,
     UnsupportedJpegCredentials,
     UnsupportedGifMode,
+    UnsupportedApng,
+    UnsupportedApngMetadata,
     UnsupportedMetadata,
     ResourceLimit,
     Decode,
@@ -227,6 +231,8 @@ impl TryFrom<pixofold_core::batch::JobErrorCode> for JobErrorDto {
             C::InvalidInput => Self::InvalidInput,
             C::UnsupportedFormat => Self::UnsupportedFormat,
             C::UnsupportedAnimation => Self::UnsupportedAnimation,
+            C::UnsupportedApng => Self::UnsupportedApng,
+            C::UnsupportedApngMetadata => Self::UnsupportedApngMetadata,
             C::UnsupportedContentCredentials => Self::UnsupportedContentCredentials,
             C::UnsupportedMetadata => Self::UnsupportedMetadata,
             C::ResourceLimit => Self::ResourceLimit,
@@ -481,6 +487,22 @@ pub(crate) enum GifFallbackDto {
     InsufficientGain,
 }
 
+/// APNG播放次数为总次数，0为无限；独立默认图与动画首帧明确区分。
+#[derive(Debug, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) enum ApngProcessingDto {
+    Lossless {
+        frames: u32,
+        num_plays: u32,
+        default_participates: bool,
+    },
+}
+
 /// 格式是可辨识联合的一部分；请求模式和实际路径分别表达，不跨格式解释质量数值。
 #[derive(Debug, Serialize)]
 #[serde(tag = "format", content = "details", rename_all = "snake_case")]
@@ -489,6 +511,7 @@ pub(crate) enum ProcessingDto {
     Png(PngProcessingDto),
     Jpeg(JpegProcessingDto),
     Gif(GifProcessingDto),
+    Apng(ApngProcessingDto),
 }
 
 #[derive(Debug, Serialize)]
@@ -675,6 +698,7 @@ pub(super) fn declarations() -> String {
         JpegProcessingDto,
         GifProcessingDto,
         GifFallbackDto,
+        ApngProcessingDto,
         ProcessingDto,
         ReportDto,
         ConfirmationDto,

@@ -128,9 +128,13 @@ const identity = {
       'tools/apng-lab.mjs',
       'tools/apng-lab/fixtures.mjs',
       'crates/pixofold-core/examples/apng_experiment.rs',
-      ...['mod', 'structure', 'decode', 'memory', 'tests'].map(
+      ...['mod', 'memory', 'tests'].map(
         (n) => 'crates/pixofold-core/examples/apng_lab/' + n + '.rs',
       ),
+      ...['mod', 'structure', 'decode'].map(
+        (n) => 'crates/pixofold-core/src/apng/validation/' + n + '.rs',
+      ),
+      ...['mod', 'model', 'pipeline'].map((n) => 'crates/pixofold-core/src/apng/' + n + '.rs'),
     ].map((file) => [file, digest(readFileSync(path.join(root, file)))]),
   ),
 };

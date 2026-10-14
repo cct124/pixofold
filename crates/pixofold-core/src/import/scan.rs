@@ -65,6 +65,7 @@ pub fn scan_with_engines(
         || options.probe_limits.validate().is_err()
         || (engines.supports(ImageKind::Jpeg) && options.jpeg_limits.validate().is_err())
         || (engines.supports(ImageKind::Gif) && options.gif_limits.validate().is_err())
+        || (engines.supports(ImageKind::Apng) && options.apng_limits.check().is_err())
     {
         return Err(ImportError::InvalidOptions);
     }
@@ -244,7 +245,21 @@ impl<F: FnMut(&ScanProgress)> Scanner<'_, F> {
         if !self.running() {
             return Ok(());
         }
-        let image = if bytes.starts_with(SIGNATURE) {
+        let image = if bytes.starts_with(SIGNATURE)
+            && self.report.engines.supports(ImageKind::Apng)
+            && crate::apng::has_animation_chunks(&bytes)
+        {
+            match crate::apng::inspect_structure(&bytes, self.options.apng_limits, self.cancel) {
+                Ok(info) => ImportedImage::Apng(info),
+                Err(error) => {
+                    self.issue(
+                        path,
+                        ImportIssueKind::Failure(JobFailure::image(error.into())),
+                    );
+                    return Ok(());
+                }
+            }
+        } else if bytes.starts_with(SIGNATURE) {
             ImportedImage::Png(probe::inspect_structure(&bytes, self.options.probe_limits)?)
         } else if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
             let extension = path

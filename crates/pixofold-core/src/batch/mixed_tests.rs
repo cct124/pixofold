@@ -40,10 +40,12 @@ impl Runner for GateRunner {
                 ImageKind::Png => ProcessingError::Cancelled.into(),
                 ImageKind::Jpeg => JpegError::Cancelled.into(),
                 ImageKind::Gif => crate::gif::GifError::Cancelled.into(),
+                ImageKind::Apng => crate::apng::ApngError::Cancelled.into(),
             });
         }
         let bytes = ByteCount(fs::metadata(&request.source).unwrap().len());
         Ok(match request.format() {
+            ImageKind::Apng => return Err(crate::apng::ApngError::ValidationFailed.into()),
             ImageKind::Gif => return Err(crate::gif::GifError::UnsupportedGif.into()),
             ImageKind::Jpeg => ImageReport::Jpeg(JpegReport {
                 image: JpegInfo {
@@ -106,7 +108,8 @@ impl Harness {
         let engines = ImageEngines::with_jpeg(
             JpegEngine::load(dir.path(), Sha256::digest(bytes).into()).unwrap(),
         )
-        .add_gif(crate::gif::GifEngine::load(dir.path(), Sha256::digest(bytes).into()).unwrap());
+        .add_gif(crate::gif::GifEngine::load(dir.path(), Sha256::digest(bytes).into()).unwrap())
+        .add_apng();
         let (send, entered) = mpsc::channel();
         let runner = Arc::new(GateRunner {
             entered: send,
@@ -142,9 +145,16 @@ impl Harness {
                         ImageKind::Png => "png",
                         ImageKind::Jpeg => "jpg",
                         ImageKind::Gif => "gif",
+                        ImageKind::Apng => "apng",
                     }
                 ));
-                let bytes = if format == ImageKind::Gif {
+                let bytes = if format == ImageKind::Apng {
+                    fs::read(
+                        Path::new(env!("CARGO_MANIFEST_DIR"))
+                            .join("../../tests/fixtures/apng/split-data.apng"),
+                    )
+                    .unwrap()
+                } else if format == ImageKind::Gif {
                     fs::read(
                         Path::new(env!("CARGO_MANIFEST_DIR"))
                             .join("../../tests/fixtures/gif/static87.gif"),
@@ -257,7 +267,12 @@ fn gif_growth_after_admission_uses_frozen_limits_and_format_replacement_is_rejec
 #[test]
 fn mixed_jobs_share_workers_and_cancellation_retains_reservations_until_return() {
     let h = Harness::new(512 * 1024 * 1024, false);
-    let mut request = h.request(&[ImageKind::Gif, ImageKind::Jpeg, ImageKind::Png]);
+    let mut request = h.request(&[
+        ImageKind::Apng,
+        ImageKind::Gif,
+        ImageKind::Jpeg,
+        ImageKind::Png,
+    ]);
     request.parameters.mode = PngMode::Lossy {
         quality: QualityValue::new(80).unwrap(),
     };
@@ -266,7 +281,7 @@ fn mixed_jobs_share_workers_and_cancellation_retains_reservations_until_return()
     let b = h.entered();
     assert_ne!(a.format(), b.format());
     let active = h.service.snapshot().unwrap();
-    assert_eq!((active.active_workers, active.summary.queued), (2, 1));
+    assert_eq!((active.active_workers, active.summary.queued), (2, 2));
     h.service.cancel(id).unwrap();
     let cancelling = h.service.snapshot().unwrap();
     assert_eq!(cancelling.phase, BatchPhase::Cancelling);
@@ -276,7 +291,7 @@ fn mixed_jobs_share_workers_and_cancellation_retains_reservations_until_return()
     );
     h.runner.release(2);
     let done = h.service.wait(id, WAIT).unwrap();
-    assert_eq!(done.summary.cancelled, 3);
+    assert_eq!(done.summary.cancelled, 4);
     assert_eq!((done.active_workers, done.reserved_working_bytes.0), (0, 0));
 }
 
@@ -375,6 +390,41 @@ struct ProcessRunner {
     timeout: Duration,
     events: mpsc::Sender<crate::jpeg::ProcessEvent>,
     hold_reaped: bool,
+}
+
+#[test]
+fn apng_actual_execution_keeps_frozen_size_and_dimensions_after_source_changes() {
+    for sample in ["rgba16.apng", "metadata.apng"] {
+        let h = Harness::new(256 << 20, true);
+        let id = h.service.start(h.request(&[ImageKind::Apng])).unwrap();
+        let executing = h.entered();
+        let apng = executing.apng().unwrap();
+        let active = h.service.snapshot().unwrap();
+        assert_eq!(
+            active.reserved_working_bytes,
+            apng.limits
+                .working_set(apng.limits.validation.max_canvas_pixels)
+                .unwrap()
+        );
+        // 可信头仅用于收紧预约；排队后修改IHDR并重算CRC仍不能扩大实际额度。
+        let mut bytes = fs::read(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/apng")
+                .join(sample),
+        )
+        .unwrap();
+        bytes[16..20].copy_from_slice(&8192u32.to_be_bytes());
+        let crc = crc32fast::hash(&bytes[12..29]);
+        bytes[29..33].copy_from_slice(&crc.to_be_bytes());
+        fs::write(&executing.source, &bytes).unwrap();
+        h.runner.release(1);
+        let done = h.service.wait(id, WAIT).unwrap();
+        assert!(
+            matches!(&done.jobs[0].state, JobState::Failed(f) if f.code == JobErrorCode::ResourceLimit)
+        );
+        assert_eq!(done.reserved_working_bytes.0, 0);
+        assert_eq!(fs::read(&executing.source).unwrap(), bytes);
+    }
 }
 
 #[test]

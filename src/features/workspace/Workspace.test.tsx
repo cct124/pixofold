@@ -181,11 +181,23 @@ function credentialsSnapshot(count = 2): TaskSnapshotDto {
 }
 
 describe('native drop import workflow', () => {
+  it('enables built-in APNG independently and explains lossless in either mode', async () => {
+    current.supportedFormats = ['png', 'apng'];
+    await mount();
+    expect(screen.getByText('APNG')).toHaveAttribute('aria-disabled', 'false');
+    expect(screen.getByText('GIF')).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByText('当前可处理：PNG / APNG。')).toBeVisible();
+    const hint = 'APNG 始终按无损处理，不受质量设置影响；缩略图仅展示动画首帧。';
+    expect(screen.getByText(hint)).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: '无损优化' }));
+    expect(screen.getByText(hint)).toBeVisible();
+    expect(writes()).toHaveLength(0);
+  });
   it('uses configured capabilities and preserves mixed mode across reconnection', async () => {
     current.supportedFormats = ['png', 'jpeg'];
     await mount();
     expect(screen.getByText('JPEG')).toHaveAttribute('aria-disabled', 'false');
-    expect(screen.getByText('当前可处理：PNG / JPEG；APNG 尚未接入。')).toBeVisible();
+    expect(screen.getByText('当前可处理：PNG / JPEG。')).toBeVisible();
     await act(async () => controller.reconnect());
     await waitFor(() => expect(controller.getSnapshot().connection).toBe('connected'));
     expect(screen.getByText('JPEG')).toHaveAttribute('aria-disabled', 'false');

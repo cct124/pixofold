@@ -42,9 +42,9 @@ jobs:
         run: pnpm tauri build --no-bundle --ci
       - name: Verify bundled JPEG outside development environment
         run: pnpm jpeg:bundle:check
-      - name: Verify bundled GIF and desktop PNG JPEG GIF workflow
+      - name: Verify bundled GIF APNG and desktop four-format workflow
         run: pnpm gif:bundle:check
-      - name: Retain bundled GIF and mixed desktop evidence
+      - name: Retain bundled GIF APNG and mixed desktop evidence
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
@@ -142,11 +142,15 @@ jobs:
         run: rustup show
       - name: Check corpus, independent playback and strict lossless candidates
         run: node tools/apng-lab.mjs check
+      - name: Check APNG core and safe file output
+        run: node tools/apng-core-check.mjs
       - name: Retain APNG evidence and source licenses
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: apng-lab-${{ matrix.os }}
-          path: target/apng-lab-*/
+          path: |
+            target/apng-lab-*/
+            target/apng-core-*/
           if-no-files-found: ignore
           retention-days: 14

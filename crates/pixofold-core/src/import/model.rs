@@ -21,6 +21,8 @@ pub struct ScanOptions {
     pub jpeg_limits: JpegLimits,
     /// GIF完整结构/帧预算；扫描只读结构，像素有效性仍由执行阶段独立验证。
     pub gif_limits: crate::gif::GifLimits,
+    /// APNG仅作结构预检；完整像素和累计工作量由执行阶段验证。
+    pub apng_limits: crate::apng::ApngLimits,
     /// 显式选择true才包含PixoFold保留名的临时/备份文件；普通_compressed图片不排除。
     pub include_artifacts: bool,
 }
@@ -38,6 +40,7 @@ impl Default for ScanOptions {
             probe_limits: ResourceLimits::default(),
             jpeg_limits: JpegLimits::default(),
             gif_limits: crate::gif::GifLimits::default(),
+            apng_limits: crate::apng::ApngLimits::default(),
             include_artifacts: false,
         }
     }
@@ -179,7 +182,7 @@ impl fmt::Display for ImportError {
             Self::InvalidOptions => "导入资源配置无效",
             Self::TooManyRoots => "导入根数量超出上限",
             Self::IncompleteScan => "扫描未完整结束，不能启动部分批次",
-            Self::NoFiles => "没有可处理的静态PNG候选",
+            Self::NoFiles => "没有可处理的图片候选",
             Self::RootNameConflict { .. } => "不同导入根映射到同名目标文件夹",
             Self::Batch(_) => "批次参数或路径规划冲突",
             Self::File { .. } => "候选文件或输出路径预检失败",

@@ -3,6 +3,7 @@
 use super::dto::*;
 use crate::tasks::{TaskError, TaskSnapshot};
 use pixofold_core::{
+    apng::ApngError,
     batch::*,
     gif::{
         GifError, GifFallbackReason, GifMode, GifProcessing, GifQualityMapping, GifReport,
@@ -128,6 +129,25 @@ fn gif_cause(error: &GifError) -> RecoveryCauseDto {
     RecoveryCauseDto::Failed { code }
 }
 
+fn apng_cause(error: &ApngError) -> RecoveryCauseDto {
+    let code = match error {
+        ApngError::InvalidLimits => JobErrorDto::InvalidInput,
+        ApngError::ResourceLimit(_) => JobErrorDto::ResourceLimit,
+        ApngError::Validation(e) => match e.0 {
+            "signature" | "unsupported_representation" => JobErrorDto::UnsupportedApng,
+            "unsupported_metadata" => JobErrorDto::UnsupportedApngMetadata,
+            "decode" => JobErrorDto::Decode,
+            _ => JobErrorDto::InvalidInput,
+        },
+        ApngError::Encoding(_) => JobErrorDto::Encode,
+        ApngError::ValidationFailed => JobErrorDto::Validation,
+        ApngError::Cancelled => return RecoveryCauseDto::Cancelled,
+        ApngError::Timeout => JobErrorDto::TimedOut,
+        ApngError::File(error) => return recovery_cause(error),
+        ApngError::Cleanup { .. } => JobErrorDto::CleanupFailed,
+    };
+    RecoveryCauseDto::Failed { code }
+}
 fn failure(value: &JobFailure) -> Result<JobFailureDto> {
     let mut recovery = RecoveryDto {
         backup_name: None,
@@ -135,6 +155,29 @@ fn failure(value: &JobFailure) -> Result<JobFailureDto> {
         original_error: None,
     };
     let mut cause = value.cause.as_deref().and_then(ImageError::png);
+    if let Some(ImageError::Apng(error)) = value.cause.as_deref() {
+        let mut current = error;
+        loop {
+            match current {
+                ApngError::File(error) => {
+                    cause = Some(error);
+                    break;
+                }
+                ApngError::Cleanup {
+                    temporary,
+                    original,
+                    ..
+                } => {
+                    if recovery.temporary_name.is_none() {
+                        recovery.temporary_name = Some(name(temporary));
+                    }
+                    recovery.original_error = Some(apng_cause(original));
+                    current = original;
+                }
+                _ => break,
+            }
+        }
+    }
     if let Some(ImageError::Jpeg(error)) = value.cause.as_deref() {
         let mut current = Some(error);
         while let Some(error) = current {
@@ -398,6 +441,19 @@ fn gif_processing(report: &GifReport) -> Result<GifProcessingDto> {
 }
 fn report(value: &ImageReport) -> Result<ReportDto> {
     let (elapsed, processing) = match value {
+        ImageReport::Apng(report) => {
+            if report.image.frames == 0 {
+                return Err(QueryError::InvalidSnapshot);
+            }
+            (
+                report.elapsed,
+                ProcessingDto::Apng(ApngProcessingDto::Lossless {
+                    frames: report.image.frames,
+                    num_plays: report.image.num_plays,
+                    default_participates: report.image.default_participates,
+                }),
+            )
+        }
         ImageReport::Gif(report) => (report.elapsed, ProcessingDto::Gif(gif_processing(report)?)),
         ImageReport::Png(report) => (
             report.elapsed,
@@ -428,6 +484,17 @@ fn report(value: &ImageReport) -> Result<ReportDto> {
     })
 }
 fn job(value: &JobSnapshot) -> Result<JobDto> {
+    if let JobState::Succeeded(report) | JobState::NoGain(report) = &value.state {
+        let format = match report {
+            ImageReport::Png(_) => ImageKind::Png,
+            ImageReport::Jpeg(_) => ImageKind::Jpeg,
+            ImageReport::Gif(_) => ImageKind::Gif,
+            ImageReport::Apng(_) => ImageKind::Apng,
+        };
+        if format != value.request.format() {
+            return Err(QueryError::InvalidSnapshot);
+        }
+    }
     if let JobState::Succeeded(ImageReport::Gif(report))
     | JobState::NoGain(ImageReport::Gif(report)) = &value.state
     {
@@ -532,6 +599,7 @@ pub(super) fn snapshot(value: &TaskSnapshot, request: &TaskPageRequest) -> Resul
                     let file = &files[index];
                     let (width, height) = match &file.image {
                         ImportedImage::Png(image) => (image.width, image.height),
+                        ImportedImage::Apng(image) => (image.width, image.height),
                         ImportedImage::Jpeg(image) => (image.width, image.height),
                         ImportedImage::Gif(image) => {
                             (u32::from(image.width), u32::from(image.height))

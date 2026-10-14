@@ -1,4 +1,5 @@
 use super::*;
+use pixofold_core::model::CancellationToken;
 use serde_json::{Value, json};
 use std::{fs, path::PathBuf};
 fn fixtures() -> PathBuf {

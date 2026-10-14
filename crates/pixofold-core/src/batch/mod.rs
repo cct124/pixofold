@@ -205,6 +205,14 @@ impl Runner for PipelineRunner {
         stage: &mut dyn FnMut(ProcessingStage),
     ) -> Result<ImageReport, ImageError> {
         match &request.options {
+            FormatOptions::Apng(_) => {
+                if !self.0.supports(ImageKind::Apng) {
+                    return Err(crate::apng::ApngError::InvalidLimits.into());
+                }
+                crate::apng::optimize_apng(&request.apng()?, cancel, stage)
+                    .map(ImageReport::Apng)
+                    .map_err(ImageError::Apng)
+            }
             FormatOptions::Gif(_) => {
                 let gif = request.gif()?;
                 let engine = self
@@ -529,6 +537,12 @@ impl BatchService {
             requests[i].mode = request.parameters.mode;
             requests[i].limits = request.parameters.limits;
             requests[i].options = match requests[i].options {
+                FormatOptions::Apng(_) => {
+                    if !matches!(retry.metadata, PngMetadataPolicy::Preserve) {
+                        return Err(BatchError::InvalidRetry);
+                    }
+                    FormatOptions::Apng(request.parameters.apng)
+                }
                 FormatOptions::Gif(_) => {
                     if !matches!(retry.metadata, PngMetadataPolicy::Preserve) {
                         return Err(BatchError::InvalidRetry);

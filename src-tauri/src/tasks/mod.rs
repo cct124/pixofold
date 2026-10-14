@@ -317,10 +317,15 @@ impl TaskRuntime {
         engines: ImageEngines,
     ) -> Result<Self, TaskError> {
         let service = BatchService::with_engines(config.batch, engines.clone())?;
-        let supported_formats = [ImageKind::Png, ImageKind::Jpeg, ImageKind::Gif]
-            .into_iter()
-            .filter(|format| engines.supports(*format))
-            .collect();
+        let supported_formats = [
+            ImageKind::Png,
+            ImageKind::Jpeg,
+            ImageKind::Gif,
+            ImageKind::Apng,
+        ]
+        .into_iter()
+        .filter(|format| engines.supports(*format))
+        .collect();
         let shared = Arc::new(Shared {
             engines,
             state: Mutex::new(State {

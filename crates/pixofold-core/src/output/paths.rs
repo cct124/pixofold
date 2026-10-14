@@ -115,12 +115,17 @@ pub(crate) fn is_artifact(path: &Path) -> bool {
     {
         return true;
     }
-    let original_suffix = [b".jpg".as_slice(), b".jpeg".as_slice(), b".gif".as_slice()]
-        .into_iter()
-        .find(|suffix| {
-            name.len() >= suffix.len()
-                && name[name.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
-        });
+    let original_suffix = [
+        b".jpg".as_slice(),
+        b".jpeg".as_slice(),
+        b".gif".as_slice(),
+        b".png".as_slice(),
+        b".apng".as_slice(),
+    ]
+    .into_iter()
+    .find(|suffix| {
+        name.len() >= suffix.len() && name[name.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
+    });
     let Some(stem) = name
         .strip_suffix(b".png")
         .or_else(|| original_suffix.map(|s| &name[..name.len() - s.len()]))

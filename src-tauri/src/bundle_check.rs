@@ -31,6 +31,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod apng;
 mod gif_lossy;
 mod profile;
 pub use profile::profile;
@@ -183,13 +184,15 @@ pub fn verify(engines: ImageEngines, samples: &Path, root: &Path) -> Result<Valu
     let selection = control.import(vec![inputs.clone()], None)?;
     phase(&control, TaskPhase::Ready)?;
     let candidates = query(&control, "candidates")?;
+    let mut expected_formats = vec!["png", "jpeg"];
+    if with_gif {
+        expected_formats.push("gif");
+    }
+    if engines.supports(ImageKind::Apng) {
+        expected_formats.push("apng");
+    }
     require(
-        candidates["supportedFormats"]
-            == if with_gif {
-                json!(["png", "jpeg", "gif"])
-            } else {
-                json!(["png", "jpeg"])
-            },
+        candidates["supportedFormats"] == json!(expected_formats),
         "能力未贯通",
     )?;
     let candidate_rows = candidates["page"]["items"].as_array().ok_or("候选页无效")?;
@@ -324,6 +327,7 @@ pub fn verify(engines: ImageEngines, samples: &Path, root: &Path) -> Result<Valu
                 ImageKind::Png => "png",
                 ImageKind::Jpeg => "jpeg",
                 ImageKind::Gif => "gif",
+                ImageKind::Apng => "apng",
             };
             if let ImageReport::Gif(gif) = report {
                 let comparison = compare_gif(
@@ -346,6 +350,7 @@ pub fn verify(engines: ImageEngines, samples: &Path, root: &Path) -> Result<Valu
                 ImageReport::Gif(r) => !matches!(r.processing, GifProcessing::Lossy { .. }),
                 ImageReport::Jpeg(r) => !matches!(r.processing, JpegProcessing::Lossy { .. }),
                 ImageReport::Png(_) => false,
+                ImageReport::Apng(_) => true,
             };
             outputs.push(json!({"file":format!("mixed/{name}"), "source":format!("inputs/{name}"), "lossless":lossless, "format":format}));
         }
@@ -532,6 +537,11 @@ pub fn verify(engines: ImageEngines, samples: &Path, root: &Path) -> Result<Valu
     } else {
         None
     };
+    let apng = if engines.supports(ImageKind::Apng) {
+        Some(apng::verify(&control, &service, samples, root)?)
+    } else {
+        None
+    };
     service.close();
     service.wait_idle();
     runtime.shutdown()?;
@@ -540,7 +550,7 @@ pub fn verify(engines: ImageEngines, samples: &Path, root: &Path) -> Result<Valu
         "应用任务未安全关闭",
     )?;
     Ok(
-        json!({"result":"passed", "protocolVersion":ipc::TASK_PROTOCOL_VERSION, "previews":previews, "outputs":outputs, "mixedRetry":true, "noGain":true, "allConflicts":true, "backup":true, "shutdown":true, "gifLossy":gif_lossy}),
+        json!({"result":"passed", "protocolVersion":ipc::TASK_PROTOCOL_VERSION, "previews":previews, "outputs":outputs, "mixedRetry":true, "noGain":true, "allConflicts":true, "backup":true, "shutdown":true, "gifLossy":gif_lossy, "apng":apng}),
     )
 }
 
@@ -551,6 +561,7 @@ pub fn capabilities(resource_root: &Path) -> Vec<&'static str> {
         (ImageKind::Png, "png"),
         (ImageKind::Jpeg, "jpeg"),
         (ImageKind::Gif, "gif"),
+        (ImageKind::Apng, "apng"),
     ]
     .into_iter()
     .filter_map(|(kind, name)| engines.supports(kind).then_some(name))
