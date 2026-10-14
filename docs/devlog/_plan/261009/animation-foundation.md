@@ -1,7 +1,7 @@
 # 动画验证底座与GIF最小实验
 
 - 创建日期：2026-10-09（Asia/Shanghai）。
-- 状态：截至2026-10-14，dev/2f21a50上的L0/A1/A2已完成Windows本机交付：受控日志、83项语料/11组比较、135组APNG无损实验、统一检查及真实三格式回归通过，尚未提交推送；详见末节。既有b351c27三平台9 jobs、GIF v12 Windows包及用户手测日志形成前阶段基线。APNG尚未进入生产，下一入口A3；新SHA平台、A4及其他发行环境独立验收，完整动画任务继续活动。
+- 状态：截至2026-10-14，L0/A1/A2已完成Windows本机交付并提交7555823推送origin/dev：受控日志、83项语料/11组比较、135组APNG无损实验、统一检查及真实三格式回归通过；详见末节。既有b351c27三平台9 jobs、GIF v12 Windows包及用户手测日志形成前阶段基线。APNG尚未进入生产，下一入口A3；新SHA平台、A4及其他发行环境独立验收，完整动画任务继续活动。
 - 分支/基准：dev/0f4fcfd0825f51542d5d2658da600d21e0174350，业务a21d330，开工本地/远端一致且工作区干净。
 - 关联：[阶段计划](../260930/next-development-plan.md)、[J2桌面混合工作流](jpeg-desktop-workflow.md)、[项目方案](../../../架构设计文档/pixofold-proposal.md)。
 
@@ -654,5 +654,5 @@ A/B稳定后接GIF桌面闭环：可信资源prepare/打包与加载、supported
 - pnpm check通过，日志target/apng-unified-check-261014.log：前端15文件/163测试，Rust合计275项测试及2项doctest，格式、lint、类型、83项APNG/既有PNG/GIF/32份公开原件与许可、生成类型、全workspace Clippy通过。包含9项日志事件/隐私/真实worker回归及构建来源的脏/缺失/不匹配拒绝测试。最终APNG额度/CLI收尾后已重跑apng:lab:check，并复验format:check、lint、全workspace Clippy，日志target/apng-final-*-261014.log均通过。
 - pnpm gif:core:check通过，日志target/apng-three-format-regression-261014.log，证据target/gif-core-tB9hxf/：GIF真实核心25收益/2无收益及2压力图、有损质量/两类回退/原图安全/提交竞争、PNG/JPEG/GIF真实混批通过。已有v12 DTO及前端未改变，未要求重复用户已完成的GUI手测。
 - 三平台新增APNG job与artifact上传已配置，尚无本批新SHA的远端运行证据。未构建新Windows MSI、未进行新安装/GUI/外部播放验收；本批交付为实验与诊断源码，APNG仍不出现在生产supportedFormats。
-- 当前分支dev、HEAD/origin/dev仍为2f21a50；本批代码、语料、CI、许可与说明均为本机未提交修改。未提交、未推送，完整动画任务保持活动。下一入口为A3：沿已证明范围接APNG无损单文件和候选落盘复验/安全输出，覆盖备份、冲突、源变化、取消与NoGain，再做A4批量预算/协议/预览/桌面与新MSI。
+- 开工基准为dev/2f21a50；本批代码、语料、CI、许可与说明已提交7555823并同步origin/dev（2f21a50..7555823）。完整动画任务保持活动。下一入口为A3：沿已证明范围接APNG无损单文件和候选落盘复验/安全输出，覆盖备份、冲突、源变化、取消与NoGain，再做A4批量预算/协议/预览/桌面与新MSI。
 - 最终交接核对：target/apng-delivery-audit-261014.mjs确认8份文档/199个本地链接、NUL及尾随空白、8份实验配方哈希、Cargo.lock及二进制哈希与最终报告一致；清单实际为83项/11组比较（已更正实施过程中的12组误计）。git diff --check通过，实验报告/日志受target忽略保护。
