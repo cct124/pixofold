@@ -1,7 +1,7 @@
 # 动画验证底座与GIF最小实验
 
 - 创建日期：2026-10-09（Asia/Shanghai）。
-- 状态：截至2026-10-14，A3/A4 APNG严格无损核心、安全输出、四格式批量/资源预算、v13报告/预览/桌面及Windows新MSI已完成本机交付，未提交推送。167前端/300 Rust/2 doctest、45项真实核心、四格式隔离桌面、旧格式回归及MSI包内资源通过；实际安装、原生APNG GUI及新SHA三平台另验。前阶段8b89bba三平台12个CI jobs全部通过，完整动画任务继续活动。
+- 状态：截至2026-10-14，A3/A4 APNG严格无损核心、安全输出、四格式批量/资源预算、v13报告/预览/桌面及Windows新MSI已完成本机交付并提交9b5b580推送origin/dev（8b89bba..9b5b580）。167前端/300 Rust/2 doctest、45项真实核心、四格式隔离桌面、旧格式回归及MSI包内资源通过；实际安装、原生APNG GUI及新SHA三平台另验。前阶段8b89bba三平台12个CI jobs全部通过，完整动画任务继续活动。
 - 分支/基准：dev/0f4fcfd0825f51542d5d2658da600d21e0174350，业务a21d330，开工本地/远端一致且工作区干净。
 - 关联：[阶段计划](../260930/next-development-plan.md)、[J2桌面混合工作流](jpeg-desktop-workflow.md)、[项目方案](../../../架构设计文档/pixofold-proposal.md)。
 
@@ -708,5 +708,11 @@ A/B稳定后接GIF桌面闭环：可信资源prepare/打包与加载、supported
 - 验证后运行`pnpm tauri build --bundles msi --ci`成功，日志target/apng-a4-msi-261014.log。交付副本为target/deliverables/261014-apng-v13/PixoFold_0.1.0_x64_en-US.msi，5,021,696 bytes；SHA256 `bf8694a33e2f9155b3322a70d7a9677fff6f12ffc4d1a845657fcafaa8daefbd`。开发版版本保持0.1.0，协议迁移v13，旧页必须更新重载。
 - WiX dark解包及target/apng-v13-261014/check-msi.ps1通过：24个安装文件，JPEG清单5项/GIF清单14项，与本次构建逐文件相符；主程序仅Tauri预期UNK→MSI标记变化，开发checker/测试素材未随包。dark有7条既有ControlEvent反编译DARK1059警告，不影响本次文件提取/哈希结果；不据解包证明安装UI。报告target/apng-v13-261014/msi/report.json明确installed=false。
 - `pnpm apng:bundle:check --resources E:/Project/pixofold/target/apng-v13-261014/msi/restored`通过，target/gif-bundle-r4GfhZ；实际MSI资源在仓库外、中文空格路径、无开发PATH复验四格式/五质量GIF/APNG双模式、独立降级、输出/预览与退出。日志target/apng-v13-261014/msi-resources.log。
-- 本机改动包含A3迁移/核心及本批APNG扫描/资源/协议/预览/前端/真实部署检查与所属文档；仍在dev/8b89bba，未提交推送。下一步入口为新MSI的APNG增量手测和日志复核，重点png/apng内容分流、四格式混批、实际无损、输出/备份/重试、独立默认图/透明首帧与外部播放；新SHA三平台须提交后另验。APNG有损、JPEG凭据移除、无WebView2/其他平台实际安装不在本批完成范围。
+- 本机改动包含A3迁移/核心及本批APNG扫描/资源/协议/预览/前端/真实部署检查与所属文档，已提交9b5b580并推送origin/dev（见下节）。下一步入口为新MSI的APNG增量手测和日志复核，重点png/apng内容分流、四格式混批、实际无损、输出/备份/重试、独立默认图/透明首帧与外部播放；新SHA三平台待按新HEAD核对。APNG有损、JPEG凭据移除、无WebView2/其他平台实际安装不在本批完成范围。
 - 最终证据审计target/apng-a4-audit-261014.mjs通过：8份文档/197个本地链接、当前核心配方/二进制/Cargo.lock身份、统一检查计数、原始及实际包内四格式报告、MSI哈希一致；59个改动源码/配置条目身份写入target/apng-v13-261014/audit.json。代码diff及新文件已审阅，git diff --check通过。
+
+## 2026-10-14 编写提交信息、提交与推送（A3/A4）
+
+- 用户要求根据工作区内容编写提交信息、提交并推送，无需执行其它任务。复核范围：65份文件（新增src/apng核心与验证模块、apng_core_check与apng-core-check.mjs、assets/apng、bundle_check/apng、三项APNG集成测试；实验验证器迁移、输出保留名与后缀、批量/资源/扫描、v13 DTO与转换、前端提示/详情/预览、CI与文档），无未暂存改动与未跟踪残留（target报告与.tools构建继续排除），git diff --check通过。
+- 提交9b5b580「feat: 接入APNG严格无损核心与v13四格式工作台（A3/A4）」（65 files changed、3131 insertions、267 deletions；含apng_lab验证模块到核心的迁移重命名）。沙箱内.git只读，add/commit/push按规则提升同一条命令执行，未绕开沙箱约束；8b89bba..9b5b580  dev -> dev已同步origin/dev，本地与远端一致。
+- 沿用本轮已完成验证（pnpm check：167前端、300项Rust测试与2项doctest；apng:core:check 45项=6收益/38无收益/1预定拒绝；gif:core:check与jpeg:bundle:check回归；apng:bundle:check四格式隔离部署与包内资源复验；deliverables/261014-apng-v13新MSI及24个安装文件核对）；本次未改业务代码，不重复构建或测试。实际安装、原生APNG GUI与新SHA三平台结果仍未取得，不据此声明通过。
