@@ -832,5 +832,11 @@ A/B稳定后接GIF桌面闭环：可信资源prepare/打包与加载、supported
 - pnpm check通过，日志target/apng-core-unified-261015.log：15文件/167前端测试、322项Rust测试及2项doctest；格式、lint、TypeScript、Rust/TS生成契约、34 PNG/45 GIF/83 APNG语料和32公开原件/许可、全workspace全目标全特性Clippy均通过。本轮7项有损集成与2项流水线资源/硬错误回归加入常规测试，前次新增质量映射测试也实际运行通过。
 - pnpm apng:lossy:check通过，日志target/apng-lossy-completion-261015.log，报告target/apng-lossy-PsSKNh/report.json及comparison.html。105输入/1,555组保持50质量及收益通过、350质量拒绝、1,100收益不足、55预定硬拒绝；500分组候选为18通过/104质量拒绝/378收益不足，全部原始alpha约束通过。200次源身份/哈希复查通过；本次取消后1ms真实返回、总18ms，1ms期限实际2ms拒绝（单次观测，不作硬实时承诺）。
 - pnpm apng:core:check生产结果见上一节target/apng-core-NWSui1，默认feature关闭时单文件有损亦实际通过。额外只读核对两份报告中的43条源码配方哈希全部与当前文件一致。说明收尾后Prettier检查和git diff --check通过；实际动画播放/人工观感、桌面GUI/MSI、新SHA三平台没有新增验证证据。
-- 本次未提交/推送，分支基准仍dev/eb9bc74。相关未提交文件为apng核心格式化与工作集修复、batch错误映射/冻结断言、v13拒绝有损报告测试、apng_lossy_core集成和确定性生成器、apng_core_check生产模式扩展，以及README/AGENTS/实验说明和连续记录。构建报告/图片/日志均在Git忽略的target内；未修改png-palettes、安装资源或协议版本。
-- 下一步入口：以本次comparison.html及productionModes报告补人工观感；随后按模式贯通批量预约和实际执行、冻结质量参数、processing/回退与质量报告、生成协议/运行时验证及桌面详情，再做真实混合批次和新MSI验收。16位/交错有损拒绝与复杂半透明质量回退继续保留，算法和无损门槛不放宽。新SHA三平台待获授权提交推送后独立核对。
+- 本批改动随后按用户指令提交为b77d664并推送origin/dev（见下节）。相关文件包括apng核心格式化与工作集修复、batch错误映射/冻结断言、v13拒绝有损报告测试、apng_lossy_core集成和确定性生成器、apng_core_check生产模式扩展，以及README/AGENTS/实验说明和连续记录。构建报告/图片/日志均在Git忽略的target内；未修改png-palettes、安装资源或协议版本。
+- 下一步入口：以本次comparison.html及productionModes报告补人工观感；随后按模式贯通批量预约和实际执行、冻结质量参数、processing/回退与质量报告、生成协议/运行时验证及桌面详情，再做真实混合批次和新MSI验收。16位/交错有损拒绝与复杂半透明质量回退继续保留，算法和无损门槛不放宽。新SHA三平台待核对。
+
+## 2026-10-15 编写提交信息、提交与推送
+
+- 用户要求根据工作区内容编写提交信息、提交并推送，无需执行其它任务。复核范围：24份文件（新增apng_lossy_core集成与support生成器、apng_lab/core_lossy示例；apng model/pipeline/quality/selection与quantization预算调整、batch错误映射与冻结断言、v13拒绝有损报告回归、apng_core_check生产模式扩展、README/AGENTS与文档），无未暂存改动与未跟踪残留（target报告与候选继续排除），git diff --check通过。
+- 提交b77d664「fix: 补齐APNG单文件有损核心错误映射与资源预算并完成验收」（24 files changed、1000 insertions、198 deletions）。沙箱内.git只读，add/commit/push按规则提升同一条命令执行，未绕开沙箱约束；eb9bc74..b77d664  dev -> dev已同步origin/dev，本地与远端一致。
+- 沿用本轮已完成验证（pnpm check：167前端、322项Rust与2项doctest及全目标Clippy；apng:core:check 45项无损加8项生产模式；apng:lossy:check 105输入/1,555组与43条配方哈希核对）；本次未改业务代码，不重复构建或测试。人工动画观感、桌面APNG有损接入与新MSI、新SHA三平台结果仍未取得，不据此声明通过。
