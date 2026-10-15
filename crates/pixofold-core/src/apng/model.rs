@@ -1,5 +1,5 @@
 //! APNG专属请求、资源、报告及固定错误分类；不复用PNG有损模式或凭据许可。
-use super::{ApngPlayback, ApngValidationError, ApngValidationLimits};
+use super::{ApngPlayback, ApngValidationError, ApngValidationLimits,ApngMode,ApngQualityMapping,ApngFallbackReason,ApngQuality};
 use crate::model::{ByteCount, OutputPolicy, ProcessingError, ProcessingOutcome, ResourceLimits};
 use std::{fmt, io, path::PathBuf, time::Duration};
 
@@ -11,6 +11,8 @@ pub struct ApngLimits {
     pub max_working_set_bytes: ByteCount,
     /// 准备阶段总协作期限，默认30秒；进入共享提交层后不再按此改写结果。
     pub preparation_timeout: Duration,
+    /// 有损色表条目检查总额度，含可行索引预计算；默认64Mi次，只能收紧。
+    pub max_palette_searches:u64,
 }
 impl Default for ApngLimits {
     fn default() -> Self {
@@ -18,6 +20,7 @@ impl Default for ApngLimits {
             validation: ApngValidationLimits::default(),
             max_working_set_bytes: ByteCount(512 << 20),
             preparation_timeout: Duration::from_secs(30),
+            max_palette_searches:64<<20,
         }
     }
 }
@@ -29,6 +32,7 @@ impl ApngLimits {
         if self.max_working_set_bytes.0 == 0
             || self.max_working_set_bytes.0 > 512 << 20
             || self.preparation_timeout > Duration::from_secs(30)
+            || self.max_palette_searches > 64<<20
         {
             return Err(ApngError::InvalidLimits);
         }
@@ -46,6 +50,12 @@ impl ApngLimits {
     /// # Errors
     /// 无效额度、画布超限或估算超过请求工作集时拒绝；调用方必须保持许可直到核心返回。
     pub fn working_set(self, canvas_pixels: u64) -> Result<ByteCount, ApngError> {
+        self.working_set_for(ApngMode::Lossless,canvas_pixels)
+    }
+    /// 按实际模式估算单文件存活工作集。有损计入无损基线、色表、量化scratch及落盘复读。
+    /// # Errors
+    /// 无效配置或超出工作集/画布额度时拒绝；q100沿用无损预约。
+    pub fn working_set_for(self,mode:ApngMode,canvas_pixels:u64)->Result<ByteCount,ApngError> {
         self.check()?;
         if canvas_pixels > self.validation.max_canvas_pixels {
             return Err(ApngError::ResourceLimit("canvas_budget"));
@@ -64,19 +74,26 @@ impl ApngLimits {
             + summaries
             + (32 << 20);
         let validation = self.validation.max_validation_bytes + compressed + summaries + (32 << 20);
-        let bound = native.max(validation);
+        let mut bound = native.max(validation);
+        if mode.quantized().is_some() {
+            let quantized=canvas_pixels*224
+                + self.validation.max_input_bytes.max(self.validation.max_candidate_bytes) as u64*10
+                + 65536*256 + summaries + (self.validation.max_metadata_bytes as u64)*4 + (33<<20);
+            bound=bound.max(quantized);
+        }
         if bound > self.max_working_set_bytes.0 {
             return Err(ApngError::ResourceLimit("working_set_budget"));
         }
         Ok(ByteCount(bound))
     }
 }
-/// 冻结的无损请求；只接受内容为APNG的源，扩展名不作为格式证据。
+/// 冻结的单文件请求；只接受内容为APNG的源，扩展名不作为格式证据。
 #[derive(Debug, Clone)]
 pub struct ApngRequest {
     pub source: PathBuf,
     pub output: OutputPolicy,
     pub limits: ApngLimits,
+    pub mode:ApngMode,
 }
 impl ApngRequest {
     /// 默认无损覆盖并保留备份；不执行I/O，参数在实际执行时验证。
@@ -85,6 +102,7 @@ impl ApngRequest {
             source: source.into(),
             output: OutputPolicy::default(),
             limits: ApngLimits::default(),
+            mode:ApngMode::Lossless,
         }
     }
 }
@@ -115,16 +133,21 @@ impl From<&ApngPlayback> for ApngInfo {
         }
     }
 }
-/// 本阶段仅严格无损，不以量化、降深或静态默认图替代动画。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// 实际选择的处理方式；量化改变表示时即使显示精确也标为Lossy。
+#[derive(Debug, Clone, Copy, PartialEq, Eq,serde::Serialize)]
+#[serde(tag="kind",rename_all="snake_case")]
 pub enum ApngProcessing {
     Lossless,
+    Lossy {parameters:ApngQualityMapping},
+    LosslessFallback {parameters:ApngQualityMapping,reason:ApngFallbackReason},
 }
 /// 只描述实际文件结果；NoGain的output_bytes等于input_bytes且不创建备份/副本。
 #[derive(Debug, Clone)]
 pub struct ApngReport {
     pub image: ApngInfo,
     pub processing: ApngProcessing,
+    pub requested_mode:ApngMode,
+    pub quality:Option<ApngQuality>,
     pub input_bytes: ByteCount,
     pub output_bytes: ByteCount,
     pub elapsed: Duration,
@@ -137,6 +160,7 @@ pub enum ApngError {
     ResourceLimit(&'static str),
     Validation(ApngValidationError),
     Encoding(oxipng::PngError),
+    Quantization(ApngValidationError),
     ValidationFailed,
     Cancelled,
     Timeout,
@@ -175,6 +199,7 @@ impl fmt::Display for ApngError {
             Self::ResourceLimit(code) => write!(f, "APNG资源超限：{code}"),
             Self::Validation(e) => write!(f, "APNG验证拒绝：{}", e.0),
             Self::Encoding(_) => f.write_str("APNG编码失败"),
+            Self::Quantization(_) => f.write_str("APNG调色板编码失败"),
             Self::ValidationFailed => f.write_str("APNG候选验证失败"),
             Self::Cancelled => f.write_str("APNG处理已取消"),
             Self::Timeout => f.write_str("APNG准备阶段超时"),
@@ -188,6 +213,7 @@ impl std::error::Error for ApngError {
         match self {
             Self::Validation(e) => Some(e),
             Self::Encoding(e) => Some(e),
+            Self::Quantization(e) => Some(e),
             Self::File(e) => Some(e),
             Self::Cleanup { source, .. } => Some(source),
             _ => None,

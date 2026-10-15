@@ -144,6 +144,8 @@ jobs:
         run: node tools/apng-lab.mjs check
       - name: Check APNG core and safe file output
         run: node tools/apng-core-check.mjs
+      - name: Check experimental APNG shared palette and quality boundaries
+        run: node tools/apng-lossy-lab.mjs check
       - name: Retain APNG evidence and source licenses
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -152,5 +154,6 @@ jobs:
           path: |
             target/apng-lab-*/
             target/apng-core-*/
+            target/apng-lossy-*/
           if-no-files-found: ignore
           retention-days: 14

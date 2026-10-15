@@ -80,6 +80,7 @@ pnpm desktop:dev
 | `pnpm gif:lab:check` | 独立 GIF 播放验证、真实 Gifsicle 六组无损配方与隔离输出实验；须先 build |
 | `pnpm apng:fixtures:check` | 只读核对APNG确定性语料、哈希及人工画布/时间预期 |
 | `pnpm apng:lab:check` | 独立APNG结构/子帧/合成/循环验证及锁定oxipng三档严格无损实验；报告、CPU/RSS和取消证据写target |
+| `pnpm apng:lossy:check` | 显式共享调色板有损实验；默认图/双背景/时间/透明保护、多质量抖动与O1基线对照，全部候选/拒绝及HTML报告写target，未接生产 |
 | `pnpm apng:core:check` | 固定O1 APNG真实单文件与安全输出验收；包含完整语料拒绝、原图/备份/冲突/取消及45项隔离真实输入 |
 | `pnpm apng:bundle:check` | 复用GIF随包验收入口，真实四格式混批、APNG无损报告/冻结重试/冲突/备份/受限预览及引擎独立降级 |
 | `pnpm gif:lossy:check` | 固定有界helper的4A有损实验，输出双背景时间轴/透明检查、画质/时域误差/资源对照及HTML报告；须先gif:lab:build，不开放产品有损 |

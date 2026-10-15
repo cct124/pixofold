@@ -18,6 +18,8 @@
 
 ## 接手与修改
 
+- APNG共享调色板有损仅由apng-lossy-lab特性和pnpm apng:lossy:check开放实验。v2默认alpha_palette：全量alpha统计、至多65,536位置采样及最多256额外代表色、分组分配全局≤256色，再约束重映射；原始alpha分类不变/差≤4（q100精确），合成后仍须≤8。standard与alpha_constrained保留对照。修正后重解码重新评分，不只信imagequant原评分；64Mi色表条目检查/4,096槽缓存与累计像素/解码预算并行约束。固定动画控制/时间/循环/元数据，16位/交错/复杂颜色拒绝；硬错误不回退，质量/收益拒绝留档。105输入/1,555组含公开来源衍生动画，来源/许可/哈希、原始与合成alpha、质量/HTML/CPU/RSS/取消保留target/apng-lossy-*。人工观感、半透明色域和连续OVER边界收口后再接生产；v13仍严格无损，详见tools/apng-lossy-lab/README.md。
+
 - APNG A3单文件核心位于core src/apng；A1/A2实验复用同一验证器和83项语料/11组人工比较。固定O1无损、png原始/展开子帧+fdeflate严格zlib+独立RGBA16合成，保留默认图、隐藏RGB、原始时间分数、num_plays及第二轮透明画布。源/候选共享累计工作预算；30秒总准备期限，单阶段验证/编码软期限至多10秒，512MiB工作集准入估算（非RSS硬限）。候选落盘复验后走唯一output层；.png/.apng备份保留大小写和原始OS stem。低位深及ICC/Exif/保护/未知元数据拒绝，不静态降级或授予移除许可。同步编码返回前不得释放调用方worker/预算；pnpm apng:core:check验收核心，apng:lab:check保留对照。详细范围见crates/pixofold-core/src/apng/README.md。A4经add_apng显式能力接入扫描/共用worker与资源预算/v13专属报告/受限首帧/桌面；默认核心服务仍PNG-only，静态PNG入口拒绝动画。全局有损请求下APNG实际无损，numPlays为总次数。预览16MiB/4Mi像素/32MiB缓冲/5秒，只解码第一动画子帧，独立默认图不参与，后续帧有效性由完整压缩验证。相同冻结额度用于预约及执行，取消/退出等待同步核心返回再释放许可。
 
 - GIF无损/保守有损核心与桌面v12已有PNG/JPEG/GIF混合入口；GIF能力取决于独立随包校验。报告区分请求模式和实际Lossless/Lossy/LosslessFallback，q100无损，回退只有质量不足/额外收益不足；frames为输入帧数，保留原始loopCount，不暴露被淘汰候选quality指标。核心使用固定Gifsicle有界helper及gif/weezl独立验证，默认原生请求分配32MiB、累计解码与验证缓冲各64MiB，预约另计输入/系统余量；真实执行沿用按模式收紧的同一额度。取消/超时先回收child/管道/临时目录再释放许可；GIF不继承PNG凭据许可，备份保留原始gif扩展名大小写。GIF预览在Rust合成首幅透明画布，不执行helper；16MiB输入/4Mi画布与单帧像素/32MiB缓冲/5秒协作期限，撤销沿用单解码许可与缓存失效。具体边界及迁移见native/gif/README.md，GUI/安装/平台证据以devlog为准。

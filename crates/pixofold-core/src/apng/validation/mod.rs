@@ -1,6 +1,7 @@
 //! 有界APNG验证器，独立解析控制块并解码原始子帧；不持有文件或提交权限。
 //! png仅解码重建的静态子帧，合成与时间语义不依赖oxipng或png的APNG控制流。
 mod decode;
+pub mod quantization;
 mod structure;
 use crate::model::CancellationToken;
 use serde::{Deserialize, Serialize};

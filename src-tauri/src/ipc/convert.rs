@@ -140,6 +140,7 @@ fn apng_cause(error: &ApngError) -> RecoveryCauseDto {
             _ => JobErrorDto::InvalidInput,
         },
         ApngError::Encoding(_) => JobErrorDto::Encode,
+        ApngError::Quantization(_) => JobErrorDto::Encode,
         ApngError::ValidationFailed => JobErrorDto::Validation,
         ApngError::Cancelled => return RecoveryCauseDto::Cancelled,
         ApngError::Timeout => JobErrorDto::TimedOut,
@@ -442,7 +443,11 @@ fn gif_processing(report: &GifReport) -> Result<GifProcessingDto> {
 fn report(value: &ImageReport) -> Result<ReportDto> {
     let (elapsed, processing) = match value {
         ImageReport::Apng(report) => {
-            if report.image.frames == 0 {
+            if report.image.frames == 0
+                || report.processing != pixofold_core::apng::ApngProcessing::Lossless
+                || report.requested_mode != pixofold_core::apng::ApngMode::Lossless
+                || report.quality.is_some()
+            {
                 return Err(QueryError::InvalidSnapshot);
             }
             (

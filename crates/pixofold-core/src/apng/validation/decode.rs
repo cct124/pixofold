@@ -58,7 +58,7 @@ fn read(
     guard.check()?;
     Ok((output, info))
 }
-fn decode(
+pub(super) fn decode(
     p: &Parsed<'_>,
     frame: &Frame<'_>,
     limits: &Limits,
@@ -170,7 +170,7 @@ fn strict_zlib(p: &Parsed<'_>, frame: &Frame<'_>, guard: &Guard<'_>) -> Result<(
     guard.check()?;
     require(decoder.is_done() && written == expected, "decode")
 }
-fn over(source: [u16; 4], dest: [u16; 4]) -> [u16; 4] {
+pub(super) fn over(source: [u16; 4], dest: [u16; 4]) -> [u16; 4] {
     if source[3] == 0 {
         return dest;
     }

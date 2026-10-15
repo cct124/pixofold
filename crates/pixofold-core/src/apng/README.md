@@ -4,6 +4,8 @@ Rust入口为 `pixofold_core::apng`。核心支持受限APNG独立验证、固�
 
 ## 接口与使用
 
+开发特性apng-lossy-lab另提供[共享调色板有损实验](../../../../tools/apng-lossy-lab/README.md)：只返回内存候选及独立质量报告，没有生产输出、批量或v13协议接入；以下生产接口继续严格无损。
+
 ```rust
 use pixofold_core::{
     apng::{ApngRequest, optimize_apng},

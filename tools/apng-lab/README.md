@@ -4,6 +4,8 @@
 
 ## 可复现入口
 
+共享调色板有损另见[独立实验](../apng-lossy-lab/README.md)，通过显式feature及pnpm apng:lossy:check执行；这里的严格无损比较保持原有等价规则。
+
 在仓库根目录使用已锁定的Rust、Node与pnpm：
 
 ```powershell

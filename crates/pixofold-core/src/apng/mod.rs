@@ -2,10 +2,17 @@
 //! 不依赖Tauri/批量服务；不接受凭据移除许可，不把失败或无收益转换成静态PNG输出。
 mod model;
 mod pipeline;
+mod quality;
+mod selection;
 mod validation;
+
+/// 显式开发特性：共享调色板候选及误差观测，不提供生产输出或桌面能力。
+#[cfg(feature = "apng-lossy-lab")]
+pub use validation::quantization as lossy_lab;
 
 use crate::model::{CancellationToken, ProcessingStage};
 pub use model::{ApngError, ApngInfo, ApngLimits, ApngProcessing, ApngReport, ApngRequest};
+pub use quality::{ApngFallbackReason,ApngMode,ApngQuality,ApngQualityMapping};
 pub use validation::{
     Control as ApngFrameControl, Error as ApngValidationError, FrameSummary as ApngFrame,
     Limits as ApngValidationLimits, Summary as ApngPlayback,
