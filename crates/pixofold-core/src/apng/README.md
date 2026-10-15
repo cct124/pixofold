@@ -1,26 +1,37 @@
-# APNG无损核心与桌面（A3/A4）
+# APNG单文件核心与无损桌面
 
-Rust入口为 `pixofold_core::apng`。核心支持受限APNG独立验证、固定O1无损压缩和安全输出；A4接入扫描、批量、协议v13、受限预览和四格式桌面。默认核心服务仍PNG-only，桌面通过 `ImageEngines::add_apng` 显式启用内建能力；静态PNG入口仍拒绝动画。APNG不依赖外部helper，JPEG/GIF独立降级不影响其能力。
+Rust入口为 `pixofold_core::apng`。单文件核心支持固定O1严格无损及显式共享调色板有损，实际候选独立复验后安全输出。A4的扫描、批量、协议v13、受限预览和四格式桌面继续冻结无损。默认核心服务仍PNG-only，桌面通过 `ImageEngines::add_apng` 显式启用内建能力；静态PNG入口仍拒绝动画。APNG不依赖外部helper，JPEG/GIF独立降级不影响其能力。
 
 ## 接口与使用
 
-开发特性apng-lossy-lab另提供[共享调色板有损实验](../../../../tools/apng-lossy-lab/README.md)：只返回内存候选及独立质量报告，没有生产输出、批量或v13协议接入；以下生产接口继续严格无损。
+开发特性apng-lossy-lab另提供[共享调色板有损实验](../../../../tools/apng-lossy-lab/README.md)，与生产共用validation/quantization。实验入口只返回内存候选和质量报告，生产输出统一经optimize_apng；调用单文件有损不需要启用实验特性。
 
 ```rust
 use pixofold_core::{
-    apng::{ApngRequest, optimize_apng},
-    model::{CancellationToken, OutputPolicy},
+    apng::{ApngMode, ApngRequest, optimize_apng},
+    model::{CancellationToken, OutputPolicy, QualityValue},
 };
 
 let mut request = ApngRequest::new("animation.apng");
 request.output = OutputPolicy::Copy { destination: "smaller.apng".into() };
+request.mode = ApngMode::Lossy { quality: QualityValue::new(80).unwrap() };
 let result = optimize_apng(&request, &CancellationToken::default(), |_| {});
 ```
 
-- `ApngRequest`只包含源路径、输出策略和额度，没有有损模式或凭据移除许可；默认覆盖并保留备份。无需外部工具或平台helper，沿用锁定的oxipng 10.2.1（关闭默认特性/并行）、png 0.18.1、fdeflate 0.3.7。fdeflate从开发引用提升为同版核心依赖，Cargo.lock没有版本变更。
+- `ApngRequest`包含源路径、输出策略、额度和模式；`new`默认Lossless、覆盖并保留备份，无凭据移除许可。沿用锁定的oxipng 10.2.1、png 0.18.1、fdeflate 0.3.7、imagequant 4.4.1，不新增依赖、不启用编码器内并行。
 - `validate_apng`接收字节、`ApngValidationLimits`与取消令牌，返回默认图/子帧/控制/合成摘要；`compare_apng`比较两份字节，源/候选共用累计工作额度。摘要不授予输出、凭据或IPC权限，不写入诊断日志。
-- `ApngReport`包含输入属性（帧数、原始num_plays、默认图是否参与）、实际Lossless、真实字节数、耗时和`ProcessingOutcome`。NoGain没有最终副本或新备份，输出字节数等于输入字节数。
-- `ApngError`区分无效额度、资源超限、结构/解码拒绝、编码失败、候选验证失败、取消、超时、共享文件错误与清理错误。原始I/O和编码错误保留为source，不把含私人路径的Debug放入日志。提交失败保留可恢复备份；清理失败保留原错误和残留临时路径。
+- `ApngReport`包含输入属性、requested_mode、实际Lossless/Lossy/LosslessFallback、最终质量摘要、真实字节数、耗时和`ProcessingOutcome`。质量摘要只随成功有损输出提供；回退和NoGain没有被淘汰候选的指标。NoGain不生成副本/新备份，输出字节数等于输入字节数。
+- `ApngError`区分无效额度、资源超限、结构/解码拒绝、O1编码与Quantization失败、候选验证失败、取消、超时、共享文件错误及清理错误。原始I/O和编码错误保留为source，不把含私人路径的Debug放入日志。提交失败保留可恢复备份；清理失败保留原错误和残留临时路径。
+
+Rust调用方迁移：完整请求字面量补mode（优先使用new），完整额度字面量补max_palette_searches；报告消费者须处理新增processing分支、requested_mode及quality，错误消费者补Quantization。working_set继续兼容无损预约，有损调用方使用working_set_for(mode, canvas_pixels)。实验API别名lossy_lab保持，内部测试路径改为apng::validation::quantization。
+
+## 有损候选与回退
+
+- Lossy质量100直接走严格无损。质量0–99固定使用映射v1、质量策略v2、alpha_palette、无抖动：所有帧和独立默认图共享最多256项RGBA色表，输出8位索引；不改变帧矩形、合成/处置操作、原始延时分数、循环或默认图参与状态。
+- 有损仅支持8位非交错及已解释颜色。16位、Adam7和不支持的颜色声明明确拒绝，可以改用无损/q100；不静默降深或移除元数据。
+- 先生成并独立验证O1基线；量化后重解码、重新计算实际像素/双背景/时间误差，遵守实验v2全部门槛，原始alpha分类不变且差≤4、合成差≤8。通过质量后仍须相对min(源,有效无损候选)再省至少1%且至少1024 bytes。
+- 只有质量不足或额外收益不足分别返回QualityBelowTarget/InsufficientGain无损回退。容器/硬语义、编码、资源、取消/期限、输出错误均失败；回退候选仍须落盘严格复验。复杂半透明/连续OVER没有通过门槛时保留无损路径，不放宽规则。
+- 量化指标是算法误差尺度，人工动画观感和各平台验证仍独立进行。单文件能力不会自动开放批量或v13桌面有损。
 
 ## 支持与严格无损
 
@@ -40,12 +51,13 @@ O1禁用alpha优化、位深/色型/灰度/调色板缩减、16位缩放、交�
 
 验证额度默认：输入/候选各16MiB、画布/帧各4Mi像素、256帧、4096块、1MiB元数据、128MiB验证缓冲估算、64Mi累计像素及512MiB累计解码工作。源和候选共享累计额度，包含独立默认图、严格zlib/双解码及第二轮播放。核心在编码前确认源已使用的累计额度能容纳等结构候选；实际候选仍按剩余额度执行。
 
-`ApngLimits`默认30秒总准备期限、512MiB工作集估算上限，均只可收紧。验证单阶段至多10秒，编码软期限取剩余总期限与10秒的较小值。所有额度共同生效；4Mi像素不是任何深度/输入大小都能处理的承诺。
+`ApngLimits`默认30秒总准备期限、512MiB工作集估算上限，均只可收紧。验证/量化单阶段至多10秒，编码软期限取剩余总期限与10秒的较小值。源验证、无损基线复验、量化/比较、实际落盘复验共用累计账本；有损另限64Mi次色表条目检查（含可行集合预计算）。所有额度共同生效；4Mi像素不是任何深度/输入大小都能处理的承诺。
 
 工作集估算取以下较大值：
 
 - 编码：实际画布像素×96 bytes + 最大输入/候选限额×8 + 元数据限额×4 + 帧限额×16384 bytes + 32MiB原生余量。
 - 验证/输出：验证缓冲限额 + 上述压缩缓冲、帧摘要与32MiB余量。
+- 有损额外阶段：画布像素×224 bytes + 最大输入/候选限额×10 + 65,536样本×256 bytes + 帧摘要 + 元数据限额×4 + 34MiB余量（含存活源摘要1MiB）；q100沿用无损估算。
 
 这是保守准入估算，覆盖源/候选、复读/备份、过滤缓冲和原生分配余量；不是分配器或RSS硬限制。先按最小估算拒绝，再经结构解析按实际画布复查，之后才解码/编码。候选落盘后释放编码向量，源与读回候选的存活量继续计费。批量与PNG/JPEG/GIF共用固定worker池/全局预算；有界IHDR探测只收紧输入、像素、最大边和验证缓冲。预约与实际执行使用同一冻结额度，排队后变大的源必须拒绝，超预算只使该行失败。
 
@@ -64,11 +76,13 @@ oxipng同步调用不可抢占。取消/期限在各阶段及验证检查点响�
 pnpm apng:fixtures:check
 cargo test -p pixofold-core --locked --test apng_lab
 cargo test -p pixofold-core --locked --test apng_core
+cargo test -p pixofold-core --locked --test apng_lossy_core
 cargo test -p pixofold-core --locked --test apng_batch --test apng_preview
 pnpm apng:core:check
 pnpm apng:bundle:check
 pnpm apng:lab:check
+pnpm apng:lossy:check
 pnpm check
 ```
 
-核心命令覆盖38个有效生成样本、6公开原件与压力图，共45项；全部83项（含45拒绝/额度项）另经核心集成测试。报告、源码/二进制/Cargo.lock哈希、来源/许可及隔离输入/输出位于 `target/apng-core-*/`。提交/备份/源变化/候选篡改/冲突/权限/同步取消/期限由集成和确定性注入测试验证；实验继续保留135组对照。`apng:bundle:check`复用 `gif:bundle:check` 同一次四格式验收，包含无损/有损80混批、实际无损报告、稳定ID重试、NoGain、冲突、备份及预览撤销，证据为 `target/gif-bundle-*/` 的apng报告和快照。Windows本机与新SHA三平台、GUI/实际安装证据见[动画连续记录](../../../../docs/devlog/_plan/261009/animation-foundation.md)，各自独立验收。
+核心命令保留38个有效生成样本、6公开原件与压力图，共45项；另加8项单文件有损/q100/两类回退/硬拒绝，报告productionModes记录实际处理、质量和字节数。全部83项（含45拒绝/额度项）另经核心集成测试。报告、源码/二进制/Cargo.lock哈希、来源/许可及隔离输入/输出位于 `target/apng-core-*/`。提交/备份/源变化/候选篡改/冲突/权限/同步取消/期限、累计预算和收紧工作集由集成和确定性注入测试验证；无损实验继续保留135组对照，有损实验保留105输入/1,555组。`apng:bundle:check`复用 `gif:bundle:check` 同一次四格式验收，包含无损/有损80混批、实际无损报告、稳定ID重试、NoGain、冲突、备份及预览撤销，证据为 `target/gif-bundle-*/` 的apng报告和快照。Windows本机与新SHA三平台、GUI/实际安装证据见[动画连续记录](../../../../docs/devlog/_plan/261009/animation-foundation.md)，各自独立验收。

@@ -1,4 +1,6 @@
 //! 真实单文件核心验收；仅操作脚本复制到target的测试输入和独立输出目录。
+#[path = "apng_lab/core_lossy.rs"]
+mod core_lossy;
 #[path = "apng_lab/memory.rs"]
 mod memory;
 use pixofold_core::{
@@ -90,14 +92,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let repeated = optimize_apng(&request, &CancellationToken::default(), |_| {})?;
     assert_eq!(repeated.outcome, ProcessingOutcome::NoGain);
     assert_eq!(fs::read_dir(root)?.count(), count);
-    let result = json!({"result":"passed","cases":rows,"memory":sampler.finish(),"overwriteBackupAndNoGain":true,"validation":"same core validator with independently generated oracle tested by apng_lab/apng_core"});
+    let production_modes = core_lossy::run(root)?;
+    let result = json!({"result":"passed","cases":rows,"productionModes":production_modes,"memory":sampler.finish(),"overwriteBackupAndNoGain":true,"validation":"same core validator with independently generated oracle tested by apng_lab/apng_core; production lossy output revalidated inside core"});
     fs::write(
         root.join("report.json"),
         serde_json::to_vec_pretty(&result)?,
     )?;
     println!(
-        "APNG真实核心验收通过：{}项，覆盖/备份/无收益与源hash保持",
-        rows.len()
+        "APNG真实核心验收通过：{}项无损语料、{}项生产模式，覆盖/备份/无收益与源hash保持",
+        rows.len(),
+        production_modes.len()
     );
     Ok(())
 }

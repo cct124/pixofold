@@ -1,4 +1,4 @@
-// 固定O1单文件核心+隔离输出验收；不依赖桌面、外部编码器或真实网络。
+// 固定O1/共享调色板单文件核心+隔离输出验收；不依赖桌面、外部编码器或真实网络。
 import assert from 'node:assert/strict';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -10,7 +10,16 @@ function run(args) {
   if (result.status !== 0) throw new Error('APNG核心检查失败', { cause: result.error });
 }
 writeFixtures(true);
-run(['test', '-p', 'pixofold-core', '--locked', '--test', 'apng_core']);
+run([
+  'test',
+  '-p',
+  'pixofold-core',
+  '--locked',
+  '--test',
+  'apng_core',
+  '--test',
+  'apng_lossy_core',
+]);
 mkdirSync(path.join(root, 'target'), { recursive: true });
 const directory = mkdtempSync(path.join(root, 'target/apng-core-'));
 const inputs = path.join(directory, 'inputs');
@@ -65,6 +74,8 @@ writeFileSync(
       png: '0.18.1',
       oxipng: '10.2.1',
       fdeflate: '0.3.7',
+      imagequant: '4.4.1',
+      lossyPolicyVersion: 2,
       preset: 1,
       platform: process.platform,
       arch: process.arch,
@@ -74,13 +85,20 @@ writeFileSync(
         [
           'tools/apng-core-check.mjs',
           'crates/pixofold-core/examples/apng_core_check.rs',
+          'crates/pixofold-core/examples/apng_lab/core_lossy.rs',
+          'crates/pixofold-core/tests/support/apng_lossy.rs',
           ...[
             'mod',
             'model',
             'pipeline',
+            'quality',
+            'selection',
             'validation/mod',
             'validation/decode',
             'validation/structure',
+            ...['mod', 'budget', 'compare', 'encode', 'palette', 'remap', 'score'].map(
+              (n) => 'validation/quantization/' + n,
+            ),
           ].map((n) => 'crates/pixofold-core/src/apng/' + n + '.rs'),
         ].map((f) => [f, digest(readFileSync(path.join(root, f)))]),
       ),

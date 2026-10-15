@@ -202,7 +202,7 @@ impl ImageRequest {
             output: self.output.clone(),
             limits: options.limits(self.limits),
             // 有损单文件尚未接入批量资源/协议；这里显式冻结无损，不能靠新默认值开放。
-            mode:crate::apng::ApngMode::Lossless,
+            mode: crate::apng::ApngMode::Lossless,
         })
     }
 }

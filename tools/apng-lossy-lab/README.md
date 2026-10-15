@@ -1,12 +1,12 @@
 # APNG共享调色板有损实验
 
-显式开发特性apng-lossy-lab，经pixofold_core::apng::lossy_lab提供内存候选与独立比较。当前生产APNG和桌面v13仍按严格无损执行。本实验没有生产文件提交、批量服务或IPC入口，也不随MSI分发。
+显式开发特性apng-lossy-lab，经pixofold_core::apng::lossy_lab提供内存候选与独立比较；底层validation/quantization与[单文件生产核心](../../crates/pixofold-core/src/apng/README.md)复用。生产显式有损使用固定alpha_palette/无抖动、质量/收益无损回退和共享输出层；批量与桌面v13继续冻结无损。本实验入口没有生产文件提交、批量服务或IPC权限，也不随MSI分发。
 
 ## 运行与产物
 
 ```powershell
 pnpm apng:lossy:check
-cargo test -p pixofold-core --features apng-lossy-lab --locked --lib apng::validation::lossy_lab
+cargo test -p pixofold-core --features apng-lossy-lab --locked --lib apng::validation::quantization
 ```
 
 脚本使用锁定的imagequant 4.4.1、png 0.18.1、fdeflate 0.3.7和oxipng 10.2.1，不新增依赖。两编码器均关闭默认并行特性。每次建立新的target/apng-lossy-*目录，复制原件、来源与许可；核对语料/来源清单与隔离输入SHA256，每次调用后复查隔离源。CLI只读输入，输出独占创建；质量或收益被淘汰的候选仍保留供审阅，硬错误、取消与超时不产生可接纳结果。
@@ -57,7 +57,7 @@ RMSE为黑/白背景下8位编码值误差，显示快照等权；没有假设�
 
 v2保留v1全部门槛，增加实际子帧像素最低评分≥q，禁止用修正前或抖动前评分替代最终像素质量。score.rs按锁定imagequant 4.4.1的gamma=0.57内部颜色空间、alpha预乘/通道权重、黑白背景最坏距离与质量映射标量公式改编，使用公共固定色表API对照测试，完整COPYRIGHT随源码及报告保留。它仍是编码器相关误差尺度，不是人眼质量认证。
 
-报告列出remapping_below_target、actual_pixels_below_target、alpha_palette_unavailable、alpha_class_changed、alpha_error等原因，并分别记录原始alpha与原始/合成总体误差。连续OVER可能累积误差：原始差≤4不保证合成差≤8；必须继续拒绝超过总体门槛的候选。q100只可能通过显示像素/alpha精确的索引候选；它仍可能改变隐藏RGB和表示，不能标成生产严格无损。Options新增remapping/maxPaletteSearches，默认alpha_palette；实验报告policyVersion升为2，旧v1候选字节对照须显式选择standard，实际评分和新版门槛仍按v2执行。生产接口没有迁移。
+报告列出remapping_below_target、actual_pixels_below_target、alpha_palette_unavailable、alpha_class_changed、alpha_error等原因，并分别记录原始alpha与原始/合成总体误差。连续OVER可能累积误差：原始差≤4不保证合成差≤8；必须继续拒绝超过总体门槛的候选。实验q100仍生成索引候选，可能改变隐藏RGB和表示，不能标成生产严格无损；生产q100直接使用O1严格无损。Options新增remapping/maxPaletteSearches，默认alpha_palette；实验报告policyVersion升为2，旧v1候选字节对照须显式选择standard，实际评分和新版门槛仍按v2执行。生产请求/报告迁移见核心说明。
 
 ## 工作预算与取消
 
@@ -68,7 +68,7 @@ v2保留v1全部门槛，增加实际子帧像素最低评分≥q，禁止用修
 - 工作集估算：96C+128P+4(I+O)+256S+33MiB，默认上限512MiB；新增1MiB覆盖分组统计/代表色、可行集合和有界缓存。
 - 验证存活估算：64C+48P+3(I+O)+8192F+1MiB，受128MiB上限约束。
 
-结构解析后、首次解码前准入；运行中逐步计费且所有额度同时生效。PNG临时候选写入有长度上限，最终APNG每个chunk追加前复查候选上限。估算包含向量容量/解码/量化scratch与原生余量，不能当作分配器或进程RSS硬配额。
+结构解析后、首次解码前准入；运行中逐步计费且所有额度同时生效。生产复用时延续源/无损基线已消耗的累计额度，并在上述存活估算中加上仍持有的基线和源摘要；落盘复验继续同一账本。PNG临时候选写入有长度上限，最终APNG每个chunk追加前复查候选上限。估算包含向量容量/解码/量化scratch与原生余量，不能当作分配器或进程RSS硬配额。
 
 总协作期限默认10秒。imagequant量化/重映射进度回调检查取消和期限；png编解码内部同步调用返回后再检查，调用方须持有资源直到整个函数返回。实验程序10ms采样进程工作集与CPU，包含采样器，不证明未采到的峰值或硬实时。CLI的执行中取消和1ms期限另留真实返回耗时。
 
@@ -76,6 +76,6 @@ v2保留v1全部门槛，增加实际子帧像素最低评分≥q，禁止用修
 
 2026-10-15本机v2矩阵显示：分组色表消除了当前语料的原始alpha分类变化，覆盖全部实际alpha；沙滩球q80由原始差27降至4，但实际像素评分74及单通道误差仍拒绝，约25KB候选不能算合格输出。棕褐色照片衍生动画在q80/q95通过质量和相对O1的额外收益；复杂半透明和连续OVER仍有明确拒绝。这是算法边界，不降低现有质量门槛来凑通过率。具体最终数据、命令、浏览器/人工边界与三平台状态见[连续记录](../../docs/devlog/_plan/261009/animation-foundation.md)。
 
-下一步以当前报告完成人工观感复核并固定可用范围，随后实现生产单文件候选选择/质量及收益回退，再接批量预算、实际报告和桌面。现阶段不满足质量的半透明/连续OVER输入应继续使用严格无损；误差驱动的色表分配及更保守alpha表示可作为后续算法优化，不靠放宽门槛扩大支持。Windows本机结果不替代新SHA的macOS/Linux CI与人工动画观感。
+单文件候选选择、质量/收益回退和安全提交已接入，pnpm apng:core:check独立保留生产模式证据。下一步完成人工观感复核，再接批量预算、实际报告和桌面；三平台按新SHA单独验收。不满足质量的半透明/连续OVER候选继续回退严格无损；误差驱动的色表分配及更保守alpha表示可作为后续算法优化，不靠放宽门槛扩大支持。Windows本机结果不替代macOS/Linux CI与人工动画观感。
 
 参考：W3C PNG第三版的8位索引、PLTE/tRNS、APNG默认图/帧控制规则；锁定imagequant 4.4.1的Histogram::quantize冻结色表实现。旧png-palettes只作只读算法参考，本轮没有修改。

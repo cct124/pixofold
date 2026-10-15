@@ -18,7 +18,8 @@
 
 ## 接手与修改
 
-- APNG共享调色板有损仅由apng-lossy-lab特性和pnpm apng:lossy:check开放实验。v2默认alpha_palette：全量alpha统计、至多65,536位置采样及最多256额外代表色、分组分配全局≤256色，再约束重映射；原始alpha分类不变/差≤4（q100精确），合成后仍须≤8。standard与alpha_constrained保留对照。修正后重解码重新评分，不只信imagequant原评分；64Mi色表条目检查/4,096槽缓存与累计像素/解码预算并行约束。固定动画控制/时间/循环/元数据，16位/交错/复杂颜色拒绝；硬错误不回退，质量/收益拒绝留档。105输入/1,555组含公开来源衍生动画，来源/许可/哈希、原始与合成alpha、质量/HTML/CPU/RSS/取消保留target/apng-lossy-*。人工观感、半透明色域和连续OVER边界收口后再接生产；v13仍严格无损，详见tools/apng-lossy-lab/README.md。
+- APNG单文件核心显式ApngMode::Lossy已复用validation/quantization的v2策略，默认/q100严格无损；q<100固定alpha_palette/无抖动，实际质量通过且相对min(源,有效O1基线)再省1%及1KiB才提交。仅质量/收益不足允许LosslessFallback，硬错误仍失败；最终quality只随成功有损输出。源/基线/量化/落盘复验累计同一账本，working_set_for按模式预约并计入存活源摘要1MiB；同步返回前持有许可。批量和v13桌面显式冻结无损，转换器拒绝单文件有损报告，pnpm apng:core:check保留生产模式证据。
+- apng-lossy-lab特性和pnpm apng:lossy:check保留实验对照。v2默认alpha_palette：全量alpha统计、至多65,536位置采样及最多256额外代表色、分组分配全局≤256色，再约束重映射；原始alpha分类不变/差≤4（实验q100精确），合成后仍须≤8。standard与alpha_constrained保留对照。修正后重解码重新评分，不只信imagequant原评分；64Mi色表条目检查/4,096槽缓存与累计像素/解码预算并行约束。固定动画控制/时间/循环/元数据，16位/交错/复杂颜色有损拒绝；实验质量/收益拒绝留档。105输入/1,555组含公开来源衍生动画，来源/许可/哈希、原始与合成alpha、质量/HTML/CPU/RSS/取消保留target/apng-lossy-*。人工观感及新SHA三平台待独立验收，复杂半透明/连续OVER不放宽质量规则，详见tools/apng-lossy-lab/README.md。
 
 - APNG A3单文件核心位于core src/apng；A1/A2实验复用同一验证器和83项语料/11组人工比较。固定O1无损、png原始/展开子帧+fdeflate严格zlib+独立RGBA16合成，保留默认图、隐藏RGB、原始时间分数、num_plays及第二轮透明画布。源/候选共享累计工作预算；30秒总准备期限，单阶段验证/编码软期限至多10秒，512MiB工作集准入估算（非RSS硬限）。候选落盘复验后走唯一output层；.png/.apng备份保留大小写和原始OS stem。低位深及ICC/Exif/保护/未知元数据拒绝，不静态降级或授予移除许可。同步编码返回前不得释放调用方worker/预算；pnpm apng:core:check验收核心，apng:lab:check保留对照。详细范围见crates/pixofold-core/src/apng/README.md。A4经add_apng显式能力接入扫描/共用worker与资源预算/v13专属报告/受限首帧/桌面；默认核心服务仍PNG-only，静态PNG入口拒绝动画。全局有损请求下APNG实际无损，numPlays为总次数。预览16MiB/4Mi像素/32MiB缓冲/5秒，只解码第一动画子帧，独立默认图不参与，后续帧有效性由完整压缩验证。相同冻结额度用于预约及执行，取消/退出等待同步核心返回再释放许可。
 

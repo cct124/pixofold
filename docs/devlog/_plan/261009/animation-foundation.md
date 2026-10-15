@@ -813,3 +813,24 @@ A/B稳定后接GIF桌面闭环：可信资源prepare/打包与加载、supported
 - 用户要求根据工作区内容编写提交信息、提交并推送，无需执行其它任务。复核范围：35份文件（新增apng/quality、apng/selection与validation/quantization七份、apng_lossy_lab示例与derive模块、tools/apng-lossy-lab（CLI/fixtures/report/COPYRIGHT）；apng model/pipeline/decode调整、批量诊断与冻结无损、v13转换拒绝有损报告、feature/package/CI与文档），无未暂存改动与未跟踪残留（target报告与候选继续由Git排除），git diff --check通过。
 - 提交29c5123「feat: 实现APNG共享调色板有损实验与单文件有损核心」（35 files changed、3908 insertions、39 deletions）。沙箱内.git只读，add/commit/push按规则提升同一条命令执行，未绕开沙箱约束；4784035..29c5123  dev -> dev已同步origin/dev，本地与远端一致。
 - 沿用已完成验证（pnpm check：167前端、312项Rust与2项doctest及全目标Clippy；apng:lossy:check 105输入/1,555组与静态审计；apng:core:check回归）；本次未改业务代码，不重复构建或测试。单文件有损核心仅本机实现并冻结批量/桌面入口，人工动画观感、新MSI与新SHA三平台结果仍未取得，不据此声明通过。
+
+## 2026-10-15 单文件有损核心续作与验证补齐
+
+- 用户授权继续。开工dev/eb9bc74，工作区干净，与origin/dev一致；上节提交包含尚未完成验证的单文件接入，已有实验统一检查不能覆盖该接入。当前`cargo check -p pixofold-core --all-targets --all-features --locked`复现batch/model.rs未穷尽处理ApngError::Quantization，先补齐错误传播，再检查累计资源、候选选择及落盘复验。
+- 本批验收：默认/q100严格无损；q<100实际有损、质量/收益回退及硬错误拒绝；真实输出/备份、取消、源变化、目标冲突与累计资源边界；原无损和实验入口回归。完成后同步所属说明及本次实际命令/结果。继续冻结批量/v13桌面无损，不构建MSI，不提交推送；人工观感与新SHA三平台结果仍分别待验。
+
+### 修复与验证进展
+
+- 补齐batch/model的Quantization→Encode映射，实验FrameQuality/QualityMetrics重导出仅在开发特性下开放，消除默认生产构建的未使用导入。格式化前次已提交但尚未格式化的核心改动；全workspace全目标全特性编译、Clippy通过。
+- 新增生产有损真实回归：确定性4帧多色RGBA转索引、q100/16位/Adam7、收益不足NoGain、公开沙滩球质量回退、保护/坏CRC硬拒绝、零色表检索额度、取消/源变更/目标冲突及备份/副本。新增流水线测试证明基线硬错误不回退，候选选择后落盘复验仍扣同一累计像素/解码账本，失败清理临时文件。v13新增拒绝单文件有损/回退报告的回归，批量显式Lossless保持。
+- 收紧输入/候选/帧/元数据额度的回归暴露working_set_for少计已验证源摘要固定1MiB，导致按公开估算配置仍被执行端working_set_budget拒绝。量化阶段余量改为34MiB，含量化器33MiB和源摘要1MiB；回归通过。测试中的候选PLTE/tRNS仍计元数据额度，不能用零元数据额度要求输出色表。
+- pnpm apng:core:check通过，target/apng-core-NWSui1：11项原无损+7项有损集成、45项无损隔离输入和8项生产模式验收，报告保留requestedMode/processing/quality/字节/源码配方哈希。有损示例原158,862 bytes，O1/q100为144,791，q80为34,807（27色，实际最低质量82、alpha误差0）；公开沙滩球q80因质量不足严格回退61,657 bytes，小样本205 bytes收益不足且不创建副本。它们是确定性合成输入/特定公开原件的结果，不是所有APNG收益或观感保证。
+- 沙箱内fmt/Clippy配置、pnpm数据库及测试临时目录身份解析曾遭拒绝访问，按规则提升后重跑通过；未放宽检查或用错误分类掩盖文件权限故障。完整矩阵与统一检查进行中，最终结果在下节补齐。
+
+### 本次最终验证与交接
+
+- pnpm check通过，日志target/apng-core-unified-261015.log：15文件/167前端测试、322项Rust测试及2项doctest；格式、lint、TypeScript、Rust/TS生成契约、34 PNG/45 GIF/83 APNG语料和32公开原件/许可、全workspace全目标全特性Clippy均通过。本轮7项有损集成与2项流水线资源/硬错误回归加入常规测试，前次新增质量映射测试也实际运行通过。
+- pnpm apng:lossy:check通过，日志target/apng-lossy-completion-261015.log，报告target/apng-lossy-PsSKNh/report.json及comparison.html。105输入/1,555组保持50质量及收益通过、350质量拒绝、1,100收益不足、55预定硬拒绝；500分组候选为18通过/104质量拒绝/378收益不足，全部原始alpha约束通过。200次源身份/哈希复查通过；本次取消后1ms真实返回、总18ms，1ms期限实际2ms拒绝（单次观测，不作硬实时承诺）。
+- pnpm apng:core:check生产结果见上一节target/apng-core-NWSui1，默认feature关闭时单文件有损亦实际通过。额外只读核对两份报告中的43条源码配方哈希全部与当前文件一致。说明收尾后Prettier检查和git diff --check通过；实际动画播放/人工观感、桌面GUI/MSI、新SHA三平台没有新增验证证据。
+- 本次未提交/推送，分支基准仍dev/eb9bc74。相关未提交文件为apng核心格式化与工作集修复、batch错误映射/冻结断言、v13拒绝有损报告测试、apng_lossy_core集成和确定性生成器、apng_core_check生产模式扩展，以及README/AGENTS/实验说明和连续记录。构建报告/图片/日志均在Git忽略的target内；未修改png-palettes、安装资源或协议版本。
+- 下一步入口：以本次comparison.html及productionModes报告补人工观感；随后按模式贯通批量预约和实际执行、冻结质量参数、processing/回退与质量报告、生成协议/运行时验证及桌面详情，再做真实混合批次和新MSI验收。16位/交错有损拒绝与复杂半透明质量回退继续保留，算法和无损门槛不放宽。新SHA三平台待获授权提交推送后独立核对。

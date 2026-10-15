@@ -37,12 +37,17 @@ impl ImageReport {
             Self::Jpeg(r) => jpeg(r.processing),
             Self::Gif(r) => gif(r.processing),
             Self::Apng(r) => match r.processing {
-                crate::apng::ApngProcessing::Lossless=>("lossless","none"),
-                crate::apng::ApngProcessing::Lossy {..}=>("lossy","none"),
-                crate::apng::ApngProcessing::LosslessFallback {reason,..}=>("lossless_fallback",match reason {
-                    crate::apng::ApngFallbackReason::QualityBelowTarget=>"quality_below_target",
-                    crate::apng::ApngFallbackReason::InsufficientGain=>"insufficient_gain",
-                }),
+                crate::apng::ApngProcessing::Lossless => ("lossless", "none"),
+                crate::apng::ApngProcessing::Lossy { .. } => ("lossy", "none"),
+                crate::apng::ApngProcessing::LosslessFallback { reason, .. } => (
+                    "lossless_fallback",
+                    match reason {
+                        crate::apng::ApngFallbackReason::QualityBelowTarget => {
+                            "quality_below_target"
+                        }
+                        crate::apng::ApngFallbackReason::InsufficientGain => "insufficient_gain",
+                    },
+                ),
             },
         }
     }

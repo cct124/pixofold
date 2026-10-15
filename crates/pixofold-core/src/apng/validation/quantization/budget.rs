@@ -11,11 +11,20 @@ pub(super) struct Budget {
 impl Budget {
     #[cfg(test)]
     pub fn new(p: &Parsed<'_>, input: usize, options: Options) -> Result<Self> {
-        Self::resume(p,input,options,Usage::default(),0)
+        Self::resume(p, input, options, Usage::default(), 0)
     }
-    pub fn resume(p:&Parsed<'_>,input:usize,options:Options,usage:Usage,resident:u64)->Result<Self> {
+    pub fn resume(
+        p: &Parsed<'_>,
+        input: usize,
+        options: Options,
+        usage: Usage,
+        resident: u64,
+    ) -> Result<Self> {
         usage.remaining(options.limits)?;
-        require(usage.palette_searches<=options.max_palette_searches,"palette_search_budget")?;
+        require(
+            usage.palette_searches <= options.max_palette_searches,
+            "palette_search_budget",
+        )?;
         let canvas =
             u64::from(structure::u32_at(p.ihdr, 0)) * u64::from(structure::u32_at(p.ihdr, 4));
         let largest = p
@@ -34,7 +43,8 @@ impl Budget {
             + largest * 128
             + (input as u64 + options.limits.max_candidate_bytes as u64) * 4
             + options.max_histogram_samples as u64 * 256
-            + (33 << 20) + resident; // 另含alpha索引集、直接映射缓存及存活基线/摘要。
+            + (33 << 20)
+            + resident; // 另含alpha索引集、直接映射缓存及存活基线/摘要。
         require(bound <= options.max_working_set_bytes, "working_set_budget")?;
         require(
             canvas * 64
@@ -55,7 +65,13 @@ impl Budget {
             limits: options.limits,
         })
     }
-    pub fn usage(&self)->Usage {Usage {pixels:self.pixels,decoded_bytes:self.decoded_bytes,palette_searches:self.palette_searches}}
+    pub fn usage(&self) -> Usage {
+        Usage {
+            pixels: self.pixels,
+            decoded_bytes: self.decoded_bytes,
+            palette_searches: self.palette_searches,
+        }
+    }
     pub fn work(&mut self, pixels: u64) -> Result<()> {
         self.pixels = self
             .pixels

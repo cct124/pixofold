@@ -184,7 +184,7 @@ impl JobFailure {
                         "decode" => JobErrorCode::Decode,
                         _ => JobErrorCode::InvalidInput,
                     },
-                    A::Encoding(_) => JobErrorCode::Encode,
+                    A::Encoding(_) | A::Quantization(_) => JobErrorCode::Encode,
                     A::ValidationFailed => JobErrorCode::Validation,
                     A::Timeout => JobErrorCode::TimedOut,
                     A::Cleanup { .. } => JobErrorCode::CleanupFailed,

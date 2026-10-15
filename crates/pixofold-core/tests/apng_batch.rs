@@ -120,6 +120,11 @@ fn real_mixed_outputs_no_gain_conflicts_and_retry_keep_frozen_targets() {
         panic!("{done:?}")
     };
     assert_eq!(report.processing, ApngProcessing::Lossless);
+    assert_eq!(
+        report.requested_mode,
+        pixofold_core::apng::ApngMode::Lossless
+    );
+    assert!(report.quality.is_none());
     assert_eq!(report.image.frames, 2);
     compare_apng(
         &fixture("split-data.apng"),

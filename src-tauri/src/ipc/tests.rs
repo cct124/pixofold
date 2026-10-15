@@ -230,6 +230,34 @@ fn apng_real_task_reports_actual_lossless_and_never_grants_png_credentials() {
         );
         let job = &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0];
         assert!(job.content_credentials_source().is_none());
+        // v13明确冻结无损；单文件核心新报告不能被包装成桌面无损结果。
+        let saved_state = job.state.clone();
+        for variant in 0..3 {
+            let job = &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0];
+            job.state = saved_state.clone();
+            let JobState::Succeeded(ImageReport::Apng(report)) = &mut job.state else {
+                panic!("APNG result");
+            };
+            let parameters =
+                pixofold_core::apng::ApngQualityMapping::new(QualityValue::new(80).unwrap());
+            match variant {
+                0 => {
+                    report.requested_mode = pixofold_core::apng::ApngMode::Lossy {
+                        quality: parameters.quality,
+                    }
+                }
+                1 => report.processing = pixofold_core::apng::ApngProcessing::Lossy { parameters },
+                _ => {
+                    report.processing = pixofold_core::apng::ApngProcessing::LosslessFallback {
+                        parameters,
+                        reason: pixofold_core::apng::ApngFallbackReason::InsufficientGain,
+                    }
+                }
+            }
+            assert!(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).is_err());
+        }
+        let job = &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0];
+        job.state = saved_state;
         job.request.options = FormatOptions::Png(PngMetadataPolicy::Preserve);
         assert!(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).is_err());
     }

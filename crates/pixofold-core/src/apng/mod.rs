@@ -1,4 +1,4 @@
-//! 受限APNG无损单文件核心。验证独立于oxipng，只有共享output层可提交最终文件。
+//! 受限APNG单文件无损/共享调色板有损核心，只有共享output层可提交最终文件。
 //! 不依赖Tauri/批量服务；不接受凭据移除许可，不把失败或无收益转换成静态PNG输出。
 mod model;
 mod pipeline;
@@ -12,7 +12,7 @@ pub use validation::quantization as lossy_lab;
 
 use crate::model::{CancellationToken, ProcessingStage};
 pub use model::{ApngError, ApngInfo, ApngLimits, ApngProcessing, ApngReport, ApngRequest};
-pub use quality::{ApngFallbackReason,ApngMode,ApngQuality,ApngQualityMapping};
+pub use quality::{ApngFallbackReason, ApngMode, ApngQuality, ApngQualityMapping};
 pub use validation::{
     Control as ApngFrameControl, Error as ApngValidationError, FrameSummary as ApngFrame,
     Limits as ApngValidationLimits, Summary as ApngPlayback,
@@ -81,7 +81,8 @@ pub fn compare_apng(
 ) -> Result<(), ApngValidationError> {
     validation::compare(source, candidate, limits, cancel)
 }
-/// 固定O1严格无损，实际候选落盘复验后通过共享输出层提交。
+/// 默认固定O1严格无损；显式有损使用共享调色板，q100直接无损。
+/// 质量或额外收益不足回退无损，硬错误仍失败；实际候选落盘复验后通过共享输出层提交。
 /// 默认覆盖并建立恢复备份；副本独占创建。无收益、失败和取消保留原图。
 /// 准备阶段总期限包含读取/验证/同步编码；同步编码不能抢占，返回前调用方必须持有资源许可。
 /// 进入提交层后沿用其取消检查和不可逆临界区契约，不在提交后改报超时。

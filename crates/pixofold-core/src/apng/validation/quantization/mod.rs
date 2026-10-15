@@ -13,38 +13,52 @@ use super::{
     Error, Guard, Limits, Result, decode, require,
     structure::{self, Control, Frame, Parsed},
 };
-#[cfg(any(feature="apng-lossy-lab",test))]
+#[cfg(any(feature = "apng-lossy-lab", test))]
 use crate::model::CancellationToken;
 use budget::Budget;
-pub use compare::{Comparison, FrameQuality, QualityMetrics};
+pub use compare::Comparison;
+#[cfg(feature = "apng-lossy-lab")]
+pub use compare::{FrameQuality, QualityMetrics};
 pub use remap::Stats as RemappingStats;
 use serde::{Deserialize, Serialize};
-use std::time::Instant;
-#[cfg(any(feature="apng-lossy-lab",test))]
+#[cfg(any(feature = "apng-lossy-lab", test))]
 use std::time::Duration;
+use std::time::Instant;
 
 /// 实验筛选版本；不是生产质量保证或跨格式质量尺度。
 pub const POLICY_VERSION: u32 = 2;
 
 /// 准备流程的累计工作账本，包含严格无损检查、量化及实际落盘后的复验。
-#[derive(Debug,Default,Clone,Copy)]
+#[derive(Debug, Default, Clone, Copy)]
 pub(in crate::apng) struct Usage {
-    pub pixels:u64,
-    pub decoded_bytes:u64,
-    pub palette_searches:u64,
+    pub pixels: u64,
+    pub decoded_bytes: u64,
+    pub palette_searches: u64,
 }
 impl Usage {
-    pub fn remaining(self,limits:Limits)->Result<Limits> {
+    pub fn remaining(self, limits: Limits) -> Result<Limits> {
         Ok(Limits {
-            max_total_pixels:limits.max_total_pixels.checked_sub(self.pixels).ok_or(Error("total_pixel_budget"))?,
-            max_decoded_bytes:limits.max_decoded_bytes.checked_sub(self.decoded_bytes).ok_or(Error("decoded_budget"))?,
+            max_total_pixels: limits
+                .max_total_pixels
+                .checked_sub(self.pixels)
+                .ok_or(Error("total_pixel_budget"))?,
+            max_decoded_bytes: limits
+                .max_decoded_bytes
+                .checked_sub(self.decoded_bytes)
+                .ok_or(Error("decoded_budget"))?,
             ..limits
         })
     }
-    pub fn charge(&mut self,pixels:u64,decoded:u64,limits:Limits)->Result<()> {
-        self.pixels=self.pixels.checked_add(pixels).ok_or(Error("total_pixel_budget"))?;
-        self.decoded_bytes=self.decoded_bytes.checked_add(decoded).ok_or(Error("decoded_budget"))?;
-        self.remaining(limits).map(|_|())
+    pub fn charge(&mut self, pixels: u64, decoded: u64, limits: Limits) -> Result<()> {
+        self.pixels = self
+            .pixels
+            .checked_add(pixels)
+            .ok_or(Error("total_pixel_budget"))?;
+        self.decoded_bytes = self
+            .decoded_bytes
+            .checked_add(decoded)
+            .ok_or(Error("decoded_budget"))?;
+        self.remaining(limits).map(|_| ())
     }
 }
 
@@ -152,7 +166,7 @@ pub enum QualityRejection {
 /// 生成有界8位索引APNG候选。只读输入；取消/期限为协作检查，同步函数返回前须保留许可。
 /// # Errors
 /// 损坏、未支持表示/颜色、资源超限、取消/期限及编码/候选硬语义错误返回固定代码。
-#[cfg(any(feature="apng-lossy-lab",test))]
+#[cfg(any(feature = "apng-lossy-lab", test))]
 pub fn quantize(
     bytes: &[u8],
     options: Options,
@@ -165,18 +179,22 @@ pub fn quantize(
         started + Duration::from_millis(options.limits.deadline_ms),
         cancel,
     );
-    quantize_with_usage(bytes,options,&guard,&mut Usage::default(),0,on_stage)
+    quantize_with_usage(bytes, options, &guard, &mut Usage::default(), 0, on_stage)
 }
 
 pub(in crate::apng) fn quantize_with_usage(
-    bytes:&[u8],options:Options,guard:&Guard<'_>,usage:&mut Usage,resident:u64,
-    mut on_stage:impl FnMut(Stage),
-)->Result<Candidate> {
+    bytes: &[u8],
+    options: Options,
+    guard: &Guard<'_>,
+    usage: &mut Usage,
+    resident: u64,
+    mut on_stage: impl FnMut(Stage),
+) -> Result<Candidate> {
     options.check()?;
-    let started=Instant::now();
+    let started = Instant::now();
     let parsed = structure::parse(bytes, &options.limits, guard)?;
     let gamma = supported(&parsed, bytes)?;
-    let mut budget = Budget::resume(&parsed, bytes.len(), options,*usage,resident)?;
+    let mut budget = Budget::resume(&parsed, bytes.len(), options, *usage, resident)?;
     let encoded = encode::run(
         bytes,
         &parsed,
@@ -199,7 +217,7 @@ pub(in crate::apng) fn quantize_with_usage(
         quality_rejections.push(QualityRejection::AlphaPaletteUnavailable);
     }
     let quality_passed = quality_rejections.is_empty();
-    *usage=budget.usage();
+    *usage = budget.usage();
     Ok(Candidate {
         bytes: encoded.bytes,
         report: Report {
@@ -226,7 +244,7 @@ pub(in crate::apng) fn quantize_with_usage(
 /// 独立比较实际APNG字节；源/候选共用累计工作预算，保留两轮播放和默认图语义。
 /// # Errors
 /// 坏结构、控制/元数据变化、坏像素、资源及取消/期限返回固定错误；像素误差见报告。
-#[cfg(any(feature="apng-lossy-lab",test))]
+#[cfg(any(feature = "apng-lossy-lab", test))]
 pub fn compare(
     source: &[u8],
     candidate: &[u8],
@@ -235,15 +253,22 @@ pub fn compare(
 ) -> Result<Comparison> {
     options.check()?;
     let guard = Guard::new(&options.limits, cancel);
-    compare_with_usage(source,candidate,options,&guard,&mut Usage::default(),0)
+    compare_with_usage(source, candidate, options, &guard, &mut Usage::default(), 0)
 }
-pub(in crate::apng) fn compare_with_usage(source:&[u8],candidate:&[u8],options:Options,guard:&Guard<'_>,usage:&mut Usage,resident:u64)->Result<Comparison> {
+pub(in crate::apng) fn compare_with_usage(
+    source: &[u8],
+    candidate: &[u8],
+    options: Options,
+    guard: &Guard<'_>,
+    usage: &mut Usage,
+    resident: u64,
+) -> Result<Comparison> {
     options.check()?;
     let parsed = structure::parse(source, &options.limits, guard)?;
     supported(&parsed, source)?;
-    let mut budget = Budget::resume(&parsed,source.len(),options,*usage,resident)?;
-    let compared=compare::run(source,candidate,&options.limits,guard,&mut budget)?;
-    *usage=budget.usage();
+    let mut budget = Budget::resume(&parsed, source.len(), options, *usage, resident)?;
+    let compared = compare::run(source, candidate, &options.limits, guard, &mut budget)?;
+    *usage = budget.usage();
     Ok(compared)
 }
 

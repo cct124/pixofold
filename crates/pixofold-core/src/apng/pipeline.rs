@@ -71,7 +71,7 @@ fn execute_timed(
     check()?;
     on_stage(ProcessingStage::Reading);
     check()?;
-    limits.working_set_for(request.mode,0)?;
+    limits.working_set_for(request.mode, 0)?;
     let mut source = Source::read(&request.source, limits.resources())?;
     source.use_apng_backup_suffix();
     // 读取器可能预留额外容量；后续配额/比较按实际存活字节计费。
@@ -83,15 +83,17 @@ fn execute_timed(
             cancel,
         )
     };
-    limits.working_set_for(request.mode,validation::canvas_pixels(
-        &source.bytes,
-        &limits.validation,
-        &phase_guard(),
-    )?)?;
-    let before =
-        validation::inspect_with_guard(&source.bytes, &limits.validation, &phase_guard())?;
-    let mut usage=validation::quantization::Usage::default();
-    usage.charge(before.decoded_pixels,before.decoded_bytes,limits.validation)?;
+    limits.working_set_for(
+        request.mode,
+        validation::canvas_pixels(&source.bytes, &limits.validation, &phase_guard())?,
+    )?;
+    let before = validation::inspect_with_guard(&source.bytes, &limits.validation, &phase_guard())?;
+    let mut usage = validation::quantization::Usage::default();
+    usage.charge(
+        before.decoded_pixels,
+        before.decoded_bytes,
+        limits.validation,
+    )?;
     if before.decoded_bytes > limits.validation.max_decoded_bytes / 2 {
         return Err(ApngError::ResourceLimit("decoded_budget"));
     }
@@ -113,9 +115,21 @@ fn execute_timed(
     if candidate.len() > limits.validation.max_candidate_bytes {
         return Err(ApngError::ResourceLimit("candidate_budget"));
     }
-    let selected=selection::select(&source.bytes,&before,candidate,request.mode,limits,&phase_guard(),&mut usage)?;
+    let selected = selection::select(
+        &source.bytes,
+        &before,
+        candidate,
+        request.mode,
+        limits,
+        &phase_guard(),
+        &mut usage,
+    )?;
     check()?;
-    let selection::Selected {bytes:candidate,processing,mut quality}=selected;
+    let selection::Selected {
+        bytes: candidate,
+        processing,
+        mut quality,
+    } = selected;
     let expected_hash = validation::hash(&candidate);
     let mut temp = destination.stage()?;
     let validated = (|| {
@@ -134,17 +148,38 @@ fn execute_timed(
         }
         // 落盘复验延续源/无损基线/量化已消耗的额度；不能重新发放整份预算。
         match processing {
-            ApngProcessing::Lossy {parameters}=> {
-                let retained=quality.as_ref().ok_or(ApngError::ValidationFailed)?;
-                let comparison=validation::quantization::compare_with_usage(&source.bytes,&stored,
-                    selection::options(limits,parameters),&phase_guard(),&mut usage,selection::summary_resident(&before))
-                    .map_err(selection::candidate_error)?;
-                if !selection::passes(&comparison,parameters.quality.get(),retained.minimum_remapping_quality) {
+            ApngProcessing::Lossy { parameters } => {
+                let retained = quality.as_ref().ok_or(ApngError::ValidationFailed)?;
+                let comparison = validation::quantization::compare_with_usage(
+                    &source.bytes,
+                    &stored,
+                    selection::options(limits, parameters),
+                    &phase_guard(),
+                    &mut usage,
+                    selection::summary_resident(&before),
+                )
+                .map_err(selection::candidate_error)?;
+                if !selection::passes(
+                    &comparison,
+                    parameters.quality.get(),
+                    retained.minimum_remapping_quality,
+                ) {
                     return Err(ApngError::ValidationFailed);
                 }
-                quality=Some(ApngQuality::from_comparison(&comparison,retained.palette_entries,retained.minimum_remapping_quality));
+                quality = Some(ApngQuality::from_comparison(
+                    &comparison,
+                    retained.palette_entries,
+                    retained.minimum_remapping_quality,
+                ));
             }
-            _=>selection::strict_candidate(&stored,&before,limits,&mut usage,&phase_guard(),source.bytes.len() as u64+selection::summary_resident(&before))?,
+            _ => selection::strict_candidate(
+                &stored,
+                &before,
+                limits,
+                &mut usage,
+                &phase_guard(),
+                source.bytes.len() as u64 + selection::summary_resident(&before),
+            )?,
         }
         source.verify_unchanged(limits.resources())?;
         check()?;
@@ -186,7 +221,7 @@ fn execute_timed(
     Ok(ApngReport {
         image,
         processing,
-        requested_mode:request.mode,
+        requested_mode: request.mode,
         quality,
         input_bytes,
         output_bytes,

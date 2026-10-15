@@ -1,4 +1,6 @@
 use super::*;
+#[path = "../../../tests/support/apng_lossy.rs"]
+mod lossy_sample;
 use crate::model::{OutputPolicy, ProcessingError};
 use std::{
     fs,
@@ -188,4 +190,93 @@ fn missing_source_preserves_io_error() {
         run(&request, &CancellationToken::default(), |_| {}),
         Err(ApngError::File(ProcessingError::Io { .. }))
     ));
+}
+
+#[test]
+fn lossy_and_fallback_keep_cumulative_budgets_through_staged_verification() {
+    for original in [fixture("default-in.png"), lossy_sample::animation()] {
+        let (dir, mut request) = setup();
+        fs::write(&request.source, &original).unwrap();
+        request.mode = ApngMode::Lossy {
+            quality: crate::model::QualityValue::new(80).unwrap(),
+        };
+        let token = CancellationToken::default();
+        let limits = request.limits;
+        let before = validate_apng(&original, &limits.validation, &token).unwrap();
+        let guard = validation::Guard::new(&limits.validation, &token);
+        let mut usage = validation::quantization::Usage::default();
+        usage
+            .charge(
+                before.decoded_pixels,
+                before.decoded_bytes,
+                limits.validation,
+            )
+            .unwrap();
+        let lossless = encode(&original, limits, Duration::from_secs(10)).unwrap();
+        let selected = selection::select(
+            &original,
+            &before,
+            lossless,
+            request.mode,
+            limits,
+            &guard,
+            &mut usage,
+        )
+        .unwrap();
+        assert!(matches!(
+            selected.processing,
+            ApngProcessing::Lossy { .. } | ApngProcessing::LosslessFallback { .. }
+        ));
+        drop(selected);
+        // 额度恰好容纳完整候选选择，却不足以再读落盘候选；阶段切换不能重新发放额度。
+        for pixels in [false, true] {
+            request.limits = limits;
+            let expected = if pixels {
+                request.limits.validation.max_total_pixels = usage.pixels;
+                "total_pixel_budget"
+            } else {
+                request.limits.validation.max_decoded_bytes = usage.decoded_bytes;
+                "decoded_budget"
+            };
+            let mut staged = false;
+            let result = run(&request, &token, |stage| {
+                staged |= stage == ProcessingStage::Validating
+            });
+            assert!(staged, "expected to reach staged candidate: {result:?}");
+            assert!(matches!(result, Err(ApngError::ResourceLimit(code)) if code == expected));
+            assert_eq!(fs::read(&request.source).unwrap(), original);
+            assert_eq!(names(dir.path()), [request.source.clone()]);
+        }
+    }
+}
+
+#[test]
+fn lossy_baseline_hard_failure_never_becomes_fallback() {
+    let (dir, mut request) = setup();
+    request.mode = ApngMode::Lossy {
+        quality: crate::model::QualityValue::new(80).unwrap(),
+    };
+    let original = fs::read(&request.source).unwrap();
+    for encoder_failure in [false, true] {
+        let result = execute(
+            &request,
+            &CancellationToken::default(),
+            |_| {},
+            |_, _, _| {
+                if encoder_failure {
+                    Err(ApngError::Encoding(oxipng::PngError::InvalidData))
+                } else {
+                    Ok(fixture("changed-loop.apng"))
+                }
+            },
+            Instant::now(),
+        );
+        if encoder_failure {
+            assert!(matches!(result, Err(ApngError::Encoding(_))));
+        } else {
+            assert!(matches!(result, Err(ApngError::ValidationFailed)));
+        }
+        assert_eq!(fs::read(&request.source).unwrap(), original);
+        assert_eq!(names(dir.path()), [request.source.clone()]);
+    }
 }
