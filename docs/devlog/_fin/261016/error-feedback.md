@@ -1,6 +1,6 @@
 # JPEG损坏输入分类与错误提示
 
-- 创建日期：2026-10-16（Asia/Shanghai）。状态：本机实现、自动验证及新MSI交付完成，待错误提示局部GUI确认；未提交推送。
+- 创建日期：2026-10-16（Asia/Shanghai）。归档日期：2026-10-16。状态：本机实现、自动验证、新MSI局部手测及日志复核完成，按Windows验收范围归档；实现已在3425b5b，本次日志补记/归档尚未提交，新SHA平台门槛后续独立核对。
 - 基准：dev/e7b7b7a；保留JPEG手测复核对两份devlog文档的未提交修改，不提交推送。
 - 用户反馈：06-jpeg-corrupt-entropy.jpg按预期失败，但详情只显示“压缩引擎拒绝输入或异常退出”，希望错误提示更明确。
 
@@ -32,7 +32,18 @@
 - `pnpm jpeg:bundle:check --resources E:/Project/pixofold/target/jpeg-error-261016/msi/restored`通过，证据target/jpeg-bundle-ciEQGd/report.json及target/jpeg-error-261016-bundle.log；包内新helper身份、混合工作流、PNG/JPEG共同确认、四种输出策略与退出验收通过。
 - `git diff --check`通过；本轮无依赖或DTO变化。保留上轮手测日志的历史ToolExit记录，不改写为新分类；新构建才对明确损坏源返回invalid_input。功能/测试/文档仍为本机修改，未提交推送，尚无对应新SHA的三平台结果。
 
-## 下一步
+## 收口与后续
 
-- 用户只需用新MSI重新导入06-jpeg-corrupt-entropy.jpg，查看详情提示及中英文/窗口换行；应失败并说明图片数据无效或不完整、未改写原图、重新下载/导出的建议，不能获得凭据移除许可。实际GUI尚未由本轮自动部署替代，不要求重做整套手测。
-- 记录局部反馈后收口；后续按实际提交核对新SHA平台门槛。
+- 用户已反馈新MSI手测完成且06损坏JPEG提示正常；正式日志确认新的输入错误分类，原件保持，未授予凭据移除且未提交输出。局部验收收口，不重复要求手测；语言/窗口细分覆盖不超出用户反馈，日志不记录实际渲染文案。
+- 复核结束时功能已提交为3425b5b，本地origin/dev跟踪引用一致；后续按此SHA核对平台门槛，不沿用旧提交CI为本轮背书。本次日志补记与归档仍为本机文档修改。
+
+## 2026-10-16 新包局部手测与日志复核
+
+- 用户反馈新MSI手动验证完成，06-jpeg-corrupt-entropy.jpg错误提示正常。本轮核对最新正式会话、错误类别、无凭据授权/无输出提交、原件哈希与退出健康；不重复构建或改动功能代码。
+- 开始时仍为dev/e7b7b7a，上轮错误分类/文案及日志验收改动均未提交，保留全部既有修改。
+- 新会话run-1792122994795-Z9hDpkIcElZJ.jsonl共16条，Asia/Shanghai 2026-10-16 11:56:34–11:56:56，Windows x86_64/release/0.1.0/v15，JPEG/GIF引擎均校验成功。11:56:44的唯一JPEG质量70、batch1/job1/attempt1在Reading阶段返回InvalidInput，批次1失败/0成功，符合损坏输入预期。
+- 未出现credentials确认/移除、output或backup事件；唯一WARN为该预期InvalidInput，没有ERROR。一次缩略图Unavailable与损坏且仍含凭据源的受限预览一致。正常退出码0，dropped_events=0、write_failures=0；序列完整，唯一任务终态及批次统计一致。
+- 06源文件仍为1,362 bytes，SHA256 84546b17f206f5e5f79954046aacf8bf21b05e4f5b56b8e07fe1259d7a5fbce3，与交付清单一致。build_source仍为unknown，日志不含文件名、MSI哈希或渲染文案；样本关联及界面验收结合用户反馈，不能单靠日志宣称精确安装包身份。
+- 同时核对先前会话run-1792119967321-hAxdT0j2in32.jsonl（11:06:07–11:56:01，81条）：其中11:06:28/11:06:38的两次ToolExit发生于错误提示修正构建之前，属于历史记录；11:56:34新会话已是InvalidInput，不将两份会话混作新包回归失败。
+- 固定Node26.9.0执行target/jpeg-error-261016/manual-log-review.mjs，退出码0；报告target/jpeg-error-261016/manual-log-review.json保留日志SHA256、任务与健康核对、原件哈希及前后会话范围。`git diff --check`及链接核对通过；本轮仅更新/归档记录与索引，没有修改功能代码、重复测试构建或提交推送。
+- 最终状态复查发现仓库在本轮读取期间已更新到dev/3425b5b（完整SHA 3425b5bbb3d909fdd28e26acfdc473f64f22680c），本地origin/dev同SHA，提交包含错误分类/文案实现和先前记录。此为外部已发生的Git状态变化，本助手本轮没有执行提交或推送；仅剩索引及本任务归档补记未提交。远端状态和新SHA CI未实时查询。
