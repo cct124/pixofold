@@ -381,7 +381,8 @@ fn failed_commit_can_locate_its_recovery_backup_but_not_a_fake_result() {
     );
     // JPEG既有进程清理层，也可能包裹通用文件清理层；只定位实际CommitFailed备份。
     let job = &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0];
-    job.request.options = pixofold_core::batch::FormatOptions::Jpeg(Default::default());
+    job.request.options =
+        pixofold_core::batch::FormatOptions::Jpeg(Default::default(), Default::default());
     job.state = JobState::Failed(JobFailure {
         code: JobErrorCode::CleanupFailed,
         cause: Some(Arc::new(pixofold_core::batch::ImageError::Jpeg(

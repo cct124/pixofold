@@ -24,6 +24,7 @@ fn category(issue: &ImportIssueKind) -> &'static str {
                 JobErrorCode::UnsupportedAnimation => "unsupported_animation",
                 JobErrorCode::UnsupportedApng => "unsupported_apng",
                 JobErrorCode::UnsupportedApngMetadata => "unsupported_apng_metadata",
+                JobErrorCode::UnsupportedApngMode => "unsupported_apng_mode",
                 JobErrorCode::UnsupportedContentCredentials => "unsupported_content_credentials",
                 JobErrorCode::UnsupportedMetadata => "unsupported_metadata",
                 JobErrorCode::ResourceLimit => "resource_limit",

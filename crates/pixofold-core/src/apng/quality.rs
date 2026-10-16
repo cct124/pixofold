@@ -14,7 +14,7 @@ pub enum ApngMode {
     },
 }
 impl ApngMode {
-    pub(super) fn quantized(self) -> Option<ApngQualityMapping> {
+    pub(crate) fn quantized(self) -> Option<ApngQualityMapping> {
         match self {
             Self::Lossy { quality } if quality.get() < 100 => {
                 Some(ApngQualityMapping::new(quality))

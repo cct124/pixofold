@@ -8,10 +8,15 @@ pub(super) struct Parsed<'a> {
     sample_layout: Vec<[u8; 2]>,
     working_bytes: u64,
     metadata: Vec<(u8, &'a [u8])>,
+    pub credentials: Vec<std::ops::Range<usize>>,
+    orientation: u8,
 }
 
 impl Parsed<'_> {
     pub fn preview_orientation(&self) -> Result<u8, JpegError> {
+        if !self.credentials.is_empty() {
+            return Err(JpegError::ProtectedMetadata(0xeb));
+        }
         if matches!(
             self.lossy_fallback(),
             Some(
@@ -24,12 +29,7 @@ impl Parsed<'_> {
             // 预览不做ICC/CMYK转换，不将不明确的颜色解释伪装成正常预览。
             return Err(JpegError::UnsupportedJpeg);
         }
-        Ok(self
-            .metadata
-            .iter()
-            .find(|(marker, _)| *marker == 0xe1)
-            .and_then(|(_, data)| exif_orientation(data))
-            .unwrap_or(1))
+        Ok(self.orientation)
     }
     pub fn same_image_and_metadata(&self, other: &Parsed<'_>) -> bool {
         self.info == other.info
@@ -119,8 +119,10 @@ pub(super) fn inspect(bytes: &[u8], limits: JpegLimits) -> Result<Parsed<'_>, Jp
     let mut frame = None;
     let mut sample_layout = Vec::new();
     let mut metadata = Vec::new();
+    let mut metadata_ranges = Vec::new();
     let mut metadata_bytes = 0u64;
     loop {
+        let marker_start = offset;
         let marker = loop {
             if entropy {
                 while bytes.get(offset).is_some_and(|byte| *byte != 0xff) {
@@ -149,18 +151,23 @@ pub(super) fn inspect(bytes: &[u8], limits: JpegLimits) -> Result<Parsed<'_>, Jp
             if offset != bytes.len() || scans == 0 {
                 return Err(invalid("EOI尾随内容或无扫描"));
             }
-            validate_icc(&metadata)?;
             let (info, coefficient_bytes, working_bytes) =
                 frame.ok_or_else(|| invalid("缺少图像帧"))?;
-            if working_bytes + metadata_bytes * 2 > limits.resources.max_decoded_bytes.0 {
+            if working_bytes + metadata_bytes * 6 > limits.resources.max_decoded_bytes.0 {
                 return Err(JpegError::ResourceLimit("系数和元数据工作集"));
             }
+            // 在XML/IFD解析、JUMBF重组分配之前兑现工作集准入。
+            let checked = super::metadata::inspect(&metadata, &metadata_ranges)?;
+            // ICC拼接校验依赖段头已通过边界检查，未知/短APP2不能提前索引序号。
+            validate_icc(&metadata)?;
             return Ok(Parsed {
                 info,
                 coefficient_bytes,
                 sample_layout,
-                working_bytes: working_bytes + metadata_bytes * 2,
+                working_bytes: working_bytes + metadata_bytes * 6,
                 metadata,
+                credentials: checked.credentials,
+                orientation: checked.orientation,
             });
         }
         let length = bytes
@@ -203,12 +210,12 @@ pub(super) fn inspect(bytes: &[u8], limits: JpegLimits) -> Result<Parsed<'_>, Jp
                 if scans != 0 {
                     return Err(JpegError::ProtectedMetadata(marker));
                 }
-                check_metadata(marker, payload, &metadata)?;
                 metadata_bytes += payload.len() as u64 + 64;
                 if metadata_bytes > 1024 * 1024 {
                     return Err(JpegError::ResourceLimit("元数据字节"));
                 }
                 metadata.push((marker, payload));
+                metadata_ranges.push(marker_start..offset);
             }
             _ => return Err(JpegError::UnsupportedJpeg),
         }
@@ -320,9 +327,9 @@ pub(crate) fn probe_header(
             reader.read_exact(payload).ok()?;
             let (info, _, working) = parse_frame(payload, marker == 0xc2, limits).ok()?;
             let pixels = u64::from(info.width) * u64::from(info.height);
-            // 覆盖两套编码系数及helper平分预算，元数据上限按执行检查的双倍余量计费。
+            // 覆盖两套编码系数及helper平分预算、元数据解析/分片重组的双倍执行余量。
             // 头探测只收紧上限；完整执行复查实际结构和有损所需工作集。
-            let required = working * 2 + 4 * 1024 * 1024 + pixels * u64::from(info.components) * 2;
+            let required = working * 2 + 12 * 1024 * 1024 + pixels * u64::from(info.components) * 2;
             return Some((info, required));
         }
         let mut left = length;
@@ -336,66 +343,19 @@ pub(crate) fn probe_header(
     None
 }
 
+#[cfg(test)]
 fn check_metadata(marker: u8, data: &[u8], previous: &[(u8, &[u8])]) -> Result<(), JpegError> {
-    let known = match marker {
-        0xe0 => {
-            data.starts_with(b"JFIF\0")
-                && data.len() >= 14
-                && data.len() == 14 + usize::from(data[12]) * usize::from(data[13]) * 3
-        }
-        0xe1 => exif_orientation(data).is_some(),
-        0xe2 => {
-            data.starts_with(b"ICC_PROFILE\0")
-                && data.len() > 14
-                && data[12] != 0
-                && data[12] <= data[13]
-        }
-        0xee => data.len() == 12 && data.starts_with(b"Adobe") && data[11] <= 2,
-        0xfe => true,
-        // 包括APP11/JUMBF：即使字节能保留，也不能保证改写后的签名仍有效。
-        _ => false,
-    };
-    if !known || (![0xe2, 0xfe].contains(&marker) && previous.iter().any(|p| p.0 == marker)) {
-        return Err(JpegError::ProtectedMetadata(marker));
-    }
-    Ok(())
+    let mut segments = previous.to_vec();
+    segments.push((marker, data));
+    let ranges = vec![0..data.len(); segments.len()];
+    super::metadata::inspect(&segments, &ranges).map(|_| ())
 }
 
-/// 首版只接收单IFD、单Orientation项。MakerNote/缩略图/外部偏移等不能仅靠原样复制宣称安全。
+#[cfg(test)]
 fn exif_orientation(data: &[u8]) -> Option<u8> {
-    if data.len() != 32 || !data.starts_with(b"Exif\0\0") {
-        return None;
-    }
-    let tiff = &data[6..];
-    let little = match &tiff[..2] {
-        b"II" => true,
-        b"MM" => false,
-        _ => return None,
-    };
-    let u16_at = |i| {
-        if little {
-            u16::from_le_bytes([tiff[i], tiff[i + 1]])
-        } else {
-            u16::from_be_bytes([tiff[i], tiff[i + 1]])
-        }
-    };
-    let u32_at = |i| {
-        if little {
-            u32::from_le_bytes([tiff[i], tiff[i + 1], tiff[i + 2], tiff[i + 3]])
-        } else {
-            u32::from_be_bytes([tiff[i], tiff[i + 1], tiff[i + 2], tiff[i + 3]])
-        }
-    };
-    (u16_at(2) == 42
-        && u32_at(4) == 8
-        && u16_at(8) == 1
-        && u16_at(10) == 0x112
-        && u16_at(12) == 3
-        && u32_at(14) == 1
-        && (1..=8).contains(&u16_at(18))
-        && u16_at(20) == 0
-        && u32_at(22) == 0)
-        .then_some(u16_at(18) as u8)
+    super::metadata::inspect(&[(0xe1, data)], std::slice::from_ref(&(0..data.len())))
+        .ok()
+        .map(|info| info.orientation)
 }
 
 fn validate_icc(metadata: &[(u8, &[u8])]) -> Result<(), JpegError> {
@@ -467,6 +427,8 @@ mod tests {
             working_bytes: 0,
             sample_layout: vec![[1, 0], [2, 0], [3, 0]],
             metadata: vec![(0xe0, &jfif), (0xee, adobe)],
+            credentials: Vec::new(),
+            orientation: 1,
         };
         assert_eq!(
             parsed.lossy_fallback(),
@@ -488,7 +450,7 @@ mod tests {
         }
     }
     #[test]
-    fn only_simple_orientation_exif_is_accepted_in_both_byte_orders() {
+    fn orientation_exif_is_checked_in_both_byte_orders() {
         for little in [false, true] {
             for orientation in 1u16..=8 {
                 let mut data = b"Exif\0\0".to_vec();
@@ -517,6 +479,17 @@ mod tests {
     }
     #[test]
     fn duplicate_incomplete_icc_and_metadata_budget_are_rejected() {
+        for payload in [b"".as_slice(), b"MPF\0", b"ICC_PROFILE\0"] {
+            let mut bytes = vec![0xff, 0xd8, 0xff, 0xe2];
+            bytes.extend_from_slice(&((payload.len() + 2) as u16).to_be_bytes());
+            bytes.extend_from_slice(payload);
+            bytes.extend_from_slice(&[0xff, 0xc0, 0, 11, 8, 0, 1, 0, 1, 1, 1, 0x11, 0]);
+            bytes.extend_from_slice(&[0xff, 0xda, 0, 8, 1, 1, 0, 0, 63, 0, 0xff, 0xd9]);
+            assert!(matches!(
+                inspect(&bytes, JpegLimits::default()),
+                Err(JpegError::ProtectedMetadata(0xe2))
+            ));
+        }
         let mut profile = b"ICC_PROFILE\0".to_vec();
         profile.extend_from_slice(&[1, 1]);
         profile.extend_from_slice(&[0; 128]);

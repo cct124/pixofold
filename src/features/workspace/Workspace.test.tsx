@@ -181,16 +181,17 @@ function credentialsSnapshot(count = 2): TaskSnapshotDto {
 }
 
 describe('native drop import workflow', () => {
-  it('enables built-in APNG independently and explains lossless in either mode', async () => {
+  it('enables built-in APNG independently and explains actual mode and fallback', async () => {
     current.supportedFormats = ['png', 'apng'];
     await mount();
     expect(screen.getByText('APNG')).toHaveAttribute('aria-disabled', 'false');
     expect(screen.getByText('GIF')).toHaveAttribute('aria-disabled', 'true');
     expect(screen.getByText('当前可处理：PNG / APNG。')).toBeVisible();
-    const hint = 'APNG 始终按无损处理，不受质量设置影响；缩略图仅展示动画首帧。';
+    const hint =
+      'APNG 支持无损与有损压缩；质量 100 按无损处理，质量或收益不足时回退无损。缩略图仅展示动画首帧。';
     expect(screen.getByText(hint)).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: '无损优化' }));
-    expect(screen.getByText(hint)).toBeVisible();
+    expect(screen.getByText('APNG 保留动画与原始像素；缩略图仅展示动画首帧。')).toBeVisible();
     expect(writes()).toHaveLength(0);
   });
   it('uses configured capabilities and preserves mixed mode across reconnection', async () => {
@@ -599,6 +600,33 @@ describe('session-bound custom output folders', () => {
 });
 
 describe('content credentials confirmation workflow', () => {
+  it('confirms PNG and JPEG together using the same frozen output and backup choices', async () => {
+    useCompressionPreferences.setState({ backupBeforeOverwrite: true });
+    current = credentialsSnapshot();
+    current.supportedFormats = ['png', 'jpeg'];
+    confirmationRows = confirmationRows.map((row, index) =>
+      index === 1 ? { ...row, sourceName: name('photo.JPG') } : row,
+    );
+    await mount();
+    fireEvent.click(screen.getByRole('button', { name: '需要确认的图片 (2)' }));
+    const submit = await screen.findByRole('button', { name: '移除内容凭据后压缩 (2)' });
+    expect(screen.getByText('photo.JPG')).toBeVisible();
+    expect(screen.getAllByText('含内容凭据')).toHaveLength(2);
+    expect(screen.getByRole('radio', { name: '备份原图' })).toBeChecked();
+    fireEvent.click(submit);
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(writes()[0]).toMatchObject({
+      request: {
+        operation: {
+          kind: 'confirm_content_credentials',
+          jobIds: [7, 8],
+          expectedBatchRevision: '9007199254740993',
+          output: 'overwrite_with_backup',
+          consent: 'remove_content_credentials',
+        },
+      },
+    });
+  });
   it.each([false, true])(
     'inherits backup=%s on confirmation without any extra agreement step',
     async (backup) => {
@@ -1033,11 +1061,7 @@ describe('real-state workspace over a deterministic mock IPC transport', () => {
     expect(writes()).toHaveLength(1);
   });
   it.each([
-    [
-      'unsupported_content_credentials',
-      '含 C2PA 内容凭据（caBX）',
-      'C2PA Content Credentials (caBX)',
-    ],
+    ['unsupported_content_credentials', '含内容凭据', 'Contains Content Credentials'],
     [
       'unsupported_metadata',
       '含当前不支持安全改写的元数据',

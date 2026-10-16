@@ -55,6 +55,7 @@ impl Runner for GateRunner {
                     progressive: false,
                 },
                 processing: JpegProcessing::Lossless,
+                content_credentials_removed: false,
                 input_bytes: bytes,
                 output_bytes: bytes,
                 elapsed: Duration::ZERO,
@@ -297,16 +298,22 @@ fn mixed_jobs_share_workers_and_cancellation_retains_reservations_until_return()
 
 #[test]
 fn tight_budget_serializes_formats_and_unfit_rows_finish_without_waiting() {
-    let h = Harness::new(64 * 1024 * 1024, false);
+    // JPEG现在计入凭据工作副本和有界元数据解析；预算须容纳单图，同时不足以并发两图。
+    let budget = 96 * 1024 * 1024;
+    let h = Harness::new(budget, false);
     let id = h
         .service
         .start(h.request(&[ImageKind::Png, ImageKind::Jpeg]))
         .unwrap();
     assert_eq!(h.entered().format(), ImageKind::Png);
+    let first_reserved = h.service.snapshot().unwrap().reserved_working_bytes.0;
     assert_eq!(h.service.snapshot().unwrap().active_workers, 1);
     assert!(h.entered.try_recv().is_err());
     h.runner.release(1);
     assert_eq!(h.entered().format(), ImageKind::Jpeg);
+    let second_reserved = h.service.snapshot().unwrap().reserved_working_bytes.0;
+    assert!(first_reserved <= budget && second_reserved <= budget);
+    assert!(first_reserved + second_reserved > budget);
     h.runner.release(1);
     assert_eq!(h.service.wait(id, WAIT).unwrap().summary.no_gain, 2);
     let small = Harness::new(1, false);
@@ -394,36 +401,48 @@ struct ProcessRunner {
 
 #[test]
 fn apng_actual_execution_keeps_frozen_size_and_dimensions_after_source_changes() {
-    for sample in ["rgba16.apng", "metadata.apng"] {
-        let h = Harness::new(256 << 20, true);
-        let id = h.service.start(h.request(&[ImageKind::Apng])).unwrap();
-        let executing = h.entered();
-        let apng = executing.apng().unwrap();
-        let active = h.service.snapshot().unwrap();
-        assert_eq!(
-            active.reserved_working_bytes,
-            apng.limits
-                .working_set(apng.limits.validation.max_canvas_pixels)
-                .unwrap()
-        );
-        // 可信头仅用于收紧预约；排队后修改IHDR并重算CRC仍不能扩大实际额度。
-        let mut bytes = fs::read(
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../tests/fixtures/apng")
-                .join(sample),
-        )
-        .unwrap();
-        bytes[16..20].copy_from_slice(&8192u32.to_be_bytes());
-        let crc = crc32fast::hash(&bytes[12..29]);
-        bytes[29..33].copy_from_slice(&crc.to_be_bytes());
-        fs::write(&executing.source, &bytes).unwrap();
-        h.runner.release(1);
-        let done = h.service.wait(id, WAIT).unwrap();
-        assert!(
-            matches!(&done.jobs[0].state, JobState::Failed(f) if f.code == JobErrorCode::ResourceLimit)
-        );
-        assert_eq!(done.reserved_working_bytes.0, 0);
-        assert_eq!(fs::read(&executing.source).unwrap(), bytes);
+    for mode in [
+        PngMode::Lossless,
+        PngMode::Lossy {
+            quality: QualityValue::new(80).unwrap(),
+        },
+        PngMode::Lossy {
+            quality: QualityValue::new(100).unwrap(),
+        },
+    ] {
+        for sample in ["rgba16.apng", "metadata.apng"] {
+            let h = Harness::new(256 << 20, true);
+            let mut request = h.request(&[ImageKind::Apng]);
+            request.parameters.mode = mode;
+            let id = h.service.start(request).unwrap();
+            let executing = h.entered();
+            let apng = executing.apng().unwrap();
+            let active = h.service.snapshot().unwrap();
+            assert_eq!(
+                active.reserved_working_bytes,
+                apng.limits
+                    .working_set_for(apng.mode, apng.limits.validation.max_canvas_pixels)
+                    .unwrap()
+            );
+            // 可信头仅用于收紧预约；排队后修改IHDR并重算CRC仍不能扩大实际额度。
+            let mut bytes = fs::read(
+                Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../tests/fixtures/apng")
+                    .join(sample),
+            )
+            .unwrap();
+            bytes[16..20].copy_from_slice(&8192u32.to_be_bytes());
+            let crc = crc32fast::hash(&bytes[12..29]);
+            bytes[29..33].copy_from_slice(&crc.to_be_bytes());
+            fs::write(&executing.source, &bytes).unwrap();
+            h.runner.release(1);
+            let done = h.service.wait(id, WAIT).unwrap();
+            assert!(
+                matches!(&done.jobs[0].state, JobState::Failed(f) if f.code == JobErrorCode::ResourceLimit)
+            );
+            assert_eq!(done.reserved_working_bytes.0, 0);
+            assert_eq!(fs::read(&executing.source).unwrap(), bytes);
+        }
     }
 }
 

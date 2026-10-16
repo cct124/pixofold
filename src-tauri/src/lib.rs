@@ -15,6 +15,14 @@ pub(crate) mod resources;
 pub(crate) mod subscriptions;
 pub mod tasks;
 
+// 确定性验收语料只编入测试/部署检查，避免向正式安装包加入测试入口。
+#[cfg(any(test, feature = "bundle-check"))]
+#[path = "../../crates/pixofold-core/tests/support/apng_lossy.rs"]
+mod apng_test_sample;
+#[cfg(feature = "bundle-check")]
+#[path = "../../crates/pixofold-core/tests/support/jpeg_metadata.rs"]
+mod jpeg_metadata_sample;
+
 use tauri::Manager;
 
 // 生产与mock共用一次宏展开；macOS开发构建会生成唯一的嵌入plist符号。

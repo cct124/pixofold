@@ -33,6 +33,7 @@ use std::{
 
 mod apng;
 mod gif_lossy;
+mod jpeg_metadata;
 mod profile;
 pub use profile::profile;
 
@@ -542,6 +543,7 @@ pub fn verify(engines: ImageEngines, samples: &Path, root: &Path) -> Result<Valu
     } else {
         None
     };
+    let jpeg_metadata = jpeg_metadata::verify(&control, &service, samples, root)?;
     service.close();
     service.wait_idle();
     runtime.shutdown()?;
@@ -550,7 +552,7 @@ pub fn verify(engines: ImageEngines, samples: &Path, root: &Path) -> Result<Valu
         "应用任务未安全关闭",
     )?;
     Ok(
-        json!({"result":"passed", "protocolVersion":ipc::TASK_PROTOCOL_VERSION, "previews":previews, "outputs":outputs, "mixedRetry":true, "noGain":true, "allConflicts":true, "backup":true, "shutdown":true, "gifLossy":gif_lossy, "apng":apng}),
+        json!({"result":"passed", "protocolVersion":ipc::TASK_PROTOCOL_VERSION, "previews":previews, "outputs":outputs, "mixedRetry":true, "noGain":true, "allConflicts":true, "backup":true, "shutdown":true, "gifLossy":gif_lossy, "apng":apng, "jpegMetadata":jpeg_metadata}),
     )
 }
 

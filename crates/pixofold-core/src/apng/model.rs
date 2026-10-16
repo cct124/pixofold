@@ -28,6 +28,20 @@ impl Default for ApngLimits {
     }
 }
 impl ApngLimits {
+    /// 调度器用可信上界收紧验证缓冲；执行端仍按同一额度逐阶段复查。
+    /// 有损存活量含双背景/双解码、无损基线以及已验证源的两轮摘要。
+    pub(crate) fn validation_buffer_bound(
+        self,
+        mode: ApngMode,
+        canvas: u64,
+        compressed: u64,
+    ) -> u64 {
+        if mode.quantized().is_some() {
+            canvas * 112 + compressed * 7 + self.validation.max_frames as u64 * 24576 + (2 << 20)
+        } else {
+            canvas * 64 + compressed * 4 + self.validation.max_frames as u64 * 8192 + (1 << 20)
+        }
+    }
     pub(crate) fn check(self) -> Result<(), ApngError> {
         self.validation
             .check()

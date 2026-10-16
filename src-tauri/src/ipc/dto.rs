@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 
 pub(super) const MAX_PAGE_SIZE: u16 = 100;
 pub(super) const MAX_DISPLAY_CHARS: usize = 240;
-// v13增加APNG能力、无损报告与专属拒绝；旧页面须更新重载，ACK/背压沿用。
-pub(crate) const TASK_PROTOCOL_VERSION: u32 = 13;
+// v14增加APNG有损/回退、最终质量与模式拒绝；旧页面须更新重载，ACK/背压沿用。
+pub(crate) const TASK_PROTOCOL_VERSION: u32 = 15;
 
 /// 无符号64位十进制字符串；拒绝数字JSON、符号、空白、前导零及溢出。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -206,6 +206,7 @@ pub(crate) enum JobErrorDto {
     UnsupportedGifMode,
     UnsupportedApng,
     UnsupportedApngMetadata,
+    UnsupportedApngMode,
     UnsupportedMetadata,
     ResourceLimit,
     Decode,
@@ -233,6 +234,7 @@ impl TryFrom<pixofold_core::batch::JobErrorCode> for JobErrorDto {
             C::UnsupportedAnimation => Self::UnsupportedAnimation,
             C::UnsupportedApng => Self::UnsupportedApng,
             C::UnsupportedApngMetadata => Self::UnsupportedApngMetadata,
+            C::UnsupportedApngMode => Self::UnsupportedApngMode,
             C::UnsupportedContentCredentials => Self::UnsupportedContentCredentials,
             C::UnsupportedMetadata => Self::UnsupportedMetadata,
             C::ResourceLimit => Self::ResourceLimit,
@@ -501,6 +503,42 @@ pub(crate) enum ApngProcessingDto {
         num_plays: u32,
         default_participates: bool,
     },
+    Lossy {
+        frames: u32,
+        num_plays: u32,
+        default_participates: bool,
+        mapping_version: u32,
+        policy_version: u32,
+        quality: ApngQualityDto,
+    },
+    LosslessFallback {
+        frames: u32,
+        num_plays: u32,
+        default_participates: bool,
+        mapping_version: u32,
+        policy_version: u32,
+        reason: ApngFallbackDto,
+    },
+}
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) enum ApngFallbackDto {
+    QualityBelowTarget,
+    InsufficientGain,
+}
+/// 只记录最终写出的索引候选；回退/NoGain不携带被淘汰候选质量。
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) struct ApngQualityDto {
+    pub palette_entries: u32,
+    pub minimum_pixel_quality: u8,
+    pub minimum_remapping_quality: u8,
+    pub max_alpha_error: f64,
+    pub worst_frame_rmse: f64,
+    pub worst_temporal_rmse: f64,
 }
 
 /// 格式是可辨识联合的一部分；请求模式和实际路径分别表达，不跨格式解释质量数值。
@@ -699,6 +737,8 @@ pub(super) fn declarations() -> String {
         GifProcessingDto,
         GifFallbackDto,
         ApngProcessingDto,
+        ApngQualityDto,
+        ApngFallbackDto,
         ProcessingDto,
         ReportDto,
         ConfirmationDto,

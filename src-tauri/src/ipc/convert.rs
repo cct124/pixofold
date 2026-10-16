@@ -84,6 +84,9 @@ fn recovery_cause(error: &ProcessingError) -> RecoveryCauseDto {
 fn jpeg_cause(error: &JpegError) -> RecoveryCauseDto {
     let code = match error {
         JpegError::InvalidLimits | JpegError::InvalidJpeg(_) => JobErrorDto::InvalidInput,
+        JpegError::ContentCredentialsRequireConsent(_) => {
+            JobErrorDto::UnsupportedContentCredentials
+        }
         JpegError::UnsupportedJpeg => JobErrorDto::UnsupportedFormat,
         JpegError::ProtectedMetadata(0xeb) => JobErrorDto::UnsupportedJpegCredentials,
         JpegError::ProtectedMetadata(_) => JobErrorDto::UnsupportedMetadata,
@@ -136,6 +139,9 @@ fn apng_cause(error: &ApngError) -> RecoveryCauseDto {
         ApngError::Validation(e) => match e.0 {
             "signature" | "unsupported_representation" => JobErrorDto::UnsupportedApng,
             "unsupported_metadata" => JobErrorDto::UnsupportedApngMetadata,
+            "unsupported_depth" | "unsupported_interlace" | "unsupported_color" => {
+                JobErrorDto::UnsupportedApngMode
+            }
             "decode" => JobErrorDto::Decode,
             _ => JobErrorDto::InvalidInput,
         },
@@ -440,25 +446,18 @@ fn gif_processing(report: &GifReport) -> Result<GifProcessingDto> {
         },
     })
 }
+mod apng;
 fn report(value: &ImageReport) -> Result<ReportDto> {
+    if value.credentials_removed()
+        && !matches!(value.outcome(), ProcessingOutcome::Optimized { .. })
+    {
+        return Err(QueryError::InvalidSnapshot);
+    }
     let (elapsed, processing) = match value {
-        ImageReport::Apng(report) => {
-            if report.image.frames == 0
-                || report.processing != pixofold_core::apng::ApngProcessing::Lossless
-                || report.requested_mode != pixofold_core::apng::ApngMode::Lossless
-                || report.quality.is_some()
-            {
-                return Err(QueryError::InvalidSnapshot);
-            }
-            (
-                report.elapsed,
-                ProcessingDto::Apng(ApngProcessingDto::Lossless {
-                    frames: report.image.frames,
-                    num_plays: report.image.num_plays,
-                    default_participates: report.image.default_participates,
-                }),
-            )
-        }
+        ImageReport::Apng(report) => (
+            report.elapsed,
+            ProcessingDto::Apng(apng::processing(report)?),
+        ),
         ImageReport::Gif(report) => (report.elapsed, ProcessingDto::Gif(gif_processing(report)?)),
         ImageReport::Png(report) => (
             report.elapsed,
@@ -489,6 +488,23 @@ fn report(value: &ImageReport) -> Result<ReportDto> {
     })
 }
 fn job(value: &JobSnapshot) -> Result<JobDto> {
+    if let JobState::Succeeded(ImageReport::Apng(report))
+    | JobState::NoGain(ImageReport::Apng(report)) = &value.state
+    {
+        let request = value
+            .request
+            .apng()
+            .map_err(|_| QueryError::InvalidSnapshot)?;
+        if request.mode != report.requested_mode
+            || !matches!(
+                (&value.state, &report.outcome),
+                (JobState::Succeeded(_), ProcessingOutcome::Optimized { .. })
+                    | (JobState::NoGain(_), ProcessingOutcome::NoGain)
+            )
+        {
+            return Err(QueryError::InvalidSnapshot);
+        }
+    }
     if let JobState::Succeeded(report) | JobState::NoGain(report) = &value.state {
         let format = match report {
             ImageReport::Png(_) => ImageKind::Png,
@@ -497,6 +513,17 @@ fn job(value: &JobSnapshot) -> Result<JobDto> {
             ImageReport::Apng(_) => ImageKind::Apng,
         };
         if format != value.request.format() {
+            return Err(QueryError::InvalidSnapshot);
+        }
+        if report.credentials_removed() && !matches!(value.state, JobState::Succeeded(_)) {
+            return Err(QueryError::InvalidSnapshot);
+        }
+        if matches!(report, ImageReport::Jpeg(r) if r.content_credentials_removed)
+            && !matches!(
+                &value.request.options,
+                FormatOptions::Jpeg(_, MetadataPolicy::RemoveContentCredentials(_))
+            )
+        {
             return Err(QueryError::InvalidSnapshot);
         }
     }

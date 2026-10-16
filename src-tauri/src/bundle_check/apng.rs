@@ -1,6 +1,7 @@
-//! v13真实四格式混批、APNG冻结重试/无损报告/首帧/备份；仅显式部署验收编译。
+//! v14真实四格式混批、APNG有损/回退/冻结重试/首帧/备份；仅显式部署验收编译。
+use super::super::apng_test_sample as sample;
 use super::*;
-use pixofold_core::apng::{ApngValidationLimits, compare_apng};
+use pixofold_core::apng::{ApngProcessing, ApngValidationLimits, compare_apng, validate_apng};
 
 pub(super) fn verify(
     control: &TaskControl,
@@ -48,13 +49,58 @@ pub(super) fn verify(
     let jpeg = fs::read(samples.join("baseline-420.jpg"))?;
     fs::write(inputs.join("photo.jpg"), &jpeg)?;
     originals.push((inputs.join("photo.jpg"), jpeg));
+    for (name, bytes) in [
+        ("palette.apng", sample::animation()),
+        (
+            "beach.apng",
+            include_bytes!(
+                "../../../tests/manual-images/apng/Animated_PNG_example_bouncing_beach_ball.png"
+            )
+            .to_vec(),
+        ),
+        (
+            "deep.apng",
+            include_bytes!("../../../tests/fixtures/apng/rgba16.apng").to_vec(),
+        ),
+        (
+            "interlaced.apng",
+            include_bytes!("../../../tests/fixtures/apng/adam7.apng").to_vec(),
+        ),
+    ] {
+        fs::write(inputs.join(name), &bytes)?;
+        originals.push((inputs.join(name), bytes));
+    }
     let mut matrix = Vec::new();
     for (label, mode) in [
         ("lossless", PngMode::Lossless),
         (
+            "lossy0",
+            PngMode::Lossy {
+                quality: QualityValue::new(0)?,
+            },
+        ),
+        (
+            "lossy50",
+            PngMode::Lossy {
+                quality: QualityValue::new(50)?,
+            },
+        ),
+        (
             "lossy80",
             PngMode::Lossy {
                 quality: QualityValue::new(80)?,
+            },
+        ),
+        (
+            "lossy95",
+            PngMode::Lossy {
+                quality: QualityValue::new(95)?,
+            },
+        ),
+        (
+            "lossy100",
+            PngMode::Lossy {
+                quality: QualityValue::new(100)?,
             },
         ),
     ] {
@@ -80,8 +126,11 @@ pub(super) fn verify(
                 "四格式混批缺失格式",
             )?;
         }
+        let quantized = matches!(mode, PngMode::Lossy { quality } if quality.get() < 100);
         require(
-            batch.summary.failed == 2 && batch.summary.no_gain >= 1 && batch.summary.succeeded >= 1,
+            batch.summary.failed == if quantized { 4 } else { 2 }
+                && batch.summary.no_gain >= 1
+                && batch.summary.succeeded >= 1,
             "四格式终态不符",
         )?;
         let wire = query(control, "jobs")?;
@@ -90,10 +139,48 @@ pub(super) fn verify(
                 && matches!(row["state"]["kind"].as_str(), Some("succeeded" | "no_gain"))
             {
                 require(
-                    row["state"]["report"]["processing"]["details"]["kind"] == "lossless"
-                        && row["state"]["report"]["contentCredentialsRemoved"] == false,
+                    (if quantized {
+                        matches!(
+                            row["state"]["report"]["processing"]["details"]["kind"].as_str(),
+                            Some("lossy" | "lossless_fallback")
+                        )
+                    } else {
+                        row["state"]["report"]["processing"]["details"]["kind"] == "lossless"
+                    }) && row["state"]["report"]["contentCredentialsRemoved"] == false,
                     "APNG实际模式/许可报告不符",
                 )?;
+            }
+        }
+        // q80同时具备成功有损和两类回退，不能只靠小图的无损回退验证接线。
+        if label == "lossy80" {
+            for (name, expected) in [
+                ("palette.apng", "lossy"),
+                ("beach.apng", "quality_below_target"),
+                ("small.png", "insufficient_gain"),
+            ] {
+                let row = batch
+                    .jobs
+                    .iter()
+                    .find(|j| j.request.source.file_name().is_some_and(|n| n == name))
+                    .ok_or("缺少APNG模式样本")?;
+                let report = match &row.state {
+                    JobState::Succeeded(ImageReport::Apng(r))
+                    | JobState::NoGain(ImageReport::Apng(r)) => r,
+                    _ => return Err("APNG模式样本失败".into()),
+                };
+                let actual = match report.processing {
+                    ApngProcessing::Lossy { .. } => "lossy",
+                    ApngProcessing::Lossless => "lossless",
+                    ApngProcessing::LosslessFallback { reason, .. } => match reason {
+                        pixofold_core::apng::ApngFallbackReason::QualityBelowTarget => {
+                            "quality_below_target"
+                        }
+                        pixofold_core::apng::ApngFallbackReason::InsufficientGain => {
+                            "insufficient_gain"
+                        }
+                    },
+                };
+                require(actual == expected, "APNG实际候选路径不符")?;
             }
         }
         let conflict = batch
@@ -120,11 +207,11 @@ pub(super) fn verify(
             selection,
             batch.revision,
             RetryRequest {
-                jobs: vec![RetryJob {
+                jobs: std::iter::once(RetryJob {
                     id: conflict.id,
                     output: conflict.request.output.clone(),
                     metadata: PngMetadataPolicy::Preserve,
-                }],
+                }).chain(batch.jobs.iter().filter(|j| matches!(&j.state, JobState::Failed(f) if f.code == JobErrorCode::UnsupportedApngMode)).map(|j| RetryJob { id: j.id, output: j.request.output.clone(), metadata: PngMetadataPolicy::Preserve })).collect(),
                 parameters: BatchParameters::default(),
             },
         )?;
@@ -151,6 +238,51 @@ pub(super) fn verify(
                 || !matches!(job.state, JobState::Succeeded(_) | JobState::NoGain(_))
             {
                 continue;
+            }
+            let report = match &job.state {
+                JobState::Succeeded(ImageReport::Apng(r))
+                | JobState::NoGain(ImageReport::Apng(r)) => r,
+                _ => return Err("APNG报告缺失".into()),
+            };
+            require(
+                report.requested_mode == job.request.apng()?.mode,
+                "APNG冻结请求错配",
+            )?;
+            require(
+                job.content_credentials_source().is_none(),
+                "APNG获得了PNG凭据许可",
+            )?;
+            let result_path = asset(assets::resolve(
+                &retried,
+                &identity(&retried, job)?,
+                Some(RevealTarget::Result),
+            ))?;
+            if let ProcessingOutcome::Optimized { .. } = report.outcome {
+                let stored = fs::read(&result_path)?;
+                if matches!(report.processing, ApngProcessing::Lossy { .. }) {
+                    require(
+                        (stored[24], stored[25]) == (8, 3) && report.quality.is_some(),
+                        "有损输出不是索引APNG",
+                    )?;
+                    validate_apng(
+                        &stored,
+                        &ApngValidationLimits::default(),
+                        &CancellationToken::default(),
+                    )?;
+                } else {
+                    compare_apng(
+                        &fs::read(&job.request.source)?,
+                        &stored,
+                        &ApngValidationLimits::default(),
+                        &CancellationToken::default(),
+                    )?;
+                    require(report.quality.is_none(), "回退泄露淘汰候选质量")?;
+                }
+            } else {
+                require(
+                    result_path == job.request.source && report.quality.is_none(),
+                    "NoGain未保留源图",
+                )?;
             }
             let request = identity(&retried, job)?;
             let permit = asset(service.reserve(Operation::Thumbnail))?;
@@ -193,10 +325,16 @@ pub(super) fn verify(
         require(fs::read(path)? == *bytes, "混批源文件改变")?;
     }
     let source = directory.join("backup.APNG");
-    fs::write(&source, gain)?;
+    let backup_original = sample::animation();
+    fs::write(&source, &backup_original)?;
     control.import(
         vec![source],
-        Some(settings(ImportOutput::Overwrite, PngMode::Lossless)),
+        Some(settings(
+            ImportOutput::Overwrite,
+            PngMode::Lossy {
+                quality: QualityValue::new(80)?,
+            },
+        )),
     )?;
     let snapshot = phase(control, TaskPhase::Finished)?;
     let job = &snapshot.batch.as_ref().ok_or("缺少APNG备份批次")?.jobs[0];
@@ -206,10 +344,10 @@ pub(super) fn verify(
         Some(RevealTarget::Backup),
     ))?;
     require(
-        backup.extension().is_some_and(|e| e == "APNG") && fs::read(&backup)? == gain,
+        backup.extension().is_some_and(|e| e == "APNG") && fs::read(&backup)? == backup_original,
         "APNG备份不符",
     )?;
     Ok(
-        json!({"result":"passed", "matrix":matrix,"independentPlayback":true,"frozenRetry":true,"backup":true,"previews":true,"revokedPreview":true,"sourceUnchanged":true}),
+        json!({"result":"passed", "matrix":matrix,"independentPlayback":true,"lossyAndFallbacks":true,"frozenRetry":true,"backup":true,"previews":true,"revokedPreview":true,"sourceUnchanged":true}),
     )
 }

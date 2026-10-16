@@ -16,6 +16,8 @@ crc32fast.workspace = true
 imagequant.workspace = true
 oxipng.workspace = true
 png.workspace = true
+# 复用锁文件已有版本，用于有界XMP解析；禁用DTD，不解析外部资源。
+quick-xml = { version = "=0.42.0", default-features = false }
 same-file.workspace = true
 sha2.workspace = true
 tempfile.workspace = true

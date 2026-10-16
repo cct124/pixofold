@@ -119,10 +119,18 @@ fn real_mixed_outputs_no_gain_conflicts_and_retry_keep_frozen_targets() {
     let JobState::Succeeded(ImageReport::Apng(report)) = &done.jobs[0].state else {
         panic!("{done:?}")
     };
-    assert_eq!(report.processing, ApngProcessing::Lossless);
+    assert!(matches!(
+        report.processing,
+        ApngProcessing::LosslessFallback {
+            reason: ApngFallbackReason::InsufficientGain,
+            ..
+        }
+    ));
     assert_eq!(
         report.requested_mode,
-        pixofold_core::apng::ApngMode::Lossless
+        pixofold_core::apng::ApngMode::Lossy {
+            quality: QualityValue::new(80).unwrap()
+        }
     );
     assert!(report.quality.is_none());
     assert_eq!(report.image.frames, 2);

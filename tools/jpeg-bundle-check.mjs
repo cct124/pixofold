@@ -79,8 +79,13 @@ for (const { file } of report.outputs) {
     assert.deepEqual(after.stdout, before.stdout, '无损系数改变');
   }
 }
-assert.equal(report.desktop.protocolVersion, 13);
+assert.equal(report.desktop.protocolVersion, 15);
 assert.equal(report.desktop.result, 'passed');
+assert.equal(report.desktop.jpegMetadata.result, 'passed');
+assert.deepEqual(
+  report.desktop.jpegMetadata.matrix.map((entry) => entry.output),
+  ['copy-flat', 'copy-tree', 'backup', 'overwrite'],
+);
 assert.equal(report.desktop.previews, 11);
 for (const item of report.desktop.outputs) {
   if (item.format !== 'jpeg') continue;

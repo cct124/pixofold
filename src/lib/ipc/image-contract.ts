@@ -1,4 +1,5 @@
 import type {
+  ApngFallbackDto,
   FallbackDto,
   GifFallbackDto,
   JpegFallbackDto,
@@ -17,6 +18,7 @@ const failures = {
   unsupported_gif_mode: true,
   unsupported_apng: true,
   unsupported_apng_metadata: true,
+  unsupported_apng_mode: true,
   unsupported_metadata: true,
   resource_limit: true,
   decode: true,
@@ -52,6 +54,10 @@ const gifFallbacks = {
   quality_below_target: true,
   insufficient_gain: true,
 } satisfies Record<GifFallbackDto['kind'], true>;
+const apngFallbacks = {
+  quality_below_target: true,
+  insufficient_gain: true,
+} satisfies Record<ApngFallbackDto['kind'], true>;
 
 function requireContract(condition: boolean): void {
   if (!condition) throw new Error('Inconsistent image contract');
@@ -73,12 +79,13 @@ function report(job: JobDto): void {
   );
   if (job.state.kind === 'failed') failure(job.state.failure);
   if (job.state.kind !== 'succeeded' && job.state.kind !== 'no_gain') return;
+  requireContract(!job.state.report.contentCredentialsRemoved || job.state.kind === 'succeeded');
   const value = job.state.report.processing;
   requireContract(value.format === job.format);
   const details = value.details;
   requireContract(['lossless', 'lossy', 'lossless_fallback'].includes(details.kind));
   if (details.kind === 'lossless') {
-    // GIF可实际无损；APNG当前在所有请求模式下均保持严格无损。
+    // GIF可能实际无损；APNG的q100在格式分支中核对。
     requireContract(
       value.format === 'gif' || value.format === 'apng' || job.mode.kind === 'lossless',
     );
@@ -90,7 +97,6 @@ function report(job: JobDto): void {
     );
   }
   if (value.format === 'jpeg') {
-    requireContract(job.state.report.contentCredentialsRemoved === false);
     if (value.details.kind !== 'lossless') {
       requireContract(value.details.mappingVersion === 1);
       requireContract(quality(value.details.nativeQuality, 1));
@@ -121,8 +127,48 @@ function report(job: JobDto): void {
     const loops = value.details.loopCount;
     requireContract(loops === null || (Number.isInteger(loops) && loops >= 0 && loops <= 65535));
   } else if (value.format === 'apng') {
-    requireContract(value.details.kind === 'lossless');
     requireContract(job.state.report.contentCredentialsRemoved === false);
+    if (value.details.kind === 'lossless') {
+      requireContract(
+        job.mode.kind === 'lossless' || (job.mode.kind === 'lossy' && job.mode.quality === 100),
+      );
+      requireContract(!('quality' in value.details));
+    } else {
+      requireContract(job.mode.kind === 'lossy' && job.mode.quality < 100);
+      requireContract(value.details.mappingVersion === 1 && value.details.policyVersion === 2);
+      if (value.details.kind === 'lossless_fallback') {
+        requireContract(Object.hasOwn(apngFallbacks, value.details.reason.kind));
+        requireContract(!('quality' in value.details));
+      } else {
+        requireContract(job.state.kind === 'succeeded');
+        const measured = value.details.quality;
+        requireContract(!!measured && typeof measured === 'object');
+        requireContract(
+          Number.isInteger(measured.paletteEntries) &&
+            measured.paletteEntries >= 1 &&
+            measured.paletteEntries <= 256,
+        );
+        requireContract(
+          quality(measured.minimumPixelQuality) && quality(measured.minimumRemappingQuality),
+        );
+        if (job.mode.kind === 'lossy') {
+          const limit = (100 - job.mode.quality) * 0.2;
+          requireContract(
+            measured.minimumPixelQuality >= job.mode.quality &&
+              measured.minimumRemappingQuality >= job.mode.quality,
+          );
+          requireContract(
+            (
+              [
+                [measured.maxAlphaError, 8],
+                [measured.worstFrameRmse, limit * 1.5],
+                [measured.worstTemporalRmse, limit * 2],
+              ] as const
+            ).every(([value, maximum]) => Number.isFinite(value) && value >= 0 && value <= maximum),
+          );
+        }
+      }
+    }
     requireContract(
       Number.isInteger(value.details.frames) &&
         value.details.frames > 0 &&
@@ -146,7 +192,7 @@ function report(job: JobDto): void {
   }
 }
 
-/** v13格式边界：APNG实际无损；JPEG/GIF/APNG不继承PNG凭据许可。 */
+/** v15：JPEG已确认的成功输出可标记凭据移除；GIF/APNG仍禁止，NoGain不能冒充已移除。 */
 export function validateImages(snapshot: TaskSnapshotDto): void {
   const formats = snapshot.supportedFormats;
   requireContract(Array.isArray(formats) && formats.length >= 1 && formats.length <= 4);

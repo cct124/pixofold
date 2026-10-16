@@ -38,7 +38,8 @@ pub fn estimate_working_set(parameters: BatchParameters) -> Result<ByteCount, Ba
 }
 
 /// JPEG阶段峰值预约：8份输入涵盖source、增长到两倍的管道candidate、stored及源/备份复查；
-/// 两份原生预算覆盖系数/像素及分配余量，32MiB覆盖helper映像、I/O线程栈/管道/固定开销。
+/// 两份原生预算覆盖系数/像素及分配余量，九份输入额度含凭据移除工作副本；
+/// 32MiB覆盖helper映像、I/O线程栈/管道/固定开销。
 /// 三次调用顺序执行，指纹/像素流只计算摘要；不是RSS硬限额。
 /// # Errors
 /// JPEG配置超出合法域或计费算术溢出时返回InvalidLimits，不自动钳制配置。
@@ -50,7 +51,7 @@ pub fn estimate_jpeg_working_set(
         .resources
         .max_input_bytes
         .0
-        .checked_mul(8)
+        .checked_mul(9)
         .zip(limits.resources.max_decoded_bytes.0.checked_mul(2))
         .and_then(|(a, b)| a.checked_add(b))
         .and_then(|n| n.checked_add(32 * 1024 * 1024))
@@ -136,7 +137,7 @@ pub(super) fn prepare(
         {
             failure.get_or_insert_with(|| JobFailure::image(error.into()));
         }
-        if let FormatOptions::Jpeg(options) = request.options
+        if let FormatOptions::Jpeg(options, _) = request.options
             && let Err(error) = options.limits(request.limits).validate()
         {
             failure.get_or_insert_with(|| JobFailure::image(error.into()));
@@ -153,7 +154,9 @@ pub(super) fn prepare(
                         .get_or_insert_with(|| JobFailure::fault(JobErrorCode::UnsupportedFormat));
                 }
                 let limits = options.limits(execution_limits);
-                match limits.working_set(limits.validation.max_canvas_pixels) {
+                match limits
+                    .working_set_for(request.apng_mode(), limits.validation.max_canvas_pixels)
+                {
                     Ok(bytes) => bytes,
                     Err(error) => {
                         failure.get_or_insert_with(|| JobFailure::image(error.into()));
@@ -180,7 +183,7 @@ pub(super) fn prepare(
                 limits: execution_limits,
                 ..BatchParameters::default()
             })?,
-            FormatOptions::Jpeg(options) => {
+            FormatOptions::Jpeg(options, _) => {
                 if !engines.supports(ImageKind::Jpeg) {
                     failure.get_or_insert_with(|| {
                         JobFailure::image(crate::jpeg::JpegError::ToolIdentity.into())
@@ -209,6 +212,9 @@ pub(super) fn prepare(
             )),
             (PngMode::Lossy { quality }, ImageKind::Gif) => Some(QualityMapping::Gif(
                 crate::gif::GifQualityMapping::new(quality),
+            )),
+            (PngMode::Lossy { quality }, ImageKind::Apng) => Some(QualityMapping::Apng(
+                crate::apng::ApngQualityMapping::new(quality),
             )),
             _ => None,
         };

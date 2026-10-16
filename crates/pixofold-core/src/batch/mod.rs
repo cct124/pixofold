@@ -230,7 +230,7 @@ impl Runner for PipelineRunner {
                     .map(ImageReport::Png)
                     .map_err(ImageError::Png)
             }
-            FormatOptions::Jpeg(_) => {
+            FormatOptions::Jpeg(..) => {
                 let engine = self
                     .0
                     .jpeg
@@ -550,11 +550,14 @@ impl BatchService {
                     FormatOptions::Gif(request.parameters.gif)
                 }
                 FormatOptions::Png(_) => FormatOptions::Png(retry.metadata),
-                FormatOptions::Jpeg(_) => {
-                    if !matches!(retry.metadata, PngMetadataPolicy::Preserve) {
+                FormatOptions::Jpeg(..) => {
+                    if let PngMetadataPolicy::RemoveContentCredentials(source) = &retry.metadata
+                        && (source.format != crate::model::CredentialsFormat::Jpeg
+                            || old[i].view.content_credentials_source() != Some(source))
+                    {
                         return Err(BatchError::InvalidRetry);
                     }
-                    FormatOptions::Jpeg(request.parameters.jpeg)
+                    FormatOptions::Jpeg(request.parameters.jpeg, retry.metadata)
                 }
             };
         }

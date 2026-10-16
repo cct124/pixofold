@@ -1,8 +1,9 @@
-//! JPEG单文件无损/保守有损核心；批次通过受信引擎调用，尚未接入桌面。
-//! 固定可信原生工具只接收字节，输出层独占文件提交；不复用PNG凭据许可。
+//! JPEG单文件无损/保守有损核心及内容凭据显式确认。
+//! 固定可信原生工具只接收字节，输出层独占提交；凭据来源版本绑定JPEG与已检查原件。
 
 mod engine;
 mod format;
+mod metadata;
 mod process;
 mod quality;
 
@@ -69,12 +70,14 @@ pub(crate) fn inspect_structure(bytes: &[u8], limits: JpegLimits) -> Result<Jpeg
 
 use crate::{
     model::{
-        ByteCount, CancellationToken, OutputPolicy, ProcessingError, ProcessingOutcome,
-        ProcessingStage, ResourceLimits,
+        ByteCount, CancellationToken, ContentCredentialsSource, CredentialsFormat,
+        JpegMetadataPolicy, OutputPolicy, ProcessingError, ProcessingOutcome, ProcessingStage,
+        ResourceLimits,
     },
     output::{self, Destination, Source},
 };
 use std::{
+    borrow::Cow,
     fmt, io,
     path::PathBuf,
     time::{Duration, Instant},
@@ -119,13 +122,14 @@ impl JpegLimits {
     }
 }
 
-/// JPEG专属请求；默认无损，有损只在已验证的颜色/元数据范围执行，无凭据移除开关。
+/// JPEG专属请求；默认无损/保留元数据，移除凭据必须绑定完整检查返回的来源版本。
 #[derive(Debug, Clone)]
 pub struct JpegRequest {
     pub source: PathBuf,
     pub output: OutputPolicy,
     pub mode: JpegMode,
     pub limits: JpegLimits,
+    pub metadata: JpegMetadataPolicy,
 }
 
 impl JpegRequest {
@@ -136,6 +140,7 @@ impl JpegRequest {
             output: OutputPolicy::Overwrite,
             mode: JpegMode::Lossless,
             limits: JpegLimits::default(),
+            metadata: JpegMetadataPolicy::Preserve,
         }
     }
 }
@@ -152,6 +157,7 @@ pub struct JpegInfo {
 pub struct JpegReport {
     pub image: JpegInfo,
     pub processing: JpegProcessing,
+    pub content_credentials_removed: bool,
     pub input_bytes: ByteCount,
     pub output_bytes: ByteCount,
     pub elapsed: Duration,
@@ -165,6 +171,7 @@ pub enum JpegError {
     InvalidJpeg(&'static str),
     UnsupportedJpeg,
     ProtectedMetadata(u8),
+    ContentCredentialsRequireConsent(ContentCredentialsSource),
     ResourceLimit(&'static str),
     ToolIdentity,
     ToolIo {
@@ -199,6 +206,9 @@ impl fmt::Display for JpegError {
             Self::InvalidLimits => f.write_str("JPEG资源配置无效"),
             Self::InvalidJpeg(reason) => write!(f, "JPEG结构无效：{reason}"),
             Self::UnsupportedJpeg => f.write_str("仅支持8位Huffman基线或渐进JPEG"),
+            Self::ContentCredentialsRequireConsent(_) => {
+                f.write_str("JPEG含内容凭据，须明确确认移除后处理；原图未修改")
+            }
             Self::ProtectedMetadata(marker) => write!(
                 f,
                 "JPEG含暂不支持安全改写的元数据（FF{marker:02X}），未修改原图"
@@ -267,7 +277,36 @@ pub fn optimize_jpeg(
         return Err(JpegError::UnsupportedJpeg);
     }
     source.use_jpeg_backup_suffix();
-    let parsed = format::inspect(&source.bytes, request.limits)?;
+    if let JpegMetadataPolicy::RemoveContentCredentials(expected) = &request.metadata {
+        source.verify_credentials_version_for(expected, CredentialsFormat::Jpeg)?;
+    }
+    let original = format::inspect(&source.bytes, request.limits)?;
+    let has_credentials = !original.credentials.is_empty();
+    let working = match &request.metadata {
+        JpegMetadataPolicy::Preserve if has_credentials => {
+            // 完整系数解码覆盖所有扫描/熵数据；坏JPEG、工具错误或清理失败不得获得确认许可。
+            engine.fingerprint(&source.bytes, &original, request.limits, cancel)?;
+            source.verify_unchanged(request.limits.resources)?;
+            cancel.check()?;
+            tracing::info!(target: "pixofold", event = "credentials_waiting_for_consent", source_unchanged = true);
+            return Err(JpegError::ContentCredentialsRequireConsent(
+                source.credentials_version_for(CredentialsFormat::Jpeg),
+            ));
+        }
+        JpegMetadataPolicy::Preserve => Cow::Borrowed(source.bytes.as_slice()),
+        JpegMetadataPolicy::RemoveContentCredentials(_) if has_credentials => {
+            tracing::info!(target: "pixofold", event = "credentials_removing_in_memory");
+            Cow::Owned(metadata::remove(&source.bytes, &original.credentials)?)
+        }
+        JpegMetadataPolicy::RemoveContentCredentials(_) => {
+            return Err(ProcessingError::SourceChanged.into());
+        }
+    };
+    drop(original);
+    let parsed = format::inspect(&working, request.limits)?;
+    if !parsed.credentials.is_empty() {
+        return Err(JpegError::ValidationFailed);
+    }
     let destination = Destination::plan(&source, &request.output)?;
     on_stage(ProcessingStage::Optimizing);
     let processing = match request.mode {
@@ -283,21 +322,16 @@ pub fn optimize_jpeg(
     let (candidate, validation) = match processing {
         JpegProcessing::Lossy { parameters } => {
             parsed.check_lossy_budget(request.limits)?;
-            let color = engine.decoded_color(&source.bytes, &parsed, request.limits, cancel)?;
+            let color = engine.decoded_color(&working, &parsed, request.limits, cancel)?;
             (
-                engine.reencode(
-                    &source.bytes,
-                    parameters.native_quality,
-                    request.limits,
-                    cancel,
-                )?,
+                engine.reencode(&working, parameters.native_quality, request.limits, cancel)?,
                 CandidateValidation::Color(color),
             )
         }
         _ => {
-            let hash = engine.fingerprint(&source.bytes, &parsed, request.limits, cancel)?;
+            let hash = engine.fingerprint(&working, &parsed, request.limits, cancel)?;
             (
-                engine.optimize(&source.bytes, request.limits, cancel)?,
+                engine.optimize(&working, request.limits, cancel)?,
                 CandidateValidation::Coefficients(hash),
             )
         }
@@ -349,6 +383,7 @@ pub fn optimize_jpeg(
     };
     let image = parsed.info.clone();
     drop(parsed);
+    drop(working);
     let input_bytes = ByteCount(source.bytes.len() as u64);
     let output_size = stored.len() as u64;
     let (outcome, output_bytes) = if output_size >= input_bytes.0 {
@@ -371,6 +406,8 @@ pub fn optimize_jpeg(
     Ok(JpegReport {
         image,
         processing,
+        content_credentials_removed: has_credentials
+            && matches!(outcome, ProcessingOutcome::Optimized { .. }),
         input_bytes,
         output_bytes,
         elapsed: started.elapsed(),

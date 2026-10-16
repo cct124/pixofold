@@ -4,6 +4,7 @@ PixoFold 自有代码采用 GPL-3.0-or-later；第三方组件适用其自身许
 
 | 组件 | 用途 | 许可 |
 | --- | --- | --- |
+| quick-xml 0.42.0 | JPEG普通XMP的有界XML/命名空间校验；复用已有锁定版本，关闭默认特性，拒绝DTD和外部资源（2026-10-15成为核心直接依赖） | [MIT原文](tools/jpeg-lab/licenses/quick-xml-LICENSE-MIT)，随包置于licenses/ |
 | Tauri、tauri-build、Tauri JS API / CLI | 桌面运行时、IPC、构建工具 | MIT OR Apache-2.0 |
 | tauri-plugin-dialog 2.7.3 | Rust侧原生文件/目录选择；显式gtk3特性，不启用xdg-portal或JS插件包 | MIT OR Apache-2.0 |
 | tauri-plugin-opener 2.5.4 | Rust侧任务绑定结果/备份定位和批次目录打开；关闭默认特性，不安装JS插件或授予通用opener权限（2026-09-29引入） | MIT OR Apache-2.0 |

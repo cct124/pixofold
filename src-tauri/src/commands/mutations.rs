@@ -12,7 +12,7 @@ use crate::{
 use pixofold_core::{
     batch::{BatchParameters, RetryJob, RetryRequest},
     import::{ImportOutput, copy_beside},
-    model::{OutputPolicy, PngMetadataPolicy},
+    model::{MetadataPolicy, OutputPolicy},
 };
 use std::collections::{BTreeSet, HashMap};
 
@@ -257,7 +257,7 @@ pub(crate) fn mutate(
                             .next()
                             .ok_or(MutationError::InvalidRetry)?,
                     },
-                    metadata: PngMetadataPolicy::RemoveContentCredentials(source.clone()),
+                    metadata: MetadataPolicy::RemoveContentCredentials(source.clone()),
                 });
             }
             if jobs.len() != selected.len() {

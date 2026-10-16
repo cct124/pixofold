@@ -17,8 +17,8 @@ use sha2::{Digest, Sha256};
 use tempfile::{Builder, NamedTempFile};
 
 use crate::model::{
-    CancellationToken, ContentCredentialsSource, OutputDirectory, OutputPolicy, ProcessingError,
-    ProcessingOutcome, ProcessingStage, ResourceLimits,
+    CancellationToken, ContentCredentialsSource, CredentialsFormat, OutputDirectory, OutputPolicy,
+    ProcessingError, ProcessingOutcome, ProcessingStage, ResourceLimits,
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -54,7 +54,15 @@ pub(crate) struct Source {
 
 impl Source {
     pub(crate) fn credentials_version(&self) -> ContentCredentialsSource {
+        self.credentials_version_for(CredentialsFormat::Png)
+    }
+
+    pub(crate) fn credentials_version_for(
+        &self,
+        format: CredentialsFormat,
+    ) -> ContentCredentialsSource {
         ContentCredentialsSource {
+            format,
             path: self.path.clone(),
             length: self.fingerprint.len,
             modified: self.fingerprint.modified,
@@ -68,7 +76,15 @@ impl Source {
         &self,
         expected: &ContentCredentialsSource,
     ) -> Result<(), ProcessingError> {
-        if &self.credentials_version() != expected {
+        self.verify_credentials_version_for(expected, CredentialsFormat::Png)
+    }
+
+    pub(crate) fn verify_credentials_version_for(
+        &self,
+        expected: &ContentCredentialsSource,
+        format: CredentialsFormat,
+    ) -> Result<(), ProcessingError> {
+        if &self.credentials_version_for(format) != expected {
             return Err(ProcessingError::SourceChanged);
         }
         Ok(())

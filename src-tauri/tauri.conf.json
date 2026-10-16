@@ -30,7 +30,7 @@
     }
   },
   "bundle": {
-    "resources": { "resources/jpeg/": "jpeg/", "resources/gif/": "gif/" },
+    "resources": { "resources/jpeg/": "jpeg/", "resources/gif/": "gif/", "../tools/jpeg-lab/licenses/quick-xml-LICENSE-MIT": "licenses/quick-xml-LICENSE-MIT" },
     "active": true,
     "targets": "all",
     "category": "GraphicsAndDesign",

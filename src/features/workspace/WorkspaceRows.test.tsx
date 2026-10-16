@@ -1,6 +1,11 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import type { GifProcessingDto, JobDto, TaskPageDto } from '../../lib/ipc/tasks.generated';
+import type {
+  ApngProcessingDto,
+  GifProcessingDto,
+  JobDto,
+  TaskPageDto,
+} from '../../lib/ipc/tasks.generated';
 import { TaskAssets } from '../../lib/ipc/task-assets';
 import { WorkspaceRows } from './WorkspaceRows';
 
@@ -35,7 +40,7 @@ it.each(['zh-CN', 'en'] as const)(
     const apng: JobDto = {
       ...job,
       format: 'apng',
-      mode: { kind: 'lossy', quality: 80 },
+      mode: { kind: 'lossy', quality: 100 },
       state: {
         kind: 'succeeded',
         report: {
@@ -64,6 +69,73 @@ it.each(['zh-CN', 'en'] as const)(
     expect(details).toHaveTextContent(
       language === 'en' ? 'Default image is separate' : '默认图独立于动画',
     );
+  },
+);
+
+it.each(['zh-CN', 'en'] as const)(
+  'shows APNG lossy and both fallback reasons in %s',
+  (language) => {
+    if (job.state.kind !== 'succeeded') throw new Error('fixture');
+    const shared = {
+      frames: 4,
+      numPlays: 0,
+      defaultParticipates: true,
+      mappingVersion: 1,
+      policyVersion: 2,
+    };
+    const paths: ApngProcessingDto[] = [
+      {
+        ...shared,
+        kind: 'lossy',
+        quality: {
+          paletteEntries: 27,
+          minimumPixelQuality: 82,
+          minimumRemappingQuality: 82,
+          maxAlphaError: 0,
+          worstFrameRmse: 3.5,
+          worstTemporalRmse: 5,
+        },
+      },
+      { ...shared, kind: 'lossless_fallback', reason: { kind: 'quality_below_target' } },
+      { ...shared, kind: 'lossless_fallback', reason: { kind: 'insufficient_gain' } },
+    ];
+    for (const processing of paths) {
+      const apng: JobDto = {
+        ...job,
+        format: 'apng',
+        mode: { kind: 'lossy', quality: 80 },
+        state: {
+          kind: 'succeeded',
+          report: { ...job.state.report, processing: { format: 'apng', details: processing } },
+        },
+      };
+      const rendered = render(
+        <WorkspaceRows
+          page={{ kind: 'jobs', offset: 0, total: 1, items: [apng] }}
+          language={language}
+          access={access}
+        />,
+      );
+      fireEvent.mouseEnter(
+        screen.getByRole('button', { name: language === 'en' ? 'Details' : '详情' }),
+      );
+      const details = screen.getByRole('dialog');
+      if (processing.kind === 'lossy')
+        expect(details).toHaveTextContent(language === 'en' ? 'Lossy' : '有损压缩');
+      else if (processing.kind === 'lossless_fallback') {
+        expect(details).toHaveTextContent(language === 'en' ? 'Lossless' : '无损');
+        expect(details).toHaveTextContent(
+          processing.reason.kind === 'insufficient_gain'
+            ? language === 'en'
+              ? 'Insufficient additional savings'
+              : '额外压缩收益不足'
+            : language === 'en'
+              ? 'Quality'
+              : '质量',
+        );
+      }
+      rendered.unmount();
+    }
   },
 );
 

@@ -36,4 +36,4 @@ J1b第一段已新增单文件保守有损。core-check继续使用J1a无损回�
 
 J1b第二段增加jpeg_mixed_check：真实PNG/JPEG混合扫描、无损/有损与颜色回退、逐行/全部冲突、重试稳定ID、备份与原始OS名称、目录结构、能力一致性、PNG凭据隔离、扫描上限和关闭回收。混合JPEG产物继续由djpeg/coeffdump/标记检查独立复验，记录mixed-results/checks.json及core-report.json的mixedOutputsVerified。应用统一测试另用可控门闩和真实阻塞子进程验证worker/工作集共享与取消/超时/关闭后的回收顺序；两类证据分别记录，不等同桌面GUI或RSS实测。
 
-正式核心的生命周期、默认保护、严格Exif子集和安全输出边界见[JPEG核心说明](../../native/jpeg/README.md)，J1b混合核心已完成，J2第一段已接可信随包资源；桌面IPC/混合工作流属于J2第二段。产品当前仍只开放静态PNG。
+v15新增jpeg_metadata_check：普通Exif/XMP/Photoshop数据、已入库的8种方向照片、完整与损坏C2PA容器、未知APP11、源变化/取消、PNG/JPEG共同确认及含凭据原件备份。core-check对实际输出独立比较非凭据元数据、系数及像素，报告metadataOutputsVerified；原件保持不变。C2PA确定性样本仅验证容器与确认逻辑，不声称签名真实。桌面四种输出策略及冲突后重新确认由jpeg:bundle:check覆盖；当前四格式/v15范围见[JPEG核心说明](../../native/jpeg/README.md)与[本批记录](../../docs/devlog/_plan/261015/jpeg-metadata-credentials.md)。

@@ -98,6 +98,49 @@ export function runCoreChecks({ root, build, tools, source }) {
       );
     }
   }
+  const metadata = spawnSync(
+    'cargo',
+    [
+      'run',
+      '--locked',
+      '-p',
+      'pixofold-core',
+      '--example',
+      'jpeg_metadata_check',
+      '--',
+      path.dirname(tools.helper),
+      hash,
+      directory,
+    ],
+    { cwd: root, stdio: 'inherit', windowsHide: true, timeout: 180000 },
+  );
+  if (metadata.error) throw metadata.error;
+  assert.equal(metadata.status, 0, 'JPEG元数据/凭据核心检查失败');
+  const metadataChecks = JSON.parse(
+    readFileSync(path.join(directory, 'metadata-results', 'checks.json'), 'utf8'),
+  );
+  assert.ok(metadataChecks.some((entry) => entry.removed));
+  for (const entry of metadataChecks) {
+    const original = readFileSync(entry.source);
+    const reference = readFileSync(entry.reference);
+    const output = readFileSync(entry.output);
+    assert.deepEqual(
+      extraMarkers(output),
+      extraMarkers(reference),
+      '凭据移除仅豁免已识别APP11，其他元数据逐字节保留',
+    );
+    assert.ok(execute(tools.djpeg, ['-strict', '-ppm'], output).length > 0);
+    if (entry.lossless) {
+      assert.deepEqual(
+        execute(tools.coefficients, [], output),
+        execute(tools.coefficients, [], original),
+      );
+      assert.deepEqual(
+        execute(tools.djpeg, ['-strict', '-ppm'], output),
+        execute(tools.djpeg, ['-strict', '-ppm'], original),
+      );
+    }
+  }
   writeFileSync(
     path.join(directory, 'core-report.json'),
     JSON.stringify(
@@ -106,6 +149,7 @@ export function runCoreChecks({ root, build, tools, source }) {
         platform: process.platform,
         samples: samples.length,
         mixedOutputsVerified: mixedChecks.length,
+        metadataOutputsVerified: metadataChecks.length,
         result: 'passed',
       },
       null,

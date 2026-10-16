@@ -78,6 +78,29 @@ it('validates actual format capabilities and JPEG reports at the IPC boundary', 
     await expect(getTaskSnapshot(request())).rejects.toThrow('image contract');
   }
   if (job.state.kind !== 'no_gain') throw new Error('fixture');
+  const removed = { ...job.state.report, contentCredentialsRemoved: true };
+  vi.mocked(invoke).mockResolvedValue({
+    ...response,
+    page: { ...response.page, items: [{ ...job, state: { kind: 'no_gain', report: removed } }] },
+  });
+  await expect(getTaskSnapshot(request())).rejects.toThrow('image contract');
+  vi.mocked(invoke).mockResolvedValue({
+    ...response,
+    page: {
+      ...response.page,
+      items: [
+        {
+          ...job,
+          attempt: 2,
+          state: {
+            kind: 'succeeded',
+            report: { ...removed, outputBytes: '800', outputName: job.sourceName },
+          },
+        },
+      ],
+    },
+  });
+  await expect(getTaskSnapshot(request())).resolves.toBeDefined();
   for (const processing of [
     { format: 'png', details: { kind: 'lossless' } },
     { format: 'jpeg', details: { kind: 'lossy', mappingVersion: 1, nativeQuality: 0 } },
@@ -98,7 +121,7 @@ it('validates actual format capabilities and JPEG reports at the IPC boundary', 
   }
 });
 
-it('validates APNG lossless reports in both requested modes and rejects forged semantics', async () => {
+it('validates v14 APNG actual modes and rejects forged quality or fallback semantics', async () => {
   vi.mocked(isTauri).mockReturnValue(true);
   const details = { kind: 'lossless', frames: 2, numPlays: 0, defaultParticipates: false } as const;
   const report = {
@@ -116,7 +139,7 @@ it('validates APNG lossless reports in both requested modes and rejects forged s
     format: 'apng',
     sourceName: { text: 'animation.PNG', lossy: false, truncated: false, sanitized: false },
     inputBytes: '500',
-    mode: { kind: 'lossy', quality: 80 },
+    mode: { kind: 'lossy', quality: 100 },
     state: { kind: 'no_gain', report },
   };
   const resolve = (row: unknown, formats = ['png', 'jpeg', 'gif', 'apng']) => {
@@ -129,6 +152,9 @@ it('validates APNG lossless reports in both requested modes and rejects forged s
   };
   await expect(resolve(job)).resolves.toBeDefined();
   await expect(resolve({ ...job, mode: { kind: 'lossless' } })).resolves.toBeDefined();
+  await expect(resolve({ ...job, mode: { kind: 'lossy', quality: 80 } })).rejects.toThrow(
+    'image contract',
+  );
   await expect(resolve(job, ['png'])).rejects.toThrow('image contract');
   for (const invalid of [
     { ...details, kind: 'lossy' },
@@ -155,6 +181,85 @@ it('validates APNG lossless reports in both requested modes and rejects forged s
       state: { kind: 'no_gain', report: { ...report, contentCredentialsRemoved: true } },
     }),
   ).rejects.toThrow('image contract');
+  const measured = {
+    paletteEntries: 32,
+    minimumPixelQuality: 90,
+    minimumRemappingQuality: 90,
+    maxAlphaError: 4,
+    worstFrameRmse: 3,
+    worstTemporalRmse: 5,
+  };
+  const lossy = {
+    ...details,
+    kind: 'lossy',
+    mappingVersion: 1,
+    policyVersion: 2,
+    quality: measured,
+  };
+  const row = (
+    actual: unknown,
+    mode: unknown = { kind: 'lossy', quality: 80 },
+    kind = 'succeeded',
+  ) => ({
+    ...job,
+    mode,
+    state: {
+      kind,
+      report: { ...report, outputBytes: '200', processing: { format: 'apng', details: actual } },
+    },
+  });
+  await expect(resolve(row(lossy))).resolves.toBeDefined();
+  await expect(resolve(row(lossy, { kind: 'lossless' }))).rejects.toThrow('image contract');
+  await expect(resolve(row(lossy, { kind: 'lossy', quality: 100 }))).rejects.toThrow(
+    'image contract',
+  );
+  await expect(resolve(row(lossy, { kind: 'lossy', quality: 80 }, 'no_gain'))).rejects.toThrow(
+    'image contract',
+  );
+  for (const invalid of [
+    { ...lossy, mappingVersion: 2 },
+    { ...lossy, policyVersion: 1 },
+    { ...lossy, quality: null },
+    ...[
+      { paletteEntries: 257 },
+      { minimumPixelQuality: 79 },
+      { minimumRemappingQuality: 101 },
+      { maxAlphaError: 9 },
+      { worstFrameRmse: -1 },
+      { worstTemporalRmse: 9 },
+      { maxAlphaError: NaN },
+      { worstFrameRmse: Infinity },
+    ].map((change) => ({ ...lossy, quality: { ...measured, ...change } })),
+  ])
+    await expect(resolve(row(invalid))).rejects.toThrow('image contract');
+  for (const kind of ['quality_below_target', 'insufficient_gain']) {
+    const fallback = {
+      ...details,
+      kind: 'lossless_fallback',
+      mappingVersion: 1,
+      policyVersion: 2,
+      reason: { kind },
+    };
+    await expect(resolve(row(fallback))).resolves.toBeDefined();
+    await expect(
+      resolve(row(fallback, { kind: 'lossy', quality: 80 }, 'no_gain')),
+    ).resolves.toBeDefined();
+    await expect(resolve(row({ ...fallback, quality: measured }))).rejects.toThrow(
+      'image contract',
+    );
+    await expect(resolve(row({ ...fallback, reason: { kind: 'high_bit_depth' } }))).rejects.toThrow(
+      'image contract',
+    );
+    await expect(resolve(row(fallback, { kind: 'lossy', quality: 100 }))).rejects.toThrow(
+      'image contract',
+    );
+  }
+  await expect(
+    resolve({
+      ...job,
+      state: { kind: 'failed', failure: { code: 'unsupported_apng_mode', recovery: null } },
+    }),
+  ).resolves.toBeDefined();
 });
 
 it('validates v13 GIF actual paths, loops, mapping and credentials', async () => {

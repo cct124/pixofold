@@ -112,7 +112,7 @@ mod tests {
         assert_eq!(request.log_quality(), Some(100));
         assert_eq!(request.log_mode(), "lossy");
         assert_eq!(request.log_format(), "png");
-        request.options = super::super::FormatOptions::Jpeg(Default::default());
+        request.options = super::super::FormatOptions::Jpeg(Default::default(), Default::default());
         assert_eq!(request.log_format(), "jpeg");
         request.options = super::super::FormatOptions::Gif(Default::default());
         assert_eq!(request.log_format(), "gif");

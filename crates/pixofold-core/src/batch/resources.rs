@@ -92,12 +92,15 @@ pub(super) fn image_limits(
                         .saturating_add(BUFFER_MARGIN),
                 );
             }
-            original.max_decoded_bytes.0 = original.max_decoded_bytes.0.min(
-                pixels * 64
-                    + original.max_input_bytes.0 * 4
-                    + limits.validation.max_frames as u64 * 8192
-                    + BUFFER_MARGIN,
-            );
+            original.max_decoded_bytes.0 =
+                original
+                    .max_decoded_bytes
+                    .0
+                    .min(limits.validation_buffer_bound(
+                        request.apng_mode(),
+                        pixels,
+                        original.max_input_bytes.0,
+                    ));
         }
         return original;
     }
@@ -133,7 +136,7 @@ pub(super) fn image_limits(
             ..original
         });
     }
-    let FormatOptions::Jpeg(options) = request.options else {
+    let FormatOptions::Jpeg(options, _) = request.options else {
         return request
             .png()
             .map_or(request.limits, |png| execution_limits(&png, input_bytes));

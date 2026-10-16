@@ -62,7 +62,7 @@ impl BatchParameters {
             limits: self.limits,
             options: match item.format {
                 ImageKind::Png => FormatOptions::Png(PngMetadataPolicy::Preserve),
-                ImageKind::Jpeg => FormatOptions::Jpeg(self.jpeg),
+                ImageKind::Jpeg => FormatOptions::Jpeg(self.jpeg, PngMetadataPolicy::Preserve),
                 ImageKind::Gif => FormatOptions::Gif(self.gif),
                 ImageKind::Apng => FormatOptions::Apng(self.apng),
             },
@@ -141,6 +141,7 @@ pub enum JobErrorCode {
     UnsupportedAnimation,
     UnsupportedApng,
     UnsupportedApngMetadata,
+    UnsupportedApngMode,
     UnsupportedContentCredentials,
     UnsupportedMetadata,
     ResourceLimit,
@@ -181,6 +182,9 @@ impl JobFailure {
                     A::Validation(e) => match e.0 {
                         "signature" | "unsupported_representation" => JobErrorCode::UnsupportedApng,
                         "unsupported_metadata" => JobErrorCode::UnsupportedApngMetadata,
+                        "unsupported_depth" | "unsupported_interlace" | "unsupported_color" => {
+                            JobErrorCode::UnsupportedApngMode
+                        }
                         "decode" => JobErrorCode::Decode,
                         _ => JobErrorCode::InvalidInput,
                     },
@@ -220,6 +224,9 @@ impl JobFailure {
             }
             ImageError::Png(e) | ImageError::Jpeg(JpegError::File(e)) => Self::processing_code(e),
             ImageError::Jpeg(e) => match e {
+                JpegError::ContentCredentialsRequireConsent(_) => {
+                    JobErrorCode::UnsupportedContentCredentials
+                }
                 JpegError::InvalidLimits | JpegError::InvalidJpeg(_) => JobErrorCode::InvalidInput,
                 JpegError::UnsupportedJpeg => JobErrorCode::UnsupportedFormat,
                 JpegError::ProtectedMetadata(0xeb) => JobErrorCode::UnsupportedContentCredentials,
@@ -282,17 +289,22 @@ pub struct JobSnapshot {
 }
 
 impl JobSnapshot {
-    /// 仅完整检查后、尚未写入的caBX失败可进入确认流程；嵌套清理失败不可绕过。
+    /// 仅完整检查后、尚未写入的PNG/JPEG凭据失败可确认；嵌套清理失败不可绕过。
     pub fn content_credentials_source(&self) -> Option<&ContentCredentialsSource> {
-        if let JobState::Failed(failure) = &self.state
-            && let Some(cause) = &failure.cause
-            && let ImageError::Png(ProcessingError::ContentCredentialsRequireConsent(source)) =
-                cause.as_ref()
-            && self.request.format() == ImageKind::Png
-        {
-            return Some(source);
+        let JobState::Failed(failure) = &self.state else {
+            return None;
+        };
+        match (self.request.format(), failure.cause.as_deref()?) {
+            (
+                ImageKind::Png,
+                ImageError::Png(ProcessingError::ContentCredentialsRequireConsent(source)),
+            ) if source.format == crate::model::CredentialsFormat::Png => Some(source),
+            (
+                ImageKind::Jpeg,
+                ImageError::Jpeg(JpegError::ContentCredentialsRequireConsent(source)),
+            ) if source.format == crate::model::CredentialsFormat::Jpeg => Some(source),
+            _ => None,
         }
-        None
     }
 }
 

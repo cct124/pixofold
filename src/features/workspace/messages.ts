@@ -74,7 +74,7 @@ const copy = {
     'Compression requires removing Content Credentials from these images. Originals are unchanged.',
   ],
   credentialsImpact: ['移除内容凭据', 'Removes credentials'],
-  credentialsReason: ['含内容凭据 caBX', 'Contains Content Credentials (caBX)'],
+  credentialsReason: ['含内容凭据', 'Contains Content Credentials'],
   credentialsOverwrite: ['覆盖原图', 'Overwrite originals'],
   credentialsBackup: ['备份原图', 'Back up originals'],
   credentialsOutputScope: ['仅对本次选中的图片生效。', 'Applies only to the images selected here.'],
@@ -89,7 +89,10 @@ const copy = {
   selected: ['已选择', 'Selected'],
   reason: ['原因', 'Reason'],
   impact: ['影响', 'Impact'],
-  credentialsPixelsOnly: ['仅像素无损', 'Lossless pixels only'],
+  credentialsPixelsOnly: [
+    '图像内容无损，凭据将移除',
+    'Lossless image content; credentials will be removed',
+  ],
   credentialsRemoved: ['已移除内容凭据', 'Content Credentials removed'],
   credentialsInvalid: [
     '质量或输出目录设置无效，请关闭弹窗并修正后重开。',
@@ -107,8 +110,16 @@ const copy = {
   scope: ['当前可处理：', 'Available formats: '],
   scopeEnd: ['。', '.'],
   apngHint: [
-    'APNG 始终按无损处理，不受质量设置影响；缩略图仅展示动画首帧。',
-    'APNG always uses lossless processing, regardless of quality. Thumbnails show the first animation frame only.',
+    'APNG 支持无损与有损压缩；质量 100 按无损处理，质量或收益不足时回退无损。缩略图仅展示动画首帧。',
+    'APNG supports lossless and lossy compression. Quality 100 is lossless; insufficient quality or savings falls back to lossless. Thumbnails show the first animation frame only.',
+  ],
+  apngPreviewHint: [
+    'APNG 保留动画与原始像素；缩略图仅展示动画首帧。',
+    'APNG preserves animation and original pixels. Thumbnails show the first animation frame only.',
+  ],
+  unsupported_apng_mode: [
+    '此 APNG 的位深、交错或颜色信息暂不支持有损压缩，请切换无损后重试',
+    'This APNG bit depth, interlacing or color information is not supported in lossy mode. Switch to lossless and retry.',
   ],
   apngPlays: ['总播放次数', 'Total plays'],
   apngDefaultIncluded: ['默认图参与动画', 'Default image is part of animation'],
@@ -313,16 +324,16 @@ const copy = {
   encode: ['编码失败', 'Encoding failed'],
   validation: ['结果验证失败', 'Result validation failed'],
   unsupported_content_credentials: [
-    '含 C2PA 内容凭据（caBX），原图已保留。可从“需要确认的图片”入口明确选择移除凭据后压缩；调整质量不能替代确认。',
-    'Contains C2PA Content Credentials (caBX). Original kept. Use “Images needing confirmation” to explicitly remove credentials before compression; changing quality is not consent.',
+    '含内容凭据，原图已保留。可从“需要确认的图片”入口明确选择移除凭据后压缩；调整质量不能替代确认。',
+    'Contains Content Credentials. Original kept. Use “Images needing confirmation” to explicitly remove credentials before compression; changing quality is not consent.',
   ],
   unsupported_metadata: [
     '含当前不支持安全改写的元数据，原图已保留；不会自动删除元数据。',
     'Contains metadata that cannot currently be rewritten safely. Original kept; metadata will not be removed automatically.',
   ],
   unsupported_jpeg_credentials: [
-    'JPEG 含受保护的 APP11 数据，原图已保留；暂不提供凭据移除。',
-    'JPEG contains protected APP11 data. Original kept; credential removal is unavailable.',
+    'JPEG 含无法安全识别的 APP11 数据，原图已保留；不能作为已识别的内容凭据移除。',
+    'JPEG contains unrecognized APP11 data. Original kept; it cannot be removed as recognized Content Credentials.',
   ],
   unsupported_gif_mode: [
     'GIF 处理模式不可用，原图已保留。',

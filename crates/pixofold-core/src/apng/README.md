@@ -1,6 +1,6 @@
-# APNG单文件核心与无损桌面
+# APNG单文件核心、批量与v14桌面
 
-Rust入口为 `pixofold_core::apng`。单文件核心支持固定O1严格无损及显式共享调色板有损，实际候选独立复验后安全输出。A4的扫描、批量、协议v13、受限预览和四格式桌面继续冻结无损。默认核心服务仍PNG-only，桌面通过 `ImageEngines::add_apng` 显式启用内建能力；静态PNG入口仍拒绝动画。APNG不依赖外部helper，JPEG/GIF独立降级不影响其能力。
+Rust入口为 `pixofold_core::apng`。核心、批量和v14桌面支持固定O1严格无损及共享调色板有损，实际候选独立复验后安全输出。批次按冻结模式/质量执行，预览仍为受限首帧。默认核心服务仍PNG-only，桌面通过 `ImageEngines::add_apng` 显式启用内建能力；静态PNG入口仍拒绝动画。APNG不依赖外部helper，JPEG/GIF独立降级不影响其能力。
 
 ## 接口与使用
 
@@ -31,7 +31,7 @@ Rust调用方迁移：完整请求字面量补mode（优先使用new），完整
 - 有损仅支持8位非交错及已解释颜色。16位、Adam7和不支持的颜色声明明确拒绝，可以改用无损/q100；不静默降深或移除元数据。
 - 先生成并独立验证O1基线；量化后重解码、重新计算实际像素/双背景/时间误差，遵守实验v2全部门槛，原始alpha分类不变且差≤4、合成差≤8。通过质量后仍须相对min(源,有效无损候选)再省至少1%且至少1024 bytes。
 - 只有质量不足或额外收益不足分别返回QualityBelowTarget/InsufficientGain无损回退。容器/硬语义、编码、资源、取消/期限、输出错误均失败；回退候选仍须落盘严格复验。复杂半透明/连续OVER没有通过门槛时保留无损路径，不放宽规则。
-- 量化指标是算法误差尺度，人工动画观感和各平台验证仍独立进行。单文件能力不会自动开放批量或v13桌面有损。
+- 量化指标是算法误差尺度，人工动画观感和各平台验证仍独立进行。v14的批量执行、资源预约、实际报告和界面同时迁移，旧v13页面须重载。
 
 ## 支持与严格无损
 
@@ -61,11 +61,14 @@ O1禁用alpha优化、位深/色型/灰度/调色板缩减、16位缩放、交�
 
 这是保守准入估算，覆盖源/候选、复读/备份、过滤缓冲和原生分配余量；不是分配器或RSS硬限制。先按最小估算拒绝，再经结构解析按实际画布复查，之后才解码/编码。候选落盘后释放编码向量，源与读回候选的存活量继续计费。批量与PNG/JPEG/GIF共用固定worker池/全局预算；有界IHDR探测只收紧输入、像素、最大边和验证缓冲。预约与实际执行使用同一冻结额度，排队后变大的源必须拒绝，超预算只使该行失败。
 
-## v13迁移与预览
+有损批量按IHDR与文件上限收紧验证缓冲：112×画布像素 + 7×最大输入/候选字节 + 24,576×最大帧数 + 2MiB，仍取用户额度较小值；包含无损基线、双背景/双解码及源两轮摘要。无损/q100沿用无损缓冲估算。冻结后的同一额度贯穿预约和实际执行，max_palette_searches等专属上限不会在批量转换时重置。
+
+## v14迁移与预览
 
 - Rust新增 `ImageKind/FormatOptions/ImportedImage/ImageReport/ImageError::Apng`、`BatchParameters.apng`、`ScanOptions.apng_limits`。扫描按PNG块边界识别动画声明并完整结构预检，不解码；`.png`、`.apng`和误扩展名均不能覆盖实际内容。
-- v13在 `supportedFormats` 中提供apng，`processing.format=apng`、`details.kind=lossless`，含 `frames`、`numPlays`、`defaultParticipates`。numPlays是总播放次数，0为无限，不能套用GIF额外循环次数。全局有损请求的mode保留，但APNG实际始终无损；没有质量映射、回退或PNG凭据移除权限。旧v12页面须更新重载。
-- 低位深为 `unsupported_apng`，未支持或保护元数据为 `unsupported_apng_metadata`，损坏/资源/输出失败使用对应稳定错误。扫描诊断按这些受控类别聚合，无路径、元数据或逐项文件名。
+- v13引入apng能力；v14的 `processing.format=apng` 支持 `details.kind=lossless/lossy/lossless_fallback`，均含frames、numPlays、defaultParticipates。numPlays为总播放次数，0为无限。非无损分支含mappingVersion=1/policyVersion=2；回退含quality_below_target或insufficient_gain原因，成功有损含quality（色表项数、最低像素/重映射质量、alpha/帧/时域误差）。淘汰候选指标不出现在回退/NoGain报告中。
+- 前后端核对冻结请求与实际模式、q100、版本、有限质量值及帧/循环范围；APNG有损只能在成功终态出现，实际无损只接受无损请求或q100。界面显示实际处理和回退原因，不将算法误差评分称为人眼观感保证。旧v13页面/IPC消费者必须同步升级，生成类型来自Rust DTO。
+- 低位深为 `unsupported_apng`，未支持或保护元数据为 `unsupported_apng_metadata`；16位/Adam7/颜色声明的有损拒绝为 `unsupported_apng_mode`，提示切换无损重试。重试仍使用稳定ID和原输出/备份策略，不继承PNG凭据许可。损坏/资源/输出失败使用对应稳定错误。扫描诊断按受控类别聚合，无路径、元数据或逐项文件名。
 - 首帧预览只解码第一动画子帧并在透明黑画布合成；独立默认图不参与，后续帧像素不解码。它不是整幅动画有效性证明；压缩仍完整验证。16MiB输入、4Mi画布/帧像素、单边16384、32MiB缓冲估算、5秒协作期限共同生效（大图可能先受缓冲限制），输出最多128×96/64KiB PNG。沿用应用单解码许可、撤销/迟到丢弃、缓存和结果身份契约。
 
 oxipng同步调用不可抢占。取消/期限在各阶段及验证检查点响应；编码中收到取消也必须等待编码返回、丢弃结果再返回。核心不创建脱离任务的编码线程。进入共享提交层后按其临界区契约完成，不因提交后的取消/超时改报失败。需要进程级强制内存/时间隔离时另做受限子进程。
@@ -78,6 +81,7 @@ cargo test -p pixofold-core --locked --test apng_lab
 cargo test -p pixofold-core --locked --test apng_core
 cargo test -p pixofold-core --locked --test apng_lossy_core
 cargo test -p pixofold-core --locked --test apng_batch --test apng_preview
+cargo test -p pixofold-core --locked --test apng_lossy_batch
 pnpm apng:core:check
 pnpm apng:bundle:check
 pnpm apng:lab:check
@@ -85,4 +89,4 @@ pnpm apng:lossy:check
 pnpm check
 ```
 
-核心命令保留38个有效生成样本、6公开原件与压力图，共45项；另加8项单文件有损/q100/两类回退/硬拒绝，报告productionModes记录实际处理、质量和字节数。全部83项（含45拒绝/额度项）另经核心集成测试。报告、源码/二进制/Cargo.lock哈希、来源/许可及隔离输入/输出位于 `target/apng-core-*/`。提交/备份/源变化/候选篡改/冲突/权限/同步取消/期限、累计预算和收紧工作集由集成和确定性注入测试验证；无损实验继续保留135组对照，有损实验保留105输入/1,555组。`apng:bundle:check`复用 `gif:bundle:check` 同一次四格式验收，包含无损/有损80混批、实际无损报告、稳定ID重试、NoGain、冲突、备份及预览撤销，证据为 `target/gif-bundle-*/` 的apng报告和快照。Windows本机与新SHA三平台、GUI/实际安装证据见[动画连续记录](../../../../docs/devlog/_plan/261009/animation-foundation.md)，各自独立验收。
+核心命令保留38个有效生成样本、6公开原件与压力图，共45项；另加8项单文件有损/q100/两类回退/硬拒绝，报告productionModes记录实际处理、质量和字节数。全部83项（含45拒绝/额度项）另经核心集成测试。报告、源码/二进制/Cargo.lock哈希、来源/许可及隔离输入/输出位于 `target/apng-core-*/`。提交/备份/源变化/候选篡改/冲突/权限/同步取消/期限、累计预算和收紧工作集由集成和确定性注入测试验证；无损实验继续保留135组对照，有损实验保留105输入/1,555组。`apng:bundle:check`复用 `gif:bundle:check` 同一次四格式验收，包含无损与q0/50/80/95/100六轮混批、实际有损/回退/q100报告、16位/交错无损重试、稳定ID、NoGain、冲突、有损备份及首帧/缓存撤销，证据为 `target/gif-bundle-*/` 的apng报告和快照。Windows本机与新SHA三平台、GUI/实际安装证据见[动画连续记录](../../../../docs/devlog/_plan/261009/animation-foundation.md)，各自独立验收。

@@ -5,6 +5,9 @@ mod asset_tests;
 mod assets;
 mod directories;
 mod mutations;
+// 部署验收复用真实变更校验；正式IPC仍由订阅ACK门禁调用，测试别名不注册命令。
+#[cfg(feature = "bundle-check")]
+pub(crate) use mutations::mutate as verify_mutation;
 mod native_drop;
 pub(crate) use native_drop::handle_native_drop;
 #[cfg(test)]

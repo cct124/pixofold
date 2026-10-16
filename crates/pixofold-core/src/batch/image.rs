@@ -123,7 +123,7 @@ impl JpegOptions {
 #[derive(Debug, Clone)]
 pub enum FormatOptions {
     Png(PngMetadataPolicy),
-    Jpeg(JpegOptions),
+    Jpeg(JpegOptions, JpegMetadataPolicy),
     Gif(GifOptions),
     Apng(ApngOptions),
 }
@@ -141,7 +141,7 @@ impl ImageRequest {
     pub fn format(&self) -> ImageKind {
         match self.options {
             FormatOptions::Png(_) => ImageKind::Png,
-            FormatOptions::Jpeg(_) => ImageKind::Jpeg,
+            FormatOptions::Jpeg(..) => ImageKind::Jpeg,
             FormatOptions::Gif(_) => ImageKind::Gif,
             FormatOptions::Apng(_) => ImageKind::Apng,
         }
@@ -159,9 +159,9 @@ impl ImageRequest {
             metadata: metadata.clone(),
         })
     }
-    /// 转为JPEG单文件请求；保留执行资源和超时约束，不携带PNG元数据许可。
+    /// 转为JPEG单文件请求；保留冻结的执行约束和JPEG来源绑定的元数据策略。
     pub fn jpeg(&self) -> Option<JpegRequest> {
-        let FormatOptions::Jpeg(options) = self.options else {
+        let FormatOptions::Jpeg(options, metadata) = &self.options else {
             return None;
         };
         Some(JpegRequest {
@@ -172,6 +172,7 @@ impl ImageRequest {
                 CompressionMode::Lossy { quality } => JpegMode::Lossy { quality },
             },
             limits: options.limits(self.limits),
+            metadata: metadata.clone(),
         })
     }
     /// 转为GIF专属请求，保留冻结模式/准备期限，独立约束验证与原生分配。
@@ -192,7 +193,7 @@ impl ImageRequest {
             CompressionMode::Lossy { quality } => crate::gif::GifMode::Lossy { quality },
         }
     }
-    /// 全局模式保持在任务快照中；APNG当前总是严格无损，不继承PNG凭据许可。
+    /// 转为APNG单文件请求；模式、资源和输出均来自该行冻结参数，不继承PNG凭据许可。
     pub fn apng(&self) -> Result<ApngRequest, ApngError> {
         let FormatOptions::Apng(options) = self.options else {
             return Err(ApngError::InvalidLimits);
@@ -201,9 +202,14 @@ impl ImageRequest {
             source: self.source.clone(),
             output: self.output.clone(),
             limits: options.limits(self.limits),
-            // 有损单文件尚未接入批量资源/协议；这里显式冻结无损，不能靠新默认值开放。
-            mode: crate::apng::ApngMode::Lossless,
+            mode: self.apng_mode(),
         })
+    }
+    pub(super) fn apng_mode(&self) -> crate::apng::ApngMode {
+        match self.mode {
+            CompressionMode::Lossless => crate::apng::ApngMode::Lossless,
+            CompressionMode::Lossy { quality } => crate::apng::ApngMode::Lossy { quality },
+        }
     }
 }
 impl From<PngRequest> for ImageRequest {
@@ -275,7 +281,11 @@ impl ImageReport {
         }
     }
     pub fn credentials_removed(&self) -> bool {
-        self.png().is_some_and(|r| r.content_credentials_removed)
+        match self {
+            Self::Png(r) => r.content_credentials_removed,
+            Self::Jpeg(r) => r.content_credentials_removed,
+            Self::Gif(_) | Self::Apng(_) => false,
+        }
     }
 }
 
@@ -404,6 +414,7 @@ pub enum QualityMapping {
     Png(PngQualityMapping),
     Jpeg(crate::jpeg::JpegQualityMapping),
     Gif(crate::gif::GifQualityMapping),
+    Apng(crate::apng::ApngQualityMapping),
 }
 /// APNG冻结专属额度；公共准入收紧值必须用于同一次真实执行。
 #[derive(Debug, Clone, Copy, Default)]

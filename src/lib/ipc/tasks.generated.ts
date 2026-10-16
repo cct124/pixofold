@@ -1,6 +1,6 @@
 // 由 Rust 任务DTO生成；请运行 pnpm types:generate，勿手工编辑。
 import type { PngMode } from './generated';
-export const TASK_PROTOCOL_VERSION = 13;
+export const TASK_PROTOCOL_VERSION = 15;
 export const MAX_TASK_PAGE_SIZE = 100;
 export type DecimalU64 = string;
 export type TaskCollection = "jobs" | "candidates" | "issues" | "confirmations";
@@ -16,7 +16,7 @@ export type BatchPhaseDto = "running" | "cancelling" | "finished";
 export type ImageKindDto = "png" | "jpeg" | "gif" | "apng";
 export type StageDto = "reading" | "optimizing" | "validating" | "before_commit";
 export type ScanLimitDto = "entries" | "files" | "depth" | "read_bytes";
-export type JobErrorDto = "invalid_input" | "unsupported_format" | "unsupported_animation" | "unsupported_content_credentials" | "unsupported_jpeg_credentials" | "unsupported_gif_mode" | "unsupported_apng" | "unsupported_apng_metadata" | "unsupported_metadata" | "resource_limit" | "decode" | "encode" | "validation" | "target_conflict" | "source_changed" | "io" | "commit_failed" | "cleanup_failed" | "worker_panicked" | "service_fault" | "tool_identity" | "tool_io" | "tool_exit" | "timed_out";
+export type JobErrorDto = "invalid_input" | "unsupported_format" | "unsupported_animation" | "unsupported_content_credentials" | "unsupported_jpeg_credentials" | "unsupported_gif_mode" | "unsupported_apng" | "unsupported_apng_metadata" | "unsupported_apng_mode" | "unsupported_metadata" | "resource_limit" | "decode" | "encode" | "validation" | "target_conflict" | "source_changed" | "io" | "commit_failed" | "cleanup_failed" | "worker_panicked" | "service_fault" | "tool_identity" | "tool_io" | "tool_exit" | "timed_out";
 export type UnsupportedFormatDto = "jpeg" | "gif" | "web_p" | "other";
 export type PathConflictDto = "duplicate_source" | "duplicate_output" | "output_is_input" | "output_hierarchy";
 export type ScanStatusDto = { "kind": "scanning" } | { "kind": "complete" } | { "kind": "cancelled" } | { "kind": "limited", limit: ScanLimitDto, };
@@ -33,7 +33,9 @@ export type JpegFallbackDto = { "kind": "color_profile" } | { "kind": "four_comp
 export type JpegProcessingDto = { "kind": "lossless" } | { "kind": "lossy", mappingVersion: number, nativeQuality: number, } | { "kind": "lossless_fallback", mappingVersion: number, nativeQuality: number, reason: JpegFallbackDto, };
 export type GifProcessingDto = { "kind": "lossless", frames: number, loopCount: number | null, } | { "kind": "lossy", frames: number, loopCount: number | null, mappingVersion: number, nativeLossiness: number, } | { "kind": "lossless_fallback", frames: number, loopCount: number | null, mappingVersion: number, nativeLossiness: number, reason: GifFallbackDto, };
 export type GifFallbackDto = { "kind": "quality_below_target" } | { "kind": "insufficient_gain" };
-export type ApngProcessingDto = { "kind": "lossless", frames: number, numPlays: number, defaultParticipates: boolean, };
+export type ApngProcessingDto = { "kind": "lossless", frames: number, numPlays: number, defaultParticipates: boolean, } | { "kind": "lossy", frames: number, numPlays: number, defaultParticipates: boolean, mappingVersion: number, policyVersion: number, quality: ApngQualityDto, } | { "kind": "lossless_fallback", frames: number, numPlays: number, defaultParticipates: boolean, mappingVersion: number, policyVersion: number, reason: ApngFallbackDto, };
+export type ApngQualityDto = { paletteEntries: number, minimumPixelQuality: number, minimumRemappingQuality: number, maxAlphaError: number, worstFrameRmse: number, worstTemporalRmse: number, };
+export type ApngFallbackDto = { "kind": "quality_below_target" } | { "kind": "insufficient_gain" };
 export type ProcessingDto = { "format": "png", "details": PngProcessingDto } | { "format": "jpeg", "details": JpegProcessingDto } | { "format": "gif", "details": GifProcessingDto } | { "format": "apng", "details": ApngProcessingDto };
 export type ReportDto = { inputBytes: DecimalU64, outputBytes: DecimalU64, elapsedMs: DecimalU64, processing: ProcessingDto, outputName: DisplayName | null, backupName: DisplayName | null, contentCredentialsRemoved: boolean, };
 export type ConfirmationDto = { id: number, sourceName: DisplayName, sourceLabel: DisplayName, inputBytes: DecimalU64 | null, };

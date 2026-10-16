@@ -1,6 +1,6 @@
 # APNG共享调色板有损实验
 
-显式开发特性apng-lossy-lab，经pixofold_core::apng::lossy_lab提供内存候选与独立比较；底层validation/quantization与[单文件生产核心](../../crates/pixofold-core/src/apng/README.md)复用。生产显式有损使用固定alpha_palette/无抖动、质量/收益无损回退和共享输出层；批量与桌面v13继续冻结无损。本实验入口没有生产文件提交、批量服务或IPC权限，也不随MSI分发。
+显式开发特性apng-lossy-lab，经pixofold_core::apng::lossy_lab提供内存候选与独立比较；底层validation/quantization与[单文件生产核心](../../crates/pixofold-core/src/apng/README.md)复用。生产显式有损使用固定alpha_palette/无抖动、质量/收益无损回退和共享输出层；批量与v14桌面按冻结模式复用相同策略和资源额度。本实验入口没有生产文件提交、批量服务或IPC权限，也不随MSI分发。
 
 ## 运行与产物
 
@@ -76,6 +76,6 @@ v2保留v1全部门槛，增加实际子帧像素最低评分≥q，禁止用修
 
 2026-10-15本机v2矩阵显示：分组色表消除了当前语料的原始alpha分类变化，覆盖全部实际alpha；沙滩球q80由原始差27降至4，但实际像素评分74及单通道误差仍拒绝，约25KB候选不能算合格输出。棕褐色照片衍生动画在q80/q95通过质量和相对O1的额外收益；复杂半透明和连续OVER仍有明确拒绝。这是算法边界，不降低现有质量门槛来凑通过率。具体最终数据、命令、浏览器/人工边界与三平台状态见[连续记录](../../docs/devlog/_plan/261009/animation-foundation.md)。
 
-单文件候选选择、质量/收益回退和安全提交已接入，pnpm apng:core:check独立保留生产模式证据。下一步完成人工观感复核，再接批量预算、实际报告和桌面；三平台按新SHA单独验收。不满足质量的半透明/连续OVER候选继续回退严格无损；误差驱动的色表分配及更保守alpha表示可作为后续算法优化，不靠放宽门槛扩大支持。Windows本机结果不替代macOS/Linux CI与人工动画观感。
+单文件候选选择、质量/收益回退和安全提交已接入，pnpm apng:core:check独立保留生产模式证据。批量预算、实际报告和v14桌面已接入；下一步按新增MSI完成人工观感和GUI手测，三平台按新SHA单独验收。不满足质量的半透明/连续OVER候选继续回退严格无损；误差驱动的色表分配及更保守alpha表示可作为后续算法优化，不靠放宽门槛扩大支持。Windows本机结果不替代macOS/Linux CI与人工动画观感。
 
 参考：W3C PNG第三版的8位索引、PLTE/tRNS、APNG默认图/帧控制规则；锁定imagequant 4.4.1的Histogram::quantize冻结色表实现。旧png-palettes只作只读算法参考，本轮没有修改。

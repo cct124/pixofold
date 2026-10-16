@@ -20,7 +20,7 @@ fn request(collection: TaskCollection) -> TaskPageRequest {
     }
 }
 #[test]
-fn protocol_v13_preserves_gif_actual_paths_and_rejects_inconsistent_mapping() {
+fn protocol_preserves_gif_actual_paths_and_rejects_inconsistent_mapping() {
     use pixofold_core::gif::{GifError, GifInfo, GifReport};
     let (_dir, _runtime, mut snapshot) = completed();
     snapshot
@@ -46,7 +46,7 @@ fn protocol_v13_preserves_gif_actual_paths_and_rejects_inconsistent_mapping() {
         quality: None,
     }));
     let value = wire(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).unwrap());
-    assert_eq!(value["protocolVersion"], 13);
+    assert_eq!(value["protocolVersion"], TASK_PROTOCOL_VERSION);
     assert_eq!(value["supportedFormats"], json!(["png", "jpeg", "gif"]));
     let row = &value["page"]["items"][0];
     assert_eq!(row["format"], "gif");
@@ -178,11 +178,14 @@ fn sample(dir: &Path, name: &str, fixture: &str) -> std::path::PathBuf {
     path
 }
 #[test]
-fn apng_real_task_reports_actual_lossless_and_never_grants_png_credentials() {
+fn apng_real_task_reports_actual_paths_and_never_grants_png_credentials() {
     for mode in [
         PngMode::Lossless,
         PngMode::Lossy {
             quality: QualityValue::new(80).unwrap(),
+        },
+        PngMode::Lossy {
+            quality: QualityValue::new(100).unwrap(),
         },
     ] {
         let dir = tempfile::tempdir().unwrap();
@@ -218,10 +221,17 @@ fn apng_real_task_reports_actual_lossless_and_never_grants_png_credentials() {
         let value = wire(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).unwrap());
         assert_eq!(value["supportedFormats"], json!(["png", "apng"]));
         let report = &value["page"]["items"][0]["state"]["report"];
-        assert_eq!(
-            report["processing"],
-            json!({"format":"apng","details":{"kind":"lossless","frames":2,"numPlays":0,"defaultParticipates":true}})
-        );
+        let details = &report["processing"]["details"];
+        assert_eq!(details["frames"], 2);
+        assert_eq!(details["numPlays"], 0);
+        assert_eq!(details["defaultParticipates"], true);
+        if !matches!(mode, PngMode::Lossy { quality } if quality.get() < 100) {
+            assert_eq!(details["kind"], "lossless");
+        } else {
+            assert_eq!(details["kind"], "lossless_fallback");
+            assert_eq!(details["reason"]["kind"], "insufficient_gain");
+        }
+        assert!(details.get("quality").is_none());
         assert_eq!(report["contentCredentialsRemoved"], false);
         let issues = wire(convert::snapshot(&snapshot, &request(TaskCollection::Issues)).unwrap());
         assert_eq!(
@@ -230,7 +240,7 @@ fn apng_real_task_reports_actual_lossless_and_never_grants_png_credentials() {
         );
         let job = &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0];
         assert!(job.content_credentials_source().is_none());
-        // v13明确冻结无损；单文件核心新报告不能被包装成桌面无损结果。
+        // v14拒绝请求错配、缺失有损质量及伪造映射。
         let saved_state = job.state.clone();
         for variant in 0..3 {
             let job = &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0];
@@ -238,16 +248,17 @@ fn apng_real_task_reports_actual_lossless_and_never_grants_png_credentials() {
             let JobState::Succeeded(ImageReport::Apng(report)) = &mut job.state else {
                 panic!("APNG result");
             };
-            let parameters =
+            let mut parameters =
                 pixofold_core::apng::ApngQualityMapping::new(QualityValue::new(80).unwrap());
             match variant {
                 0 => {
                     report.requested_mode = pixofold_core::apng::ApngMode::Lossy {
-                        quality: parameters.quality,
+                        quality: QualityValue::new(79).unwrap(),
                     }
                 }
                 1 => report.processing = pixofold_core::apng::ApngProcessing::Lossy { parameters },
                 _ => {
+                    parameters.version += 1;
                     report.processing = pixofold_core::apng::ApngProcessing::LosslessFallback {
                         parameters,
                         reason: pixofold_core::apng::ApngFallbackReason::InsufficientGain,
@@ -263,6 +274,7 @@ fn apng_real_task_reports_actual_lossless_and_never_grants_png_credentials() {
     }
 }
 
+mod apng;
 fn completed() -> (tempfile::TempDir, TaskRuntime, TaskSnapshot) {
     let dir = tempfile::tempdir().unwrap();
     let good = sample(dir.path(), "good.png", "rgb8.png");
@@ -764,7 +776,7 @@ fn protocol_v13_preserves_jpeg_formats_errors_and_quality_without_png_semantics(
     };
     let (_dir, _runtime, mut snapshot) = completed();
     let job = &mut Arc::make_mut(snapshot.batch.as_mut().unwrap()).jobs[0];
-    job.request.options = FormatOptions::Jpeg(Default::default());
+    job.request.options = FormatOptions::Jpeg(Default::default(), Default::default());
     job.state = JobState::Queued;
     snapshot.supported_formats.push(ImageKind::Jpeg);
     let result = wire(convert::snapshot(&snapshot, &request(TaskCollection::Jobs)).unwrap());
@@ -840,6 +852,7 @@ fn protocol_v13_preserves_jpeg_formats_errors_and_quality_without_png_semantics(
             },
             processing,
             input_bytes: ByteCount(1000),
+            content_credentials_removed: false,
             output_bytes: ByteCount(1000),
             elapsed: Duration::from_millis(3),
             outcome: ProcessingOutcome::NoGain,
@@ -897,7 +910,7 @@ fn jpeg_and_gif_nested_cleanup_keep_recovery_names_and_private_errors_in_rust() 
         job.request.options = if gif {
             FormatOptions::Gif(Default::default())
         } else {
-            FormatOptions::Jpeg(Default::default())
+            FormatOptions::Jpeg(Default::default(), Default::default())
         };
         let inner = ProcessingError::CleanupFailed {
             temporary: Path::new("private-parent").join("inner-temp"),
