@@ -1,10 +1,10 @@
 # 开发交接
 
-更新日期：2026-10-16（Asia/Shanghai）。当前dev/main及本地origin引用均为2d7d1ab，默认分支main、CI触发过滤已生效。该提交的main运行38867054969最终11/12成功，macOS再次在日志锁测试WouldBlock失败并跳过后续构建。已确定性复现句柄副本延长锁生命周期，本机改为显式解锁并通过173项前端、333项Rust及2项doctest；修复未提交，新SHA macOS验证待完成，详见[CI日志锁排查](_plan/261016/ci-macos-log-lock.md)。此前0014780重跑成功为历史结果；JPEG错误提示已完成Windows手测归档，相关图片/凭据验收见[错误提示记录](_fin/261016/error-feedback.md)、[JPEG记录](_plan/261015/jpeg-metadata-credentials.md#2026-10-16-新msi手测反馈与日志复核)与[动画连续记录](_plan/261009/animation-foundation.md)。
+更新日期：2026-10-16（Asia/Shanghai）。日志锁修复06facc1已提交推送dev并快进合并推送main；对应main运行38871138719首轮12/12全部成功，macOS原失败测试、两项新回归、桌面构建及部署验收全部通过，详见[CI日志锁排查](_fin/261016/ci-macos-log-lock.md)。默认分支main、CI触发过滤已生效，本次dev push未产生重复运行。后续归档为纯文档提交，源码CI证据对应06facc1。此前2d7d1ab失败和0014780重跑成功保留为历史结果；JPEG错误提示已完成Windows手测归档，相关图片/凭据验收见[错误提示记录](_fin/261016/error-feedback.md)、[JPEG记录](_plan/261015/jpeg-metadata-credentials.md#2026-10-16-新msi手测反馈与日志复核)与[动画连续记录](_plan/261009/animation-foundation.md)。
 
 ## 当前阶段
 
-- CI触发范围已收敛为main push、目标main的PR及手动运行并在0014780生效；dev push未产生运行、main push触发12个job（无目标main PR时dev推送不自动执行，已有PR的来源更新保留PR检查）。现有任务/并发规则保持；2d7d1ab再次出现macOS日志锁失败，本机修复已完成、尚未提交，不能沿用前次重跑结果。
+- CI触发范围已收敛为main push、目标main的PR及手动运行并在0014780生效；dev push未产生运行、main push触发12个job（无目标main PR时dev推送不自动执行，已有PR的来源更新保留PR检查）。06facc1日志锁修复已在三平台首轮通过全部12个job；Windows/macOS/Ubuntu统一检查、桌面构建与JPEG/GIF/APNG部署均有新SHA证据。
 - 仓库默认分支已由codex/initial-plan切换为main；“关于”新增固定项目仓库入口（main窗口专属无参数命令与Rust常量URL，浏览器预览禁用），实现与pnpm check通过，已随0014780推送dev与main。
 - 错误提示改进已完成本机和Windows手测验收：明确损坏JPEG解码使用invalid_input，未知引擎退出保留tool_exit，中英文补充原图状态与建议。统一检查170项前端、331项Rust及2项doctest、真实核心及包内JPEG部署通过；用户确认新包提示正常，新日志复核通过。安装包位于target/deliverables/261016-error-feedback，功能已在3425b5b。
 - 当前v15接通PNG/JPEG/GIF/APNG混合导入、稳定ID重试、真实报告与受限预览；原生授权、冻结输出及定位契约保持。JPEG新增普通Exif/XMP/Photoshop-IPTC兼容，并与PNG共用凭据确认/输出/备份；来源许可按格式与源版本绑定，未知APP11及混合不支持元数据不授权。JPEG/GIF按随包工具校验独立开放，默认核心服务仍PNG-only。GIF/APNG质量100无损，质量或额外收益不足回退；APNG16位/交错/复杂颜色的有损拒绝可切无损重试。
@@ -15,7 +15,7 @@
 
 ## 活动任务
 
-- 本机修复与统一验证完成、已获提交推送授权：[macOS CI日志文件锁失败](_plan/261016/ci-macos-log-lock.md)。正在按dev提交推送、main快进合并推送顺序交付并核对新SHA macOS检查及后续构建。两项新回归在旧实现稳定失败，显式解锁后9项存储回归及全套检查通过；Linux fork机制实验一致。main的旧2d7d1ab运行11/12成功，不能靠旧SHA重跑认定已解决。
+- 完成归档：[macOS CI日志文件锁失败](_fin/261016/ci-macos-log-lock.md)。06facc1已同步dev/main，运行38871138719首轮12/12成功；macOS日志确认原失败测试与两项新回归通过，129项桌面测试及后续构建/部署全部成功。本机旧实现两项确定性失败、修复后9项Windows存储回归及完整检查、Linux fork机制实验与新macOS成功日志均保留。
 - 已提交推送并核对main push事件：[CI收敛到main推送与目标main的PR](_plan/261016/ci-main-triggers.md)。push和pull_request均增加main分支过滤，保留手动运行；本次dev push未产生运行、main push 12个job全绿（macOS首轮存储测试偶发失败经单独重跑成功），三平台任务及并发策略保持。
 - 已提交推送：[main默认分支与关于页仓库入口](_plan/261016/main-branch-about-repository.md)。main与dev同步至0014780及推送记录并推送origin，默认分支为main；关于页新增无参数open_project_repository（Rust常量URL），浏览器预览禁用，173项前端及全部Rust测试通过；0014780的main push三平台检查全部成功。
 - 完成归档（Windows范围）：[JPEG损坏输入分类与错误提示](_fin/261016/error-feedback.md)。用户已确认新MSI的06错误提示正常，11:56新会话记录InvalidInput且无凭据授权/提交，原件哈希未变、正常退出。此前11:06的ToolExit属修正前会话。实现及自动门槛通过，后续按实际提交核对新SHA平台结果。
@@ -42,6 +42,6 @@
 
 ## 后续优先顺序
 
-1. 按用户已确认的授权提交推送macOS日志锁修复到dev，再快进合并推送main；核对新SHA macOS统一检查、桌面构建及部署验收。旧2d7d1ab仍失败，0014780重跑通过不能代替新修复验证。Windows手测及已完成关于入口/触发范围工作不重复验收。
+1. 日志锁修复已完成三平台首轮CI验收并归档；后续开发继续从dev推进，合入main后按新SHA核对检查。Windows手测及已完成关于入口/触发范围工作不重复验收，旧失败或重跑结果不替代新SHA证据。
 2. 保留Windows手测与日志各自的证据范围，不重复要求整套验收。JPEG公开样本超过预览预算、第一轮平铺结果缺失均已登记；大图预览若需扩大覆盖，应单独实现受限缩放解码，不直接放宽资源上限。
 3. 按用户后续反馈安排开发；复杂半透明算法、O级别和帧结构优化后置，质量门槛保持。无WebView2/无开发工具环境、其他平台实际安装各自安排，PNG性能专项按实际回归触发。
