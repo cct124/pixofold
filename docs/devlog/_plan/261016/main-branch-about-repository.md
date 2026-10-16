@@ -35,6 +35,10 @@
 - 处理与结果：仅重跑失败的Check (macos-latest)（attempt 2），12个job全部success，run conclusion=success。再次出现同类失败时按macOS文件锁专项排查。
 - 事件范围实测：dev与main为同一提交推送，dev推送未产生运行；main push触发运行，符合新触发过滤。
 
+### 2026-10-16 后续失败排查
+
+- 2d7d1ab的main运行38867054969在同一macOS日志存储测试再次失败，不能继续视为已经排除的运行器偶发。已通过句柄副本和Linux fork实验复现锁延迟释放，并在本机修复、通过统一检查；新SHA macOS CI仍待验收，详见[日志锁专项记录](ci-macos-log-lock.md)。上节0014780重跑成功为历史结果。
+
 ## 下一步
 
 - 后续开发在dev进行，按需把dev合并/推送到main；默认分支为main。

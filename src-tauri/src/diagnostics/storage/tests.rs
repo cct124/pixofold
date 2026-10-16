@@ -15,6 +15,53 @@ fn logs(path: &Path) -> Vec<PathBuf> {
 }
 
 #[test]
+fn directory_lock_is_released_while_a_duplicate_handle_remains_open() {
+    let temp = tempfile::tempdir().unwrap();
+    let directory = Directory::create(temp.path().join("logs")).unwrap();
+    let guard = directory.lock().unwrap();
+    // 保留副本，确定性模拟其他线程创建子进程时的临时句柄继承。
+    let duplicate = guard.file.try_clone().unwrap();
+    for _ in 0..2 {
+        assert_eq!(
+            directory.lock().err().unwrap().kind(),
+            io::ErrorKind::WouldBlock
+        );
+    }
+    drop(guard);
+    let next = directory.lock();
+    drop(duplicate);
+    assert!(next.is_ok(), "目录临界区结束后副本不能继续占锁：{next:?}");
+}
+
+#[test]
+fn closing_a_store_releases_its_lease_while_a_duplicate_handle_remains_open() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("logs");
+    let mut first = store(path.clone());
+    first.max_files = 1;
+    first.append(b"{}\n").unwrap();
+    let duplicate = first
+        .active
+        .as_ref()
+        .unwrap()
+        .lease
+        .file
+        .try_clone()
+        .unwrap();
+    let mut next = store(path.clone());
+    next.max_files = 1;
+    assert_eq!(
+        next.append(b"{}\n").unwrap_err().kind(),
+        io::ErrorKind::WouldBlock
+    );
+    first.close().unwrap();
+    let result = next.append(b"{}\n");
+    drop(duplicate);
+    assert!(result.is_ok(), "已关闭写入器的副本不能阻止轮转：{result:?}");
+    assert_eq!(logs(&path).len(), 1);
+}
+
+#[test]
 fn rotation_caps_actual_bytes_and_total_files_preserving_valid_json_lines() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("logs");

@@ -298,6 +298,7 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 - 开发构建写仓库根目录的 `logs/`（已由 Git 排除）；release 构建写系统 `std::env::temp_dir()/pixofold-logs/`。目录不按软件版本或用户名拆分，版本、操作系统及会话标识写入每份文件的头部。
 - 每份为 `run-<Unix毫秒时间>-<12位随机标识>.jsonl`；含当前活动文件在内最多 **10份**，每份最多 **5,000,000 bytes（5 MB）**，写入前轮转。只清理符合本应用命名及日志头的已关闭旧文件，不清除其他文件；`.pixofold-log.lock`及每份日志对应的零字节`.lock`为内部协调文件，不计入JSONL数量。活动锁与日志正文分离，运行中仍可读取JSONL。
 - 多实例通过目录协调锁与活动文件锁保护写入；全部槽位被活动实例占用时停止新增文件并报告丢失事件，不删除活动日志。安全目录/写入检查失败、磁盘满或队列满不会中断压缩；查看“关于 → 诊断日志”的状态、丢失计数与写入失败计数，可刷新及打开固定目录。“关于”同时提供固定项目仓库入口（https://github.com/cct124/pixofold），地址由Rust常量提供、不接受参数。
+- 锁由专用所有者显式释放，正常释放错误向日志健康状态传播，提前返回时也执行解锁收尾；不依赖所有复制/子进程继承句柄关闭后才解锁。真实锁竞争仍立即返回，不等待或删除其他实例的活动文件。相关修复及macOS待验范围见[CI日志锁排查](docs/devlog/_plan/261016/ci-macos-log-lock.md)。
 - 核心经 `tracing` 发出受控事件，桌面唯一后台写入器使用1024项有界队列；业务线程不写日志磁盘。字段包含时间、会话、批次/图片ID、尝试号、冻结输出策略、处理阶段、耗时及稳定错误类别。重点事件为等待凭据确认、确认校验/接纳、内存移除、备份创建/保留和覆盖提交，不改变既有业务行为。
 - 扫描结束的`import_scan_finished`增加accepted/rejected/excluded/duplicates；`import_scan_issue_summary`按固定类别汇总count，区分APNG/动画、JPEG APP11凭据、其他元数据、资源/I/O、重复及保留产物排除。按selection_id关联，最多每类一条；0候选也可定位拒绝类别，不输出路径或逐文件记录。
 - 任务span记录冻结的format/mode/数值quality（无损不写quality）；job_finished从最终报告提取processing/fallback_reason。result=no_gain表示仍保留原图，processing不表示已提交有损文件；失败不填造候选处理结果。session_started记录protocol_version及build_source；本地或无法确认时unknown，仅受控GitHub Actions且SHA/HEAD/干净工作树一致时标记git来源。

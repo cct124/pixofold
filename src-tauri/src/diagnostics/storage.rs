@@ -11,6 +11,36 @@ use std::{
 pub(super) const MAX_FILES: usize = 10;
 pub(super) const MAX_BYTES: u64 = 5_000_000;
 
+#[derive(Debug)]
+struct LockedFile {
+    file: File,
+    held: bool,
+}
+
+impl LockedFile {
+    fn acquire(file: File) -> io::Result<Self> {
+        // 只把真正的竞争保留为WouldBlock，不能隐藏其他平台I/O错误。
+        file.try_lock()?;
+        Ok(Self { file, held: true })
+    }
+
+    fn release(mut self) -> io::Result<()> {
+        self.file.unlock()?;
+        self.held = false;
+        Ok(())
+    }
+}
+
+impl Drop for LockedFile {
+    fn drop(&mut self) {
+        if self.held {
+            // File的锁随所有复制/继承句柄关闭才释放；fork到exec间的副本也可能延长锁。
+            // 成功路径用release传播错误，提前返回/展开时仅尽力解锁，再由File关闭兜底。
+            let _ = self.file.unlock();
+        }
+    }
+}
+
 pub(super) struct Directory {
     pub path: PathBuf,
     identity: same_file::Handle,
@@ -81,15 +111,14 @@ impl Directory {
         Ok(())
     }
 
-    fn lock(&self) -> io::Result<File> {
+    fn lock(&self) -> io::Result<LockedFile> {
         self.verify()?;
         let path = self.path.join(".pixofold-log.lock");
         let file = open_file(&path, true)?;
         // 不无限等待其他实例或外部程序持锁；日志降级不能阻塞压缩。
-        file.try_lock()
-            .map_err(|_| io::Error::from(io::ErrorKind::WouldBlock))?;
+        let lock = LockedFile::acquire(file)?;
         self.verify()?;
-        Ok(file)
+        Ok(lock)
     }
 }
 
@@ -157,7 +186,7 @@ struct ActiveFile {
     path: PathBuf,
     size: u64,
     // Windows整文件独占锁会阻止普通读取，故只锁独立的空sidecar，不锁JSONL正文。
-    lease: File,
+    lease: LockedFile,
 }
 
 pub(super) struct Store {
@@ -205,7 +234,7 @@ impl Store {
         inspect(path, false)?;
         let lease_path = path.with_extension("lock");
         inspect(&lease_path, false)?;
-        if same_file::Handle::from_file(lease.try_clone()?)?
+        if same_file::Handle::from_file(lease.file.try_clone()?)?
             != same_file::Handle::from_path(&lease_path)?
         {
             return Err(rejected());
@@ -228,7 +257,15 @@ impl Store {
 
     fn rotate(&mut self) -> io::Result<()> {
         self.close()?;
-        let _lock = self.directory.lock()?;
+        let lock = self.directory.lock()?;
+        let result = self.rotate_locked();
+        // 即使轮转失败也先解锁；若轮转成功但解锁失败，仍向日志健康状态报告。
+        let release = lock.release();
+        result.and(release)
+    }
+
+    /// 调用方持有目录协调锁；任何返回路径均不能将锁延长到继承句柄退出。
+    fn rotate_locked(&mut self) -> io::Result<()> {
         let mut files = Vec::new();
         for (index, entry) in fs::read_dir(&self.directory.path)?.enumerate() {
             let entry = entry?;
@@ -249,26 +286,36 @@ impl Store {
             let Ok(lease) = open_file(&lease_path, true) else {
                 continue;
             };
-            if lease.metadata()?.len() != 0 || lease.try_lock().is_err() {
+            if lease.metadata()?.len() != 0 {
                 continue;
             }
+            let lease = match LockedFile::acquire(lease) {
+                Ok(lease) => lease,
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => continue,
+                Err(error) => return Err(error),
+            };
             let Ok(file) = open_file(&path, false) else {
                 continue;
             };
-            if file.try_lock().is_err() || !owned_header(&file) {
+            let file = match LockedFile::acquire(file) {
+                Ok(file) => file,
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => continue,
+                Err(error) => return Err(error),
+            };
+            if !owned_header(&file.file) {
                 continue;
             }
             self.directory.verify()?;
-            if same_file::Handle::from_file(file.try_clone()?)?
+            if same_file::Handle::from_file(file.file.try_clone()?)?
                 != same_file::Handle::from_path(&path)?
             {
                 return Err(rejected());
             }
             // 持有活动锁直到删除完成；其他实例同样在目录协调锁内创建/清理。
             fs::remove_file(&path)?;
-            drop(file);
+            file.release()?;
             fs::remove_file(&lease_path)?;
-            drop(lease);
+            lease.release()?;
             count -= 1;
         }
         if count >= self.max_files {
@@ -285,10 +332,7 @@ impl Store {
         let lease_path = temp.path().with_extension("lock");
         let mut options = OpenOptions::new();
         options.create_new(true);
-        let lease = checked_open(&lease_path, options)?;
-        lease
-            .try_lock()
-            .map_err(|_| io::Error::from(io::ErrorKind::WouldBlock))?;
+        let lease = LockedFile::acquire(checked_open(&lease_path, options)?)?;
         let (file, path) = match temp.keep() {
             Ok(value) => value,
             Err(error) => {
@@ -309,6 +353,7 @@ impl Store {
         if let Some(mut active) = self.active.take() {
             active.file.flush()?;
             active.file.sync_data()?;
+            active.lease.release()?;
         }
         Ok(())
     }
