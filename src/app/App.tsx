@@ -7,7 +7,7 @@ import { Dialog } from '../components/ui/Dialog';
 import { Icon } from '../components/ui/Icon';
 import { Workspace } from '../features/workspace/Workspace';
 import { Diagnostics } from '../features/diagnostics/Diagnostics';
-import { getAppInfo } from '../lib/ipc/app';
+import { getAppInfo, openProjectRepository } from '../lib/ipc/app';
 import { usePreferences } from '../stores/preferences';
 import { messages } from './messages';
 import { useAppearance } from './useAppearance';
@@ -22,6 +22,7 @@ export function App() {
   const [attempt, setAttempt] = useState(0);
   const [about, setAbout] = useState(false);
   const [windowError, setWindowError] = useState(false);
+  const [repositoryError, setRepositoryError] = useState(false);
   const text = messages[language];
   useEffect(() => {
     let ignore = false;
@@ -46,6 +47,14 @@ export function App() {
       setWindowError(false);
     } catch {
       setWindowError(true);
+    }
+  };
+  const openRepository = async () => {
+    try {
+      await openProjectRepository();
+      setRepositoryError(false);
+    } catch {
+      setRepositoryError(true);
     }
   };
   const footer = (
@@ -127,7 +136,18 @@ export function App() {
               </div>
             </div>
             <p>{text.description}</p>
-            <p className="hint">{text.license}</p>
+            <p className="hint">
+              {text.license} ·{' '}
+              <button
+                className="text-button"
+                disabled={!isTauri()}
+                title={isTauri() ? undefined : text.repositoryPreview}
+                onClick={() => void openRepository()}
+              >
+                {text.repository}
+              </button>
+            </p>
+            {repositoryError && <p role="alert">{text.repositoryError}</p>}
             <Diagnostics language={language} />
           </div>
         </Dialog>

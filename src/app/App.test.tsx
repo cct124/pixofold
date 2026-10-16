@@ -1,10 +1,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getAppInfo } from '../lib/ipc/app';
+import { getAppInfo, openProjectRepository } from '../lib/ipc/app';
 import { usePreferences } from '../stores/preferences';
 import { App } from './App';
 
-vi.mock('../lib/ipc/app', () => ({ getAppInfo: vi.fn() }));
+vi.mock('../lib/ipc/app', () => ({ getAppInfo: vi.fn(), openProjectRepository: vi.fn() }));
 
 const appInfo = {
   name: 'PixoFold',
@@ -18,6 +18,7 @@ describe('workspace shell', () => {
     localStorage.clear();
     usePreferences.setState({ theme: 'light', language: 'zh-CN' });
     vi.mocked(getAppInfo).mockReset();
+    vi.mocked(openProjectRepository).mockReset();
   });
 
   it('shows browser preview and keeps appearance changes independent of IPC', async () => {
@@ -52,6 +53,15 @@ describe('workspace shell', () => {
     expect(await screen.findByText('v0.1.0')).toBeVisible();
     expect(screen.getByText('当前可处理：PNG。')).toBeVisible();
     expect(screen.getByText('拖入图片或文件夹到此区域 · 导入后自动开始')).toBeVisible();
+  });
+
+  it('keeps the repository entry disabled in browser preview', async () => {
+    vi.mocked(getAppInfo).mockResolvedValue(null);
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: '关于' }));
+    const repository = await screen.findByRole('button', { name: 'GitHub 仓库' });
+    expect(repository).toBeDisabled();
+    expect(repository).toHaveAttribute('title', '请在桌面版打开项目仓库。');
   });
 
   it('falls back safely for corrupted persisted preferences', async () => {

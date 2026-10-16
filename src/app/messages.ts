@@ -18,6 +18,9 @@ export const messages = {
     retry: '重新读取版本',
     local: '本地处理 · 保留隐私',
     license: 'GPL-3.0-or-later 开源',
+    repository: 'GitHub 仓库',
+    repositoryPreview: '请在桌面版打开项目仓库。',
+    repositoryError: '无法打开项目仓库，请重试。',
   },
   en: {
     about: 'About',
@@ -38,5 +41,8 @@ export const messages = {
     retry: 'Reload version',
     local: 'Local processing · Private by design',
     license: 'Open source · GPL-3.0-or-later',
+    repository: 'GitHub repository',
+    repositoryPreview: 'Open the project repository in the desktop app.',
+    repositoryError: 'Could not open the project repository. Please retry.',
   },
 } as const;

@@ -60,7 +60,7 @@
 - 输出先写临时文件并验证，提交前复查取消、源文件变化和目标冲突，覆盖前按策略建立可恢复备份；失败、取消或无收益项保留原图，不用先删原文件再写入的方式覆盖。
 - PNG备份使用原文件stem-backup-6位ASCII字母数字.png；JPEG保留原始jpg/jpeg扩展名及大小写。保持独占创建/碰撞重试，不重命名历史备份；扫描排除新旧严格保留名。原始OS名称不截断或有损替换，路径过长须失败保留原图，不能静默跳过备份。
 - 日志记录任务 ID、阶段、耗时和错误，避免重复记录及泄露图片内容、原图或备份文件名、完整私人路径或凭据；backup_name不在日志白名单中，备份结果通过任务ID关联。性能优化保留样本、环境与前后对比。
-- 本地日志由桌面diagnostics统一拥有，核心只发pixofold target的白名单tracing事件；开发logs/由Git排除，release使用系统temp_dir()/pixofold-logs/。JSONL含活动文件最多10份，每份5,000,000 bytes；不能删除其他实例活动日志或因日志故障中断压缩。新增字段须检查隐私，不能传原始错误/请求Debug；“关于”只查询状态和打开后端固定目录，不开放任意路径IPC。
+- 本地日志由桌面diagnostics统一拥有，核心只发pixofold target的白名单tracing事件；开发logs/由Git排除，release使用系统temp_dir()/pixofold-logs/。JSONL含活动文件最多10份，每份5,000,000 bytes；不能删除其他实例活动日志或因日志故障中断压缩。新增字段须检查隐私，不能传原始错误/请求Debug；“关于”只查询状态并打开后端固定位置（日志目录、Rust常量项目仓库地址），不开放任意路径或任意URL IPC。
 - 扫描结束日志记录accepted/rejected/excluded/duplicates，并按固定error_code汇总import_scan_issue_summary；以selection_id关联，最多每类一条。APNG/动画、JPEG凭据/元数据、资源/I/O、重复/产物排除分别统计；不记录逐项路径、文件名或元数据，不从日志计数授予重试权限。
 
 ## 工具链、依赖与配置

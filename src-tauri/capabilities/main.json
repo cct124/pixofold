@@ -7,6 +7,7 @@
     "allow-get-app-info",
     "allow-get-log-status",
     "allow-open-log-directory",
+    "allow-open-project-repository",
     "allow-get-task-thumbnail",
     "allow-reveal-task-file",
     "allow-get-output-directories",

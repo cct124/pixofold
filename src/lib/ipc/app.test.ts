@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import { getAppInfo } from './app';
+import { getAppInfo, openProjectRepository } from './app';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(), isTauri: vi.fn() }));
 
@@ -21,5 +21,19 @@ describe('desktop IPC boundary', () => {
     vi.mocked(invoke).mockRejectedValue(error);
     await expect(getAppInfo()).rejects.toBe(error);
     expect(invoke).toHaveBeenCalledWith('get_app_info');
+  });
+
+  it('never opens the repository from browser preview', async () => {
+    vi.mocked(isTauri).mockReturnValue(false);
+    await expect(openProjectRepository()).rejects.toThrow('desktop_only');
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('opens only the fixed repository command and preserves backend failures', async () => {
+    vi.mocked(isTauri).mockReturnValue(true);
+    const error = new Error('IPC unavailable');
+    vi.mocked(invoke).mockRejectedValue(error);
+    await expect(openProjectRepository()).rejects.toBe(error);
+    expect(invoke).toHaveBeenCalledWith('open_project_repository');
   });
 });

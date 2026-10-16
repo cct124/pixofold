@@ -14,6 +14,7 @@ fn main() {
             "get_app_info",
             "get_log_status",
             "open_log_directory",
+            "open_project_repository",
             "get_task_thumbnail",
             "reveal_task_file",
             "get_output_directories",

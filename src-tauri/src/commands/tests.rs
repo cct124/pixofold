@@ -130,6 +130,7 @@ fn assert_local_queries_and_permissions(app: &tauri::App<MockRuntime>) {
     for (command, body) in [
         ("get_log_status", json!({})),
         ("open_log_directory", json!({})),
+        ("open_project_repository", json!({})),
         (
             "get_task_thumbnail",
             json!({"request":{"subscriptionId":"0","selectionId":"1","jobId":1,"attempt":1,"expectedState":"succeeded"}}),
@@ -204,6 +205,7 @@ fn assert_local_queries_and_permissions(app: &tauri::App<MockRuntime>) {
         "plugin:dialog|save",
         "plugin:opener|open_path",
         "plugin:opener|reveal_item_in_dir",
+        "plugin:opener|open_url",
     ] {
         assert!(invoke(&main, command, json!({"options":{}})).is_err());
     }

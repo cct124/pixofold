@@ -6,3 +6,9 @@ export async function getAppInfo(): Promise<AppInfo | null> {
   if (!isTauri()) return null;
   return invoke<AppInfo>('get_app_info');
 }
+
+/** 仅打开Rust固定常量中的项目仓库地址；无URL参数，浏览器预览不可用。 */
+export async function openProjectRepository(): Promise<void> {
+  if (!isTauri()) throw new Error('desktop_only');
+  await invoke('open_project_repository');
+}

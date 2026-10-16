@@ -113,6 +113,12 @@ APNG已接通[无损/有损核心与v14桌面](crates/pixofold-core/src/apng/REA
 
 APNG缩略图只显示第一动画子帧在透明画布上的合成，独立默认图不参与；后续帧像素由完整压缩验证。输入16MiB、画布/帧4Mi像素、32MiB缓冲估算及5秒协作期限同时约束，输出最多128×96/64KiB PNG，沿用单解码许可与撤销/缓存契约。GUI、安装和平台证据独立记录。
 
+## CI触发范围
+
+[GitHub Actions工作流](.github/workflows/ci.yml)仅在推送到`main`、新建/重新打开目标分支为`main`的PR或向该PR来源分支推送新提交时自动运行，并保留`workflow_dispatch`手动运行。`pull_request.branches`匹配PR目标分支，来源可以是`dev`或其他分支；已有指向`main`的PR时，推送来源分支仍触发PR检查，但不再额外触发push检查。单独推送`dev`/功能分支或标签不自动运行，可按需手动检查；合并到`main`后会运行main的push检查。
+
+现有四类检查/实验在Windows、Ubuntu、macOS上的12个job及按引用取消旧运行的并发规则保持。此配置须随提交推送到对应分支后生效；远端实际运行结果以提交SHA与事件为准。
+
 ## GIF单文件核心开发入口
 
 独立Rust GIF核心已提供无损/保守有损优化、严格播放验证、安全输出和三格式混合批次。固定Gifsicle helper采用有界分配，验证与原生额度分别计费；命令、范围和迁移见 [GIF核心说明](native/gif/README.md)。桌面v14按实际能力开放GIF，报告包含实际处理路径、原图帧数及原始循环扩展值，不展示淘汰候选指标；受限预览仅显示首幅合成画布。真实核心命令为 `pnpm gif:core:check`，须先构建固定GIF与JPEG工具；GUI、安装及平台证据见 [开发记录](docs/devlog/_plan/261009/animation-foundation.md)。
@@ -291,14 +297,14 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 
 - 开发构建写仓库根目录的 `logs/`（已由 Git 排除）；release 构建写系统 `std::env::temp_dir()/pixofold-logs/`。目录不按软件版本或用户名拆分，版本、操作系统及会话标识写入每份文件的头部。
 - 每份为 `run-<Unix毫秒时间>-<12位随机标识>.jsonl`；含当前活动文件在内最多 **10份**，每份最多 **5,000,000 bytes（5 MB）**，写入前轮转。只清理符合本应用命名及日志头的已关闭旧文件，不清除其他文件；`.pixofold-log.lock`及每份日志对应的零字节`.lock`为内部协调文件，不计入JSONL数量。活动锁与日志正文分离，运行中仍可读取JSONL。
-- 多实例通过目录协调锁与活动文件锁保护写入；全部槽位被活动实例占用时停止新增文件并报告丢失事件，不删除活动日志。安全目录/写入检查失败、磁盘满或队列满不会中断压缩；查看“关于 → 诊断日志”的状态、丢失计数与写入失败计数，可刷新及打开固定目录。
+- 多实例通过目录协调锁与活动文件锁保护写入；全部槽位被活动实例占用时停止新增文件并报告丢失事件，不删除活动日志。安全目录/写入检查失败、磁盘满或队列满不会中断压缩；查看“关于 → 诊断日志”的状态、丢失计数与写入失败计数，可刷新及打开固定目录。“关于”同时提供固定项目仓库入口（https://github.com/cct124/pixofold），地址由Rust常量提供、不接受参数。
 - 核心经 `tracing` 发出受控事件，桌面唯一后台写入器使用1024项有界队列；业务线程不写日志磁盘。字段包含时间、会话、批次/图片ID、尝试号、冻结输出策略、处理阶段、耗时及稳定错误类别。重点事件为等待凭据确认、确认校验/接纳、内存移除、备份创建/保留和覆盖提交，不改变既有业务行为。
 - 扫描结束的`import_scan_finished`增加accepted/rejected/excluded/duplicates；`import_scan_issue_summary`按固定类别汇总count，区分APNG/动画、JPEG APP11凭据、其他元数据、资源/I/O、重复及保留产物排除。按selection_id关联，最多每类一条；0候选也可定位拒绝类别，不输出路径或逐文件记录。
 - 任务span记录冻结的format/mode/数值quality（无损不写quality）；job_finished从最终报告提取processing/fallback_reason。result=no_gain表示仍保留原图，processing不表示已提交有损文件；失败不填造候选处理结果。session_started记录protocol_version及build_source；本地或无法确认时unknown，仅受控GitHub Actions且SHA/HEAD/干净工作树一致时标记git来源。
 - 不记录图片内容、原图文件名、备份文件名、完整私人路径、凭据正文或原始错误。新备份名包含原名，`backup_retained`不再记录`backup_name`，日志白名单也拒绝该字段；实际备份名只经现有脱敏结果DTO在界面展示，不构成任意路径授权。日志只供诊断，不是授权记录、完整事务审计或自动恢复依据；多线程事件可交错，应以 `sessionId + batch_id + job_id + attempt` 关联，不用界面顺序判断线程数。
 - 正常退出先等待任务安全收尾，再排空日志并同步磁盘，日志等待上限2秒；强杀、崩溃、磁盘失败可能丢失尾部记录。正式日志属于临时文件，可能被系统清理，复现后应及时保留相关日志。
 - 固定目录拒绝符号链接/Windows reparse point及身份替换；Unix新目录0700、文件0600，拒绝不属于当前用户或权限过宽的既有目录，不更改其权限。若多个系统用户实际共享同一个临时根目录，其他用户创建的目录可能导致安全降级，**不承诺跨用户混写**；Windows继承系统临时目录ACL。本机Windows验证与未执行的跨平台验证见开发记录。
-- IPC只新增 `get_log_status` 与无参数 `open_log_directory`，限定可信main窗口；不返回路径，也不开放通用opener/shell/fs权限。浏览器预览明确禁用。
+- IPC只新增 `get_log_status`、无参数 `open_log_directory` 与无参数 `open_project_repository`，限定可信main窗口；不返回路径，也不开放通用opener/shell/fs权限。浏览器预览明确禁用。
 
 ## 工程边界
 

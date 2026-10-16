@@ -1,9 +1,11 @@
 # 开发交接
 
-更新日期：2026-10-16（Asia/Shanghai）。当前dev/3425b5b已包含JPEG错误提示改进，本地origin/dev跟踪引用一致；本轮日志补记与归档文档尚未提交。新错误提示MSI用户局部手测完成，11:56新正式会话16条日志确认损坏JPEG返回InvalidInput、无凭据授权或输出提交、原件哈希保持及正常退出。该项按Windows范围完成归档，见[错误提示记录](_fin/261016/error-feedback.md)。最新本机门槛为170项前端、331项Rust及2项doctest、真实JPEG核心及包内资源验收；新SHA三平台结果后续独立核对。此前JPEG混合确认302条日志和APNG验收分别见[JPEG记录](_plan/261015/jpeg-metadata-credentials.md#2026-10-16-新msi手测反馈与日志复核)与[动画连续记录](_plan/261009/animation-foundation.md)。
+更新日期：2026-10-16（Asia/Shanghai）。当前dev与main同为c1f13a5（JPEG错误提示含手测归档文档），均已同步origin；仓库默认分支已由codex/initial-plan切换为main。“关于”新增固定GitHub仓库入口，本机实现与统一检查通过、未提交。新错误提示MSI用户局部手测完成，11:56新正式会话16条日志确认损坏JPEG返回InvalidInput、无凭据授权或输出提交、原件哈希保持及正常退出。该项按Windows范围完成归档，见[错误提示记录](_fin/261016/error-feedback.md)。最新本机门槛为173项前端与Rust全目标测试（含Clippy、生成契约与素材校验）、真实JPEG核心及包内资源验收；新SHA三平台结果后续独立核对。此前JPEG混合确认302条日志和APNG验收分别见[JPEG记录](_plan/261015/jpeg-metadata-credentials.md#2026-10-16-新msi手测反馈与日志复核)与[动画连续记录](_plan/261009/animation-foundation.md)。
 
 ## 当前阶段
 
+- CI触发范围本机已收敛为main push、目标main的PR及手动运行；无目标main PR的dev推送不自动执行，已有PR的来源更新保留PR检查。YAML格式/语法及diff检查通过；现有12个job与并发规则保持，尚未提交推送，远端未声称生效。
+- 仓库默认分支已由codex/initial-plan切换为main（main=dev=c1f13a5，均同步origin）；“关于”新增固定项目仓库入口（main窗口专属无参数命令与Rust常量URL，浏览器预览禁用），本机实现与pnpm check通过，未提交。
 - 错误提示改进已完成本机和Windows手测验收：明确损坏JPEG解码使用invalid_input，未知引擎退出保留tool_exit，中英文补充原图状态与建议。统一检查170项前端、331项Rust及2项doctest、真实核心及包内JPEG部署通过；用户确认新包提示正常，新日志复核通过。安装包位于target/deliverables/261016-error-feedback，功能已在3425b5b。
 - 当前v15接通PNG/JPEG/GIF/APNG混合导入、稳定ID重试、真实报告与受限预览；原生授权、冻结输出及定位契约保持。JPEG新增普通Exif/XMP/Photoshop-IPTC兼容，并与PNG共用凭据确认/输出/备份；来源许可按格式与源版本绑定，未知APP11及混合不支持元数据不授权。JPEG/GIF按随包工具校验独立开放，默认核心服务仍PNG-only。GIF/APNG质量100无损，质量或额外收益不足回退；APNG16位/交错/复杂颜色的有损拒绝可切无损重试。
 - GIF单文件核心有损v1已实现：q100无损，q80强度10，q≤60封顶20；须过质量门槛并相对无损基准再省1%且1KiB，否则无损回退/NoGain。222组实验有明确语义预期，透明两帧最小样本与时域拆帧问题已固定回归，原有Playback无损判定保持。扫描日志可解释新会话空候选，不能补造历史原因。
@@ -13,6 +15,8 @@
 
 ## 活动任务
 
+- 本机配置完成、待提交推送与远端事件验收：[CI收敛到main推送与目标main的PR](_plan/261016/ci-main-triggers.md)。push和pull_request均增加main分支过滤，保留手动运行；YAML/格式与diff通过，现有三平台任务及并发策略保持。
+- 本机实现完成、未提交：[main默认分支与关于页仓库入口](_plan/261016/main-branch-about-repository.md)。main在c1f13a5与dev一致并已推送，默认分支经API切换为main；关于页新增无参数open_project_repository（Rust常量URL），浏览器预览禁用，173项前端及全部Rust测试通过。
 - 完成归档（Windows范围）：[JPEG损坏输入分类与错误提示](_fin/261016/error-feedback.md)。用户已确认新MSI的06错误提示正常，11:56新会话记录InvalidInput且无凭据授权/提交，原件哈希未变、正常退出。此前11:06的ToolExit属修正前会话。实现及自动门槛通过，后续按实际提交核对新SHA平台结果。
 - 本机交付、用户手测反馈及日志复核完成：[JPEG元数据兼容与内容凭据确认](_plan/261015/jpeg-metadata-credentials.md)。两轮PNG/JPEG共同确认各3项全部成功，平铺与保留结构副本、普通JPEG元数据、方向预览及正常退出有新日志证据。公开JPEG压缩成功但超出32MiB预览预算；旧平铺结果缺失触发3次FileMissing，未见原件变化或提交失败。未知/不完整凭据和坏输入拒绝符合测试预期。功能已在e7b7b7a；MSI与素材仍位于target/deliverables/261015-jpeg-v15及.temp/jpeg-v15-261015。
 - 本机交付、手测反馈及日志复核完成：[APNG有损批量与v14桌面](_plan/261009/animation-foundation.md#2026-10-15-v14新msi手测反馈与日志复核)。冻结模式/质量、同额度预约与执行、实际报告及模式拒绝已贯通，六轮四格式和MSI包内24文件核对通过。用户反馈新包及APNG样本无问题；新会话7个单文件任务为4成功/1NoGain/2预期UnsupportedApngMode，后续两次独立无损批次成功，7次预览及正常退出无异常。原行attempt=2重试由此前自动部署验收覆盖，不能混同本次重新导入；完整GUI细分范围按实际反馈记录。相关功能现已包含在e7b7b7a；单文件与1,555组实验历史证据保留。
@@ -37,6 +41,6 @@
 
 ## 后续优先顺序
 
-1. Windows错误提示局部手测及日志复核已收口，无需重复验收。功能已在3425b5b，下一步按新SHA核对三平台CI，并在用户授权时收录本次归档文档；本次日志任务未查询远端CI，旧SHA结果不能替代新提交门槛。
+1. Windows错误提示局部手测及日志复核已收口（c1f13a5，dev与main一致），无需重复验收；关于页仓库入口及CI触发过滤本机完成、未提交。经用户授权提交推送后，通过main目标PR、main push或手动运行按新SHA核对三平台CI及新触发范围；dev直接push不再预期产生CI，旧SHA结果不能替代新提交门槛。
 2. 保留Windows手测与日志各自的证据范围，不重复要求整套验收。JPEG公开样本超过预览预算、第一轮平铺结果缺失均已登记；大图预览若需扩大覆盖，应单独实现受限缩放解码，不直接放宽资源上限。
 3. 按用户后续反馈安排开发；复杂半透明算法、O级别和帧结构优化后置，质量门槛保持。无WebView2/无开发工具环境、其他平台实际安装各自安排，PNG性能专项按实际回归触发。

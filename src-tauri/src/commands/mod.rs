@@ -39,6 +39,7 @@ pub(crate) fn register<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::
             get_app_info,
             get_log_status,
             open_log_directory,
+            open_project_repository,
             assets::get_task_thumbnail,
             assets::reveal_task_file,
             directories::get_output_directories,
@@ -241,6 +242,20 @@ pub(crate) async fn open_log_directory() -> Result<(), String> {
         .await
         .map_err(|_| "open_logs_failed".to_owned())?
         .map_err(str::to_owned)
+}
+
+/// 固定的项目仓库地址；只作为Rust常量打开，不接受任何URL或路径参数。
+const PROJECT_REPOSITORY_URL: &str = "https://github.com/cct124/pixofold";
+
+/// 只打开固定项目仓库地址，无参数；不授权通用opener/shell或任意URL。
+#[tauri::command]
+pub(crate) async fn open_project_repository() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        tauri_plugin_opener::open_url(PROJECT_REPOSITORY_URL, None::<&str>)
+    })
+    .await
+    .map_err(|_| "open_repository_failed".to_owned())?
+    .map_err(|_| "open_repository_failed".to_owned())
 }
 
 /// 只读、最多100行；不读文件或启动工作，序列化不持有任务锁。
