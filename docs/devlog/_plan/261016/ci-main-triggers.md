@@ -21,7 +21,7 @@
 ## 2026-10-16 提交与推送
 
 - 提交0014780含ci.yml两行branches: [main]、README触发范围说明及本记录；origin/dev与origin/main同步至同一提交，新配置自该提交起生效。
-- 本次dev与main在同一提交推送：main push应触发检查、dev push按过滤不触发；实际运行列表以远端查询为准，结果待核对。
+- 事件实测：dev与main为同一提交推送，远端运行列表确认dev push未产生运行、main push触发12个job；首次Check (macos-latest)因诊断日志存储测试偶发失败，仅重跑该job后12个job全部success、run conclusion=success（过程见[main记录](main-branch-about-repository.md)）。
 
 ## 下一步
 

@@ -1,6 +1,6 @@
 # main默认分支与“关于”页仓库入口
 
-- 创建日期：2026-10-16（Asia/Shanghai）。状态：已随0014780提交并推送origin/dev与origin/main（默认分支main已生效）；远端新SHA三平台结果待核对。
+- 创建日期：2026-10-16（Asia/Shanghai）。状态：已随0014780提交并推送origin/dev与origin/main（默认分支main已生效）；该SHA三平台检查已核对通过（macOS首轮偶发失败经单独重跑成功）。
 - 基准：dev/c1f13a5（已推送origin/dev，含JPEG错误提示手测归档文档）。
 - 用户请求：新建main并切换默认分支、把dev并入main；随后处理此前讨论的“关于”弹窗GitHub仓库入口及其余事项。
 
@@ -28,7 +28,13 @@
 - 提交0014780：包含关于入口（Rust无参数命令/权限/前端/回归）与CI触发过滤、devlog记录，共16个文件；信息为“feat: 关于页新增固定仓库入口并收敛CI触发到main”。
 - 推送结果：origin/dev由c1f13a5快进到0014780；main本地快进合并同一提交后推送，origin/main同步；本地与远端均保持main=dev=0014780。main push按新workflow触发三平台检查，运行结果待核对。
 
+## 2026-10-16 main push CI核对
+
+- run38863703936（0014780，push）：首轮11/12成功；Check (macos-latest)在日志存储测试active_instances_are_never_deleted_and_all_busy_slots_refuse_an_eleventh_file失败，位置src-tauri/src/diagnostics/storage/tests.rs:47，错误为unwrap WouldBlock，其余126项桌面测试通过。
+- 归因：本次改动未触碰diagnostics；同一代码c1f13a5的macOS检查通过；本机按CI参数重复验证（10次完整desktop目标、40次--all-features存储子集）均未复现。失败落在活动锁/文件额度拒绝路径，按运行器偶发处理，未验证根因前不宣称已修复。
+- 处理与结果：仅重跑失败的Check (macos-latest)（attempt 2），12个job全部success，run conclusion=success。再次出现同类失败时按macOS文件锁专项排查。
+- 事件范围实测：dev与main为同一提交推送，dev推送未产生运行；main push触发运行，符合新触发过滤。
+
 ## 下一步
 
-- 按0014780核对三平台CI运行结果及新触发范围的事件表现（dev推送按过滤不预期产生运行）。
 - 后续开发在dev进行，按需把dev合并/推送到main；默认分支为main。
