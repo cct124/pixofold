@@ -39,6 +39,7 @@ pnpm jpeg:core:check
 - 已识别C2PA Manifest Store可扫描导入；默认完整系数解码与源复查后返回ContentCredentialsRequireConsent，尚不写输出。仅连续完整APP11分片、匹配JUMBF UUID/c2pa标签与合法盒结构可获得确认；其他APP11和混合不支持元数据不授权。识别容器不代表验证签名真实性。
 - 用户确认后只从内存工作副本移除已识别APP11段，原件/SHA256与格式须匹配授权；复用PNG相同确认列表、模式/质量/输出冻结、可选备份与目录结构策略。候选和实际落盘文件仍完整验证，仅豁免已授权凭据；备份为含凭据的完整原件。普通重试不继承移除许可，失败/取消/NoGain不标记已移除。
 - 拒绝 12-bit、算术编码、损坏/截断、尾随拼接内容、多帧/其他 SOF；原生任何警告都视为失败。结构检查只是预检，原生系数解码及候选回读验证均不可省略。
+- 可信helper以固定退出码6区分明确的解码数据损坏/截断，核心映射InvalidJpeg及现有invalid_input提示；未知退出、编码器和库内部错误继续为ToolExit，不解析原始stderr推断原因。候选回读中的InvalidJpeg映射为ValidationFailed，避免归因到原图。此更新不改变v15 DTO，修改helper后须重新prepare并部署同一构建资源。
 
 ## 资源、生命周期和文件安全
 

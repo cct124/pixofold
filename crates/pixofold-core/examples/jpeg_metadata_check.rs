@@ -151,15 +151,20 @@ fn main() {
     corrupt.drain(scan + 2 + scan_length..corrupt.len() - 2);
     let bad_source = root.join("bad-entropy.jpg");
     fs::write(&bad_source, &corrupt).unwrap();
-    let error = optimize_jpeg(
-        &JpegRequest::new(&bad_source),
-        &engine,
-        &CancellationToken::default(),
-        |_| {},
-    );
-    assert!(
-        error.is_err() && !matches!(error, Err(JpegError::ContentCredentialsRequireConsent(_)))
-    );
+    let mut bad_request = JpegRequest::new(&bad_source);
+    for mode in [
+        JpegMode::Lossless,
+        JpegMode::Lossy {
+            quality: QualityValue::new(70).unwrap(),
+        },
+    ] {
+        bad_request.mode = mode;
+        assert!(matches!(
+            optimize_jpeg(&bad_request, &engine, &CancellationToken::default(), |_| {}),
+            Err(JpegError::InvalidJpeg(_))
+        ));
+        assert_eq!(fs::read(&bad_source).unwrap(), corrupt);
+    }
 
     let inputs = root.join("mixed");
     fs::create_dir(&inputs).unwrap();

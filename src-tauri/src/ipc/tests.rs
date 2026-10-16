@@ -785,6 +785,11 @@ fn protocol_v13_preserves_jpeg_formats_errors_and_quality_without_png_semantics(
     for (code, error, expected) in [
         (JobErrorCode::TimedOut, JpegError::Timeout, "timed_out"),
         (
+            JobErrorCode::InvalidInput,
+            JpegError::InvalidJpeg("private decoder detail"),
+            "invalid_input",
+        ),
+        (
             JobErrorCode::ToolIdentity,
             JpegError::ToolIdentity,
             "tool_identity",

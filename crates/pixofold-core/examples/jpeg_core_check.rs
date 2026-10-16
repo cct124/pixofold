@@ -320,8 +320,9 @@ fn main() {
     let (dir, request) = case(&root, "bad-entropy", &bad_entropy);
     assert!(matches!(
         run(&request, &engine),
-        Err(JpegError::ToolExit(_))
+        Err(JpegError::InvalidJpeg(_))
     ));
+    assert_eq!(fs::read(&request.source).unwrap(), bad_entropy);
     assert_only(&dir, 1);
 
     let mut twelve_bit = base.clone();

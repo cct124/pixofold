@@ -124,6 +124,7 @@ impl JpegEngine {
             limits.process_timeout,
             cancel,
         )
+        .map_err(helper_error)
     }
 
     pub(super) fn optimize(
@@ -260,6 +261,15 @@ enum Operation {
     Pixels,
     Lossy(u8),
 }
+
+fn helper_error(error: JpegError) -> JpegError {
+    // 只在已验证身份的helper边界解释6；进程层仍原样保留未知退出和清理错误。
+    match error {
+        JpegError::ToolExit(Some(6)) => JpegError::InvalidJpeg("图像压缩数据损坏或不完整"),
+        error => error,
+    }
+}
+
 impl Operation {
     fn name(self) -> &'static str {
         match self {
@@ -268,5 +278,28 @@ impl Operation {
             Self::Pixels => "pixels",
             Self::Lossy(_) => "lossy",
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_known_decoder_rejection_is_invalid_input() {
+        assert!(matches!(
+            helper_error(JpegError::ToolExit(Some(6))),
+            JpegError::InvalidJpeg(_)
+        ));
+        for code in [None, Some(2), Some(3), Some(4), Some(5), Some(7)] {
+            assert!(matches!(
+                helper_error(JpegError::ToolExit(code)),
+                JpegError::ToolExit(actual) if actual == code
+            ));
+        }
+        assert!(matches!(
+            helper_error(JpegError::Cancelled),
+            JpegError::Cancelled
+        ));
     }
 }

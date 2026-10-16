@@ -8,16 +8,50 @@
 #include <string.h>
 #include <limits.h>
 #include <jpeglib.h>
+#include <jerror.h>
 #ifdef _WIN32
 #include <fcntl.h>
 #include <io.h>
 #endif
 
 static unsigned int scan_limit;
-static void failed(j_common_ptr ignored) { (void)ignored; exit(2); }
-static void message(j_common_ptr ignored, int level) {
-  (void)ignored;
-  if (level < 0) exit(2);
+/* 仅明确的输入损坏使用6；内存、库内部、编码器或未知错误继续使用2。
+ * 不输出原始错误文本，父进程仅在可信helper边界识别固定退出码。 */
+static int failure_code(j_common_ptr common) {
+  if (!common->is_decompressor) return 2;
+  switch (common->err->msg_code) {
+    case JERR_BAD_COMPONENT_ID:
+    case JERR_BAD_HUFF_TABLE:
+    case JERR_BAD_LENGTH:
+    case JERR_BAD_MCU_SIZE:
+    case JERR_BAD_PROGRESSION:
+    case JERR_BAD_SAMPLING:
+    case JERR_EOI_EXPECTED:
+    case JERR_INPUT_EMPTY:
+    case JERR_INPUT_EOF:
+    case JERR_MISMATCHED_QUANT_TABLE:
+    case JERR_NO_HUFF_TABLE:
+    case JERR_NO_IMAGE:
+    case JERR_NO_QUANT_TABLE:
+    case JERR_NO_SOI:
+    case JERR_SOF_DUPLICATE:
+    case JERR_SOF_NO_SOS:
+    case JERR_SOS_NO_SOF:
+    case JWRN_BOGUS_PROGRESSION:
+    case JWRN_EXTRANEOUS_DATA:
+    case JWRN_HIT_MARKER:
+    case JWRN_HUFF_BAD_CODE:
+    case JWRN_JPEG_EOF:
+    case JWRN_MUST_RESYNC:
+    case JWRN_NOT_SEQUENTIAL:
+      return 6;
+    default:
+      return 2;
+  }
+}
+static void failed(j_common_ptr common) { exit(failure_code(common)); }
+static void message(j_common_ptr common, int level) {
+  if (level < 0) exit(failure_code(common));
 }
 static void monitor(j_common_ptr common) {
   j_decompress_ptr decoder = (j_decompress_ptr)common;

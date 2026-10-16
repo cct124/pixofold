@@ -316,11 +316,17 @@ const copy = {
   duplicate: ['重复输入', 'Duplicate input'],
   generated_artifact: ['跳过生成副本或备份', 'Generated copy or backup skipped'],
   unsupported: ['暂不支持该格式', 'Unsupported format'],
-  invalid_input: ['输入无效或已损坏', 'Invalid or damaged input'],
+  invalid_input: [
+    '图片数据无效、损坏或不完整，无法压缩。未改写原图，请重新下载或导出图片后重试。',
+    'The image data is invalid, damaged or incomplete. The original was not overwritten. Download or export the image again, then retry.',
+  ],
   unsupported_format: ['暂不支持该格式', 'Unsupported format'],
   unsupported_animation: ['暂不支持动画', 'Animation is not supported'],
   resource_limit: ['超出资源限制', 'Resource limit exceeded'],
-  decode: ['解码失败', 'Decoding failed'],
+  decode: [
+    '无法读取图片数据，文件可能损坏或不完整。未改写原图，请重新下载或导出图片后重试。',
+    'Could not read the image data. The file may be damaged or incomplete. The original was not overwritten. Download or export it again, then retry.',
+  ],
   encode: ['编码失败', 'Encoding failed'],
   validation: ['结果验证失败', 'Result validation failed'],
   unsupported_content_credentials: [
@@ -344,12 +350,12 @@ const copy = {
     'The engine for this format is missing or changed. Reinstall the complete app.',
   ],
   tool_io: [
-    '压缩引擎无法运行或通信失败。',
-    'Could not run or communicate with the compression engine.',
+    '压缩引擎无法启动或通信中断，未改写原图。请重启应用后重试。',
+    'Could not start or communicate with the compression engine. The original was not overwritten. Restart the app and retry.',
   ],
   tool_exit: [
-    '压缩引擎拒绝输入或异常退出。',
-    'The compression engine rejected the input or exited unexpectedly.',
+    '压缩引擎未能完成处理，未改写原图。请确认图片能正常打开；若多张正常图片均失败，请重启应用后重试。',
+    'The compression engine could not finish processing. The original was not overwritten. Check that the image opens correctly; if several valid images fail, restart the app and retry.',
   ],
   timed_out: ['处理超时，未提交输出。', 'Processing timed out; no output was committed.'],
   target_conflict: ['输出目标已存在或冲突', 'Output target exists or conflicts'],

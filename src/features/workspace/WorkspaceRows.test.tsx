@@ -374,6 +374,8 @@ it('shows only one hover panel and disables viewing for rows without an actual r
   expect(screen.getAllByRole('dialog')).toHaveLength(1);
   const panel = screen.getByRole('dialog');
   expect(within(panel).queryByText('Failed', { exact: true })).not.toBeInTheDocument();
-  expect(within(panel).getByText('Decoding failed')).toBeVisible();
+  expect(within(panel).getByText(/Could not read the image data/)).toBeVisible();
+  expect(panel).toHaveTextContent('The original was not overwritten.');
+  expect(panel).toHaveTextContent('Download or export it again, then retry.');
   expect(screen.getAllByRole('button', { name: 'Show in folder' })[1]).toBeDisabled();
 });

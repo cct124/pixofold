@@ -365,7 +365,12 @@ pub fn optimize_jpeg(
         source.verify_unchanged(request.limits.resources)?;
         cancel.check()?;
         Ok(stored)
-    })();
+    })()
+    .map_err(|error| match error {
+        // 此处解码的是候选；不能将编码器生成的坏数据描述为用户原图损坏。
+        JpegError::InvalidJpeg(_) => JpegError::ValidationFailed,
+        error => error,
+    });
     drop(candidate);
     let stored = match validated {
         Ok(bytes) => bytes,
