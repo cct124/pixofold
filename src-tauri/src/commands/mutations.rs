@@ -76,16 +76,28 @@ pub(crate) fn mutate(
     control: &TaskControl,
     imports: &NativeImports,
     request: TaskMutationRequest,
+    consent: &crate::overwrite_consent::OverwriteConsent,
 ) -> Result<TaskMutationAccepted, MutationError> {
+    let acknowledged = consent.acknowledged();
+    let mut overwrite_confirmation_required = None;
     let id = match request.operation {
         TaskMutation::Import(ImportTask {
             grant_id,
             settings: value,
         }) => {
             // 先解析输出授权再占输入授权锁，不能在consume闭包内递归锁同一服务。
-            let fixed = value
+            let mut fixed = value
                 .map(|v| settings(v, imports, request.subscription_id))
                 .transpose()?;
+            if !acknowledged
+                && fixed.as_ref().is_some_and(|settings| {
+                    matches!(settings.output, ImportOutput::OverwriteWithoutBackup)
+                })
+            {
+                // 保留导入/扫描结果，真正启动交给Ready后的显式首次确认。
+                fixed = None;
+                overwrite_confirmation_required = Some(true);
+            }
             imports
                 .consume(request.subscription_id, grant_id, |roots| {
                     control.import(roots, fixed).map_err(failure)
@@ -96,11 +108,15 @@ pub(crate) fn mutate(
             selection_id,
             settings: value,
         }) => {
+            let selected = selection(control, selection_id)?;
+            if control.snapshot().phase != TaskPhase::Ready {
+                return Err(failure(TaskError::NotReady));
+            }
+            if !acknowledged && matches!(value.output, TaskOutput::OverwriteWithoutBackup) {
+                return Err(MutationError::OverwriteConfirmationRequired);
+            }
             control
-                .start(
-                    selection(control, selection_id)?,
-                    settings(value, imports, request.subscription_id)?,
-                )
+                .start(selected, settings(value, imports, request.subscription_id)?)
                 .map_err(failure)?;
             selection_id.0
         }
@@ -156,6 +172,7 @@ pub(crate) fn mutate(
             if jobs.len() != selected.len() {
                 return Err(MutationError::InvalidRetry);
             }
+            require_overwrite_consent(&jobs, acknowledged)?;
             control
                 .retry(
                     id,
@@ -264,6 +281,7 @@ pub(crate) fn mutate(
                 return Err(MutationError::InvalidRetry);
             }
             // 逐行关联授权与后续worker；请求被校验不等于后台已成功提交。
+            require_overwrite_consent(&jobs, acknowledged)?;
             for job in &jobs {
                 tracing::info!(target: "pixofold", event = "credentials_confirmation_validated",
                     selection_id = id.get(), batch_id = batch.id.get(), job_id = job.id.get(),
@@ -292,5 +310,17 @@ pub(crate) fn mutate(
     };
     Ok(TaskMutationAccepted {
         selection_id: DecimalU64(id),
+        overwrite_confirmation_required,
     })
+}
+
+fn require_overwrite_consent(jobs: &[RetryJob], acknowledged: bool) -> Result<(), MutationError> {
+    if !acknowledged
+        && jobs
+            .iter()
+            .any(|job| matches!(job.output, OutputPolicy::OverwriteWithoutBackup))
+    {
+        return Err(MutationError::OverwriteConfirmationRequired);
+    }
+    Ok(())
 }

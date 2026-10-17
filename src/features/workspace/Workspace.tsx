@@ -8,6 +8,7 @@ import { detailText, workspaceText } from './messages';
 import { WorkspaceRows } from './WorkspaceRows';
 import { WorkspaceSettings } from './WorkspaceSettings';
 import { ContentCredentialsDialog } from './ContentCredentialsDialog';
+import { OverwriteConfirmationDialog } from './OverwriteConfirmationDialog';
 import { BatchOutputDirectories } from './BatchOutputDirectories';
 import styles from './Workspace.module.css';
 
@@ -296,9 +297,24 @@ export function Workspace({
         <footer className={styles.summary} aria-label={summary ? t('total') : t('tips')}>
           <div className={styles.summaryHeading}>
             <p className={styles.workStatus} aria-live="polite">
-              {view.pending ? t('pending') : snapshot?.selectionId ? t(snapshot.phase) : t('tips')}
+              {view.pending
+                ? t('pending')
+                : controller.canStart && !invalid
+                  ? t('readyToStart')
+                  : snapshot?.selectionId
+                    ? t(snapshot.phase)
+                    : t('tips')}
             </p>
             <div className={styles.workActions}>
+              {snapshot?.phase === 'ready' && (snapshot.scan?.accepted ?? 0) > 0 && (
+                <button
+                  className="text-button"
+                  disabled={!controller.canStart || invalid}
+                  onClick={() => void controller.startReady()}
+                >
+                  {t('startCompression')}
+                </button>
+              )}
               {snapshot?.phase === 'finished' &&
                 snapshot.selectionId &&
                 snapshot.batch &&
@@ -482,6 +498,9 @@ export function Workspace({
       )}
       {view.confirmationOpen && (
         <ContentCredentialsDialog controller={controller} view={view} language={language} />
+      )}
+      {view.overwriteOpen && (
+        <OverwriteConfirmationDialog controller={controller} view={view} language={language} />
       )}
     </main>
   );

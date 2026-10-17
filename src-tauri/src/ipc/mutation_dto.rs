@@ -208,11 +208,30 @@ pub(crate) struct TaskMutationRequest {
 }
 
 /// 仅证明命令已被接纳，不代表扫描/编码/输出成功；最终结果读取任务快照。
+/// overwriteConfirmationRequired仅导入可能返回true：已接纳扫描，无备份覆盖尚待首次确认。
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
 pub(crate) struct TaskMutationAccepted {
     pub selection_id: DecimalU64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "bindings", ts(optional))]
+    pub overwrite_confirmation_required: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) enum OverwriteConsentDecision {
+    OverwriteWithoutBackup,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(feature = "bindings", derive(ts_rs::TS))]
+pub(crate) struct OverwriteAcknowledgement {
+    pub subscription_id: DecimalU64,
+    pub consent: OverwriteConsentDecision,
 }
 
 #[derive(Debug, Serialize)]
@@ -230,6 +249,8 @@ pub(crate) enum MutationError {
     Closed,
     IdExhausted,
     NativeDialogFailed,
+    OverwriteConfirmationRequired,
+    OverwriteConfirmationStorage,
     ServiceFault,
 }
 
@@ -267,6 +288,8 @@ pub(super) fn declarations() -> String {
         TaskMutation,
         TaskMutationRequest,
         TaskMutationAccepted,
+        OverwriteConsentDecision,
+        OverwriteAcknowledgement,
         MutationError
     );
     output

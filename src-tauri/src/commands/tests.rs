@@ -12,8 +12,20 @@ use tauri::{
 };
 
 pub(super) fn app(context: tauri::Context<MockRuntime>) -> tauri::App<MockRuntime> {
+    app_with_consent(
+        context,
+        std::sync::Arc::new(crate::overwrite_consent::OverwriteConsent::memory(true)),
+    )
+}
+
+pub(super) fn app_with_consent(
+    context: tauri::Context<MockRuntime>,
+    consent: std::sync::Arc<crate::overwrite_consent::OverwriteConsent>,
+) -> tauri::App<MockRuntime> {
     let runtime = TaskRuntime::new(TaskConfig::default()).unwrap();
-    super::super::configure_app(mock_builder().manage(DesktopTasks::new(runtime).unwrap()))
+    let mut desktop = DesktopTasks::new(runtime).unwrap();
+    desktop.overwrite_consent = consent;
+    super::super::configure_app(mock_builder().manage(desktop))
         .build(context)
         .unwrap()
 }

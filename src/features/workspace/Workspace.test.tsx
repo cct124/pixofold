@@ -7,6 +7,7 @@ import {
   type TaskPageRequest,
   type TaskSnapshotDto,
   type ConfirmationDto,
+  type TaskMutationRequest,
 } from '../../lib/ipc/tasks.generated';
 import { Workspace } from './Workspace';
 import { useCompressionPreferences } from './settings';
@@ -180,6 +181,172 @@ function credentialsSnapshot(count = 2): TaskSnapshotDto {
   };
 }
 
+function scanned(revision = '1'): TaskSnapshotDto {
+  return {
+    ...snapshot(),
+    revision,
+    selectionId: '1',
+    phase: 'ready',
+    scan: {
+      status: { kind: 'complete' },
+      discovered: 1,
+      examined: 1,
+      accepted: 1,
+      duplicates: 0,
+      excluded: 0,
+      rejected: 0,
+      readBytes: '1024',
+    },
+  };
+}
+
+function consentBridge() {
+  const state = {
+    confirmed: false,
+    saveFails: false,
+    importReply: null as Promise<unknown> | null,
+  };
+  vi.mocked(invoke).mockImplementation(async (command, args) => {
+    if (command === 'acknowledge_overwrite_warning') {
+      if (state.saveFails) throw { code: 'overwrite_confirmation_storage' };
+      state.confirmed = true;
+      return null;
+    }
+    if (command === 'apply_task_mutation') {
+      const {
+        request: { operation },
+      } = args as { request: TaskMutationRequest };
+      if (operation.kind === 'import') {
+        if (state.importReply) return state.importReply;
+        if (!state.confirmed && operation.settings?.output === 'overwrite_without_backup')
+          return { selectionId: '1', overwriteConfirmationRequired: true };
+      } else if (
+        !state.confirmed &&
+        (operation.kind === 'retry' ||
+          (operation.kind === 'start' &&
+            operation.settings.output === 'overwrite_without_backup') ||
+          (operation.kind === 'confirm_content_credentials' &&
+            operation.output === 'overwrite_without_backup'))
+      )
+        throw { code: 'overwrite_confirmation_required' };
+    }
+    return reply(command, args);
+  });
+  return state;
+}
+
+describe('first overwrite confirmation', () => {
+  it('waits for actual candidates, focuses cancel, and keeps cancellation paused across updates and setting changes', async () => {
+    const state = consentBridge();
+    await mount();
+    await act(async () => controller.import('files'));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    await update(scanned());
+    const dialog = await screen.findByRole('alertdialog', { name: '覆盖原图且不创建备份' });
+    const cancel = within(dialog).getByRole('button', { name: '取消' });
+    expect(cancel).toHaveFocus();
+    fireEvent.click(cancel);
+    expect(state.confirmed).toBe(false);
+    expect(controller.getSnapshot().needsRecovery).toBe(false);
+    const attempts = writes().length;
+    await update(scanned('2'));
+    fireEvent.click(screen.getByRole('checkbox', { name: '覆盖前备份原图' }));
+    await act(async () => {});
+    expect(writes()).toHaveLength(attempts);
+    fireEvent.click(screen.getByRole('button', { name: '开始压缩' }));
+    await waitFor(() => expect(writes()).toHaveLength(attempts + 1));
+    expect(writes().at(-1)).toMatchObject({
+      request: { operation: { kind: 'start', settings: { output: 'overwrite' } } },
+    });
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(state.confirmed).toBe(false);
+  });
+
+  it('handles Ready before import acceptance and confirms the original frozen parameters exactly once', async () => {
+    const state = consentBridge();
+    const accepted = deferred<unknown>();
+    state.importReply = accepted.promise;
+    await mount();
+    let importing: Promise<void>;
+    act(() => {
+      importing = controller.import('folder');
+    });
+    await update(scanned());
+    fireEvent.change(screen.getByRole('spinbutton', { name: '精细调整' }), {
+      target: { value: '92' },
+    });
+    await act(async () => {
+      accepted.resolve({ selectionId: '1', overwriteConfirmationRequired: true });
+      await importing;
+    });
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: '确认覆盖并压缩' }));
+    await waitFor(() => expect(controller.getSnapshot().overwriteOpen).toBe(false));
+    expect(state.confirmed).toBe(true);
+    expect(writes().at(-1)).toMatchObject({
+      request: { operation: { kind: 'start', settings: { mode: { kind: 'lossy', quality: 80 } } } },
+    });
+    await act(async () => controller.startReady());
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(
+      vi.mocked(invoke).mock.calls.filter(([name]) => name === 'acknowledge_overwrite_warning'),
+    ).toHaveLength(1);
+  });
+
+  it('does not start when persistence fails, and cancel does not consume the warning', async () => {
+    const state = consentBridge();
+    state.saveFails = true;
+    await mount();
+    await act(async () => controller.import('files'));
+    await update(scanned());
+    const dialog = await screen.findByRole('alertdialog');
+    const attempts = writes().length;
+    fireEvent.click(within(dialog).getByRole('button', { name: '确认覆盖并压缩' }));
+    await screen.findByText(
+      '无法保存确认记录，压缩尚未启动。请重试，或取消后开启备份、选择保存副本。',
+    );
+    expect(writes()).toHaveLength(attempts);
+    expect(state.confirmed).toBe(false);
+    fireEvent(dialog, new Event('cancel', { cancelable: true, bubbles: true }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    await act(async () => controller.startReady());
+    await screen.findByRole('alertdialog');
+    state.saveFails = false;
+    await act(async () => controller.confirmOverwrite());
+    expect(state.confirmed).toBe(true);
+    expect(writes()).toHaveLength(attempts + 2);
+  });
+
+  it('does not warn for a rejected empty scan or grant confirmation from an obsolete modal', async () => {
+    const state = consentBridge();
+    await mount();
+    await act(async () => controller.import('files'));
+    await update({ ...scanned(), phase: 'rejected', scan: { ...scanned().scan!, accepted: 0 } });
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(writes()).toHaveLength(1);
+    await update(scanned('2'));
+    await screen.findByRole('alertdialog');
+    await update({ ...snapshot(), revision: '3' });
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    await act(async () => controller.confirmOverwrite());
+    expect(state.confirmed).toBe(false);
+  });
+
+  it('requires overwrite consent after the content credentials choice without stacking dialogs', async () => {
+    consentBridge();
+    current = credentialsSnapshot();
+    await mount();
+    fireEvent.click(screen.getByRole('button', { name: '需要确认的图片 (2)' }));
+    const submit = await screen.findByRole('button', { name: '移除内容凭据后压缩 (2)' });
+    fireEvent.click(submit);
+    const dialog = await screen.findByRole('alertdialog', { name: '覆盖原图且不创建备份' });
+    expect(document.querySelectorAll('dialog[open]')).toHaveLength(1);
+    fireEvent.click(within(dialog).getByRole('button', { name: '取消' }));
+    expect(controller.getSnapshot().snapshot?.phase).toBe('finished');
+    expect(controller.getSnapshot().needsRecovery).toBe(false);
+  });
+});
+
 describe('native drop import workflow', () => {
   it('enables built-in APNG independently and explains actual mode and fallback', async () => {
     current.supportedFormats = ['png', 'apng'];
@@ -244,6 +411,23 @@ describe('native drop import workflow', () => {
   }
   const releases = () =>
     vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === 'release_native_drop');
+
+  it('releases the drop grant while first overwrite waits for explicit confirmation', async () => {
+    consentBridge();
+    await mount();
+    await drop();
+    await waitFor(() => expect(releases()).toHaveLength(1));
+    await update(scanned());
+    await screen.findByRole('alertdialog', { name: '覆盖原图且不创建备份' });
+    await drop('9');
+    expect(releases()).toHaveLength(2);
+    expect(
+      writes().filter(
+        (value) => (value as { request: TaskMutationRequest }).request.operation.kind === 'import',
+      ),
+    ).toHaveLength(1);
+    await act(async () => controller.cancelOverwrite());
+  });
 
   it('hits the actual image area with scaled physical coordinates, freezes settings and imports once', async () => {
     const accepted = deferred<unknown>();

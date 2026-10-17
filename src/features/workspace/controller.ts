@@ -21,6 +21,13 @@ import type {
 } from '../../lib/ipc/tasks.generated';
 
 export const WORKSPACE_PAGE_SIZE = 50;
+type OverwriteOperation = Extract<
+  TaskMutation,
+  { kind: 'start' | 'retry' | 'confirm_content_credentials' }
+>;
+function overwriteError(error: unknown, code: string): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === code;
+}
 export interface WorkspaceView {
   outputDirectory: NativeOutputDirectory | null;
   dropNotice: 'dropOutside' | 'dropInvalid' | 'dropUnavailable' | null;
@@ -33,6 +40,8 @@ export interface WorkspaceView {
   pending: boolean;
   error: 'connection' | 'operation' | 'page' | 'invalidOutputDirectory' | null;
   needsRecovery: boolean;
+  overwriteOpen: boolean;
+  overwriteSaveFailed: boolean;
   confirmationOpen: boolean;
   confirmationSettings: TaskSettingsDto | null;
   confirmationRows: ConfirmationDto[] | null;
@@ -50,6 +59,8 @@ const initialView: WorkspaceView = {
   pending: false,
   error: null,
   needsRecovery: false,
+  overwriteOpen: false,
+  overwriteSaveFailed: false,
   confirmationOpen: false,
   confirmationSettings: null,
   confirmationRows: null,
@@ -80,6 +91,9 @@ export class WorkspaceController {
   #retryMode: TaskSettingsDto['mode'] | null = null;
   #settingsVersion = 0;
   #autoSelection: string | null = null;
+  #deferredStart: { selection: string; settings: TaskSettingsDto } | null = null;
+  #overwriteOperation: OverwriteOperation | null = null;
+  #pausedSelection: string | null = null;
   #attempt: { selection: string; version: number; revision: string } | null = null;
   #pageKey = '';
   #reading = false;
@@ -128,6 +142,10 @@ export class WorkspaceController {
         );
         this.#autoSelection = accepted.selectionId;
         this.#attempt = { selection: accepted.selectionId, version, revision: '' };
+        if (accepted.overwriteConfirmationRequired && settings) {
+          this.#deferredStart = { selection: accepted.selectionId, settings };
+          this.#attempt = null;
+        }
         this.#confirmationBaseline = { selection: accepted.selectionId, revision };
       } finally {
         // 即使提交响应不确定也不重发；释放残余授权，恢复时只查询真实任务。
@@ -186,12 +204,17 @@ export class WorkspaceController {
     ++this.#lifecycle;
     this.#pageKey = '';
     this.#autoSelection = null;
+    this.#deferredStart = null;
+    this.#overwriteOperation = null;
+    this.#pausedSelection = null;
     this.#confirmationBaseline = null;
     if (typeof this.#settings?.output === 'object') this.#settings = null;
     this.#publish({
       outputDirectory: null,
       connection: 'disconnecting',
       pageLoading: false,
+      overwriteOpen: false,
+      overwriteSaveFailed: false,
       confirmationOpen: false,
       confirmationSettings: null,
       confirmationRows: null,
@@ -238,11 +261,16 @@ export class WorkspaceController {
     this.#publish({ dropNotice: null });
     const version = this.#settingsVersion;
     const revision = this.#view.snapshot?.revision ?? '0';
+    const settings = structuredClone(this.#settings);
     await this.#perform(async () => {
-      const accepted = await this.#actions.selectAndImport(kind, this.#settings);
+      const accepted = await this.#actions.selectAndImport(kind, settings);
       if (accepted) {
         this.#autoSelection = accepted.selectionId;
         this.#attempt = { selection: accepted.selectionId, version, revision: '' };
+        if (accepted.overwriteConfirmationRequired && settings) {
+          this.#deferredStart = { selection: accepted.selectionId, settings };
+          this.#attempt = null;
+        }
         this.#confirmationBaseline = { selection: accepted.selectionId, revision };
       }
     });
@@ -251,7 +279,10 @@ export class WorkspaceController {
 
   get canChange(): boolean {
     return (
-      this.#stream.mutationSession !== null && !this.#view.pending && !this.#view.needsRecovery
+      this.#stream.mutationSession !== null &&
+      !this.#view.pending &&
+      !this.#view.needsRecovery &&
+      !this.#view.overwriteOpen
     );
   }
 
@@ -330,6 +361,7 @@ export class WorkspaceController {
   }
 
   async #mutate(operation: TaskMutation): Promise<void> {
+    const lifecycle = this.#lifecycle;
     if (
       operation.kind === 'start' ||
       operation.kind === 'retry' ||
@@ -341,8 +373,91 @@ export class WorkspaceController {
       };
     }
     await this.#perform(async () => {
-      await this.#actions.apply(operation);
+      try {
+        await this.#actions.apply(operation);
+      } catch (error) {
+        if (
+          overwriteError(error, 'overwrite_confirmation_required') &&
+          operation.kind !== 'import' &&
+          operation.kind !== 'clear' &&
+          lifecycle === this.#lifecycle &&
+          this.#overwriteCurrent(operation)
+        ) {
+          this.#overwriteOperation = structuredClone(operation);
+          this.#publish({ overwriteOpen: true, overwriteSaveFailed: false });
+        } else throw error;
+      }
     });
+  }
+
+  /** 取消仅撤销本次启动；Ready列表保留，后续须显式点击开始，不能被订阅刷新重启。 */
+  cancelOverwrite(): void {
+    if (this.#view.pending) return;
+    this.#pausedSelection = this.#view.snapshot?.selectionId ?? null;
+    this.#deferredStart = null;
+    this.#overwriteOperation = null;
+    this.#publish({ overwriteOpen: false, overwriteSaveFailed: false });
+  }
+
+  #overwriteCurrent(operation: OverwriteOperation): boolean {
+    const snapshot = this.#view.snapshot;
+    return (
+      snapshot?.selectionId === operation.selectionId &&
+      (operation.kind === 'start'
+        ? snapshot.phase === 'ready'
+        : snapshot.phase === 'finished' &&
+          snapshot.batch?.revision === operation.expectedBatchRevision)
+    );
+  }
+
+  async confirmOverwrite(): Promise<void> {
+    const operation = this.#overwriteOperation;
+    if (
+      !operation ||
+      !this.#view.overwriteOpen ||
+      this.#view.pending ||
+      this.#view.needsRecovery ||
+      !this.#overwriteCurrent(operation)
+    )
+      return;
+    this.#publish({ overwriteSaveFailed: false });
+    await this.#perform(async () => {
+      try {
+        await this.#actions.acknowledgeOverwrite();
+      } catch (error) {
+        if (overwriteError(error, 'overwrite_confirmation_storage')) {
+          this.#publish({ overwriteSaveFailed: true });
+          return;
+        }
+        throw error;
+      }
+      if (this.#overwriteOperation !== operation || !this.#overwriteCurrent(operation)) return;
+      await this.#actions.apply(operation);
+      this.#overwriteOperation = null;
+      this.#publish({ overwriteOpen: false });
+    });
+  }
+
+  async startReady(): Promise<void> {
+    const snapshot = this.#view.snapshot;
+    if (!this.canChange || !this.#settings || snapshot?.phase !== 'ready' || !snapshot.selectionId)
+      return;
+    this.#deferredStart = null;
+    this.#pausedSelection = null;
+    this.#attempt = {
+      selection: snapshot.selectionId,
+      version: this.#settingsVersion,
+      revision: snapshot.revision,
+    };
+    await this.#mutate({
+      kind: 'start',
+      selectionId: snapshot.selectionId,
+      settings: this.#settings,
+    });
+  }
+
+  get canStart(): boolean {
+    return this.canChange && this.#settings !== null && this.#view.snapshot?.phase === 'ready';
   }
   async #perform(action: () => Promise<void>): Promise<void> {
     this.#publish({ pending: true, error: null });
@@ -360,12 +475,17 @@ export class WorkspaceController {
 
   #maybeStart(): void {
     const snapshot = this.#view.snapshot;
+    const deferred =
+      this.#deferredStart?.selection === snapshot?.selectionId ? this.#deferredStart : null;
+    const settings = deferred?.settings ?? this.#settings;
     if (
       !this.canChange ||
-      !this.#settings ||
+      !settings ||
       snapshot?.phase !== 'ready' ||
       !snapshot.selectionId ||
-      snapshot.selectionId !== this.#autoSelection
+      snapshot.selectionId !== this.#autoSelection ||
+      snapshot.selectionId === this.#pausedSelection ||
+      (deferred !== null && !snapshot.scan?.accepted)
     )
       return;
     if (
@@ -379,10 +499,11 @@ export class WorkspaceController {
       version: this.#settingsVersion,
       revision: snapshot.revision,
     };
+    this.#deferredStart = null;
     void this.#mutate({
       kind: 'start',
       selectionId: snapshot.selectionId,
-      settings: this.#settings,
+      settings,
     });
   }
 
@@ -390,6 +511,19 @@ export class WorkspaceController {
     const previous = this.#view.snapshot;
     if (previous && parseDecimalU64(snapshot.revision) < parseDecimalU64(previous.revision)) return;
     const changed = snapshot.selectionId !== previous?.selectionId;
+    if (this.#overwriteOperation) {
+      const operation = this.#overwriteOperation;
+      const stale =
+        snapshot.selectionId !== operation.selectionId ||
+        (operation.kind === 'start'
+          ? snapshot.phase !== 'ready'
+          : snapshot.phase !== 'finished' ||
+            snapshot.batch?.revision !== operation.expectedBatchRevision);
+      if (stale) {
+        this.#overwriteOperation = null;
+        this.#publish({ overwriteOpen: false, overwriteSaveFailed: false });
+      }
+    }
     if (changed || snapshot.phase === 'clearing' || snapshot.phase === 'preparing')
       this.assets.reset();
     if (snapshot.selectionId && ['scanning', 'preparing', 'running'].includes(snapshot.phase)) {

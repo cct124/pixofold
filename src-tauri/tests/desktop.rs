@@ -5,7 +5,8 @@
 pub mod desktop;
 pub use desktop::tasks;
 pub(crate) use desktop::{
-    assets, diagnostics, gif_bundle, ingress, ipc, jpeg_bundle, lifecycle, subscriptions,
+    assets, diagnostics, gif_bundle, ingress, ipc, jpeg_bundle, lifecycle, overwrite_consent,
+    subscriptions,
 };
 #[cfg(feature = "bundle-check")]
 pub(crate) use desktop::{engine_bundle, resources};

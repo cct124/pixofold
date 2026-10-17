@@ -323,6 +323,15 @@ pub(crate) fn shutdown() {
     }
 }
 
+#[cfg(all(windows, not(debug_assertions)))]
+pub(crate) fn cleanup_directory() -> Option<PathBuf> {
+    LOGGER
+        .get()
+        .and_then(|logger| logger.directory.as_ref())
+        .filter(|directory| directory.verify().is_ok())
+        .map(|directory| directory.path.clone())
+}
+
 pub(crate) fn status() -> LogStatus {
     LOGGER.get().map_or(
         LogStatus {

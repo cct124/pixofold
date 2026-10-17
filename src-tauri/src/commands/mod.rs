@@ -7,13 +7,26 @@ mod directories;
 mod mutations;
 // 部署验收复用真实变更校验；正式IPC仍由订阅ACK门禁调用，测试别名不注册命令。
 #[cfg(feature = "bundle-check")]
-pub(crate) use mutations::mutate as verify_mutation;
+pub(crate) fn verify_mutation(
+    control: &crate::tasks::TaskControl,
+    imports: &crate::ingress::NativeImports,
+    request: crate::ipc::TaskMutationRequest,
+) -> Result<crate::ipc::TaskMutationAccepted, crate::ipc::MutationError> {
+    mutations::mutate(
+        control,
+        imports,
+        request,
+        &crate::overwrite_consent::OverwriteConsent::memory(true),
+    )
+}
 mod native_drop;
 pub(crate) use native_drop::handle_native_drop;
 #[cfg(test)]
 mod drop_tests;
 #[cfg(test)]
 mod output_tests;
+#[cfg(test)]
+mod overwrite_tests;
 #[cfg(test)]
 mod tests;
 
@@ -52,6 +65,7 @@ pub(crate) fn register<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::
             select_output_directory,
             release_output_directory,
             release_native_drop,
+            acknowledge_overwrite_warning,
             apply_task_mutation
         ])
 }
@@ -199,13 +213,40 @@ pub(crate) fn apply_task_mutation(
     tasks
         .subscriptions
         .with_ready(request.subscription_id, || {
-            let result = mutations::mutate(&tasks.control, &tasks.imports, request);
+            let result = mutations::mutate(
+                &tasks.control,
+                &tasks.imports,
+                request,
+                &tasks.overwrite_consent,
+            );
             if result.is_ok() {
                 tasks.assets.invalidate();
             }
             result
         })
         .map_err(|error| MutationError::Subscription { error })?
+}
+
+/// 只记录当前已ACK会话的用户确认；不启动任务，写盘失败不能放行无备份覆盖。
+#[tauri::command]
+pub(crate) async fn acknowledge_overwrite_warning(
+    tasks: tauri::State<'_, DesktopTasks>,
+    request: ipc::OverwriteAcknowledgement,
+) -> Result<(), MutationError> {
+    let ipc::OverwriteConsentDecision::OverwriteWithoutBackup = request.consent;
+    tasks
+        .subscriptions
+        .with_ready(request.subscription_id, || ())
+        .map_err(|error| MutationError::Subscription { error })?;
+    let consent = tasks.overwrite_consent.clone();
+    tauri::async_runtime::spawn_blocking(move || consent.acknowledge())
+        .await
+        .map_err(|_| MutationError::OverwriteConfirmationStorage)?
+        .map_err(|_| MutationError::OverwriteConfirmationStorage)?;
+    tasks
+        .subscriptions
+        .with_ready(request.subscription_id, || ())
+        .map_err(|error| MutationError::Subscription { error })
 }
 
 /// 幂等释放已收到的拖放票据；不接受路径，不启动/取消任务，也不影响后续原生选择。

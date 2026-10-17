@@ -7,7 +7,7 @@
 - CI触发范围已收敛为main push、目标main的PR及手动运行并在0014780生效；dev push未产生运行、main push触发12个job（无目标main PR时dev推送不自动执行，已有PR的来源更新保留PR检查）。06facc1日志锁修复已在三平台首轮通过全部12个job；Windows/macOS/Ubuntu统一检查、桌面构建与JPEG/GIF/APNG部署均有新SHA证据。
 - 仓库默认分支已由codex/initial-plan切换为main；“关于”新增固定项目仓库入口（main窗口专属无参数命令与Rust常量URL，浏览器预览禁用），实现与pnpm check通过，已随0014780推送dev与main。
 - 错误提示改进已完成本机和Windows手测验收：明确损坏JPEG解码使用invalid_input，未知引擎退出保留tool_exit，中英文补充原图状态与建议。统一检查170项前端、331项Rust及2项doctest、真实核心及包内JPEG部署通过；用户确认新包提示正常，新日志复核通过。安装包位于target/deliverables/261016-error-feedback，功能已在3425b5b。
-- 当前v15接通PNG/JPEG/GIF/APNG混合导入、稳定ID重试、真实报告与受限预览；原生授权、冻结输出及定位契约保持。JPEG新增普通Exif/XMP/Photoshop-IPTC兼容，并与PNG共用凭据确认/输出/备份；来源许可按格式与源版本绑定，未知APP11及混合不支持元数据不授权。JPEG/GIF按随包工具校验独立开放，默认核心服务仍PNG-only。GIF/APNG质量100无损，质量或额外收益不足回退；APNG16位/交错/复杂颜色的有损拒绝可切无损重试。
+- 当前v16接通PNG/JPEG/GIF/APNG混合导入、稳定ID重试、真实报告与受限预览；原生授权、冻结输出及定位契约保持。JPEG新增普通Exif/XMP/Photoshop-IPTC兼容，并与PNG共用凭据确认/输出/备份；来源许可按格式与源版本绑定，未知APP11及混合不支持元数据不授权。JPEG/GIF按随包工具校验独立开放，默认核心服务仍PNG-only。GIF/APNG质量100无损，质量或额外收益不足回退；APNG16位/交错/复杂颜色的有损拒绝可切无损重试。
 - GIF单文件核心有损v1已实现：q100无损，q80强度10，q≤60封顶20；须过质量门槛并相对无损基准再省1%且1KiB，否则无损回退/NoGain。222组实验有明确语义预期，透明两帧最小样本与时域拆帧问题已固定回归，原有Playback无损判定保持。扫描日志可解释新会话空候选，不能补造历史原因。
 - 资源图片池已落地，普通压缩与凭据重试共用有界worker；主设置备份默认关闭、高级区常显、原名-backup-6位随机标识.png及新旧产物扫描排除已随e5ec54c入库。用户已反馈拖放、凭据流程、备份开关及新命名的基本功能正常。
 - 原名副本/逐行冲突隔离已实现，同目录同名拒绝、不自动改名或覆盖；用户已确认基本功能正常和正式版速度较快。P5/v9与日志剩余原生验收合并为A1，安全问题优先修复，纯视觉欠项可移交；完整PNG桌面里程碑继续活动。
@@ -15,6 +15,7 @@
 
 ## 活动任务
 
+- 新MSI交付、待用户手测：[首次无备份覆盖确认与卸载数据清理](_plan/261016/overwrite-consent-uninstall-data.md)。基准dev/2af6c09未提交修改；v16所有启动入口和持久确认、MSI默认不勾选的当前用户清理完成。179项前端、341项Rust+2项doctest、103项原生检查及新MSI包内四格式部署通过，独立perUser MSI升级/静默保留数据通过。正式全机安装范围/新弹窗三入口交给用户手测（全机自动测试遇管理员权限限制），安装包target/deliverables/261016-overwrite-uninstall，步骤在连续记录末节。
 - 完成归档：[macOS CI日志文件锁失败](_fin/261016/ci-macos-log-lock.md)。06facc1已同步dev/main，运行38871138719首轮12/12成功；macOS日志确认原失败测试与两项新回归通过，129项桌面测试及后续构建/部署全部成功。本机旧实现两项确定性失败、修复后9项Windows存储回归及完整检查、Linux fork机制实验与新macOS成功日志均保留。
 - 已提交推送并核对main push事件：[CI收敛到main推送与目标main的PR](_plan/261016/ci-main-triggers.md)。push和pull_request均增加main分支过滤，保留手动运行；本次dev push未产生运行、main push 12个job全绿（macOS首轮存储测试偶发失败经单独重跑成功），三平台任务及并发策略保持。
 - 已提交推送：[main默认分支与关于页仓库入口](_plan/261016/main-branch-about-repository.md)。main与dev同步至0014780及推送记录并推送origin，默认分支为main；关于页新增无参数open_project_repository（Rust常量URL），浏览器预览禁用，173项前端及全部Rust测试通过；0014780的main push三平台检查全部成功。

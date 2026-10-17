@@ -101,7 +101,7 @@ const checked = run([install, input, output]);
 assert.equal(checked.status, 0, checked.stderr?.toString());
 const report = JSON.parse(checked.stdout);
 assert.equal(report.result, 'passed');
-assert.equal(report.desktop.protocolVersion, 15);
+assert.equal(report.desktop.protocolVersion, 16);
 assert.equal(report.desktop.jpegMetadata.result, 'passed');
 assert.equal(report.desktop.jpegMetadata.matrix.length, 4);
 assert.equal(report.desktop.apng.result, 'passed');

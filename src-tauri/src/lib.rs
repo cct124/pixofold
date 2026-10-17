@@ -11,6 +11,7 @@ pub(crate) mod ingress;
 pub(crate) mod ipc;
 pub(crate) mod jpeg_bundle;
 pub(crate) mod lifecycle;
+pub(crate) mod overwrite_consent;
 pub(crate) mod resources;
 pub(crate) mod subscriptions;
 pub mod tasks;
@@ -94,7 +95,16 @@ fn run_application() -> Result<(), Box<dyn std::error::Error>> {
         let root = app.path().resource_dir().ok();
         let engines = engine_bundle::load(root.as_deref());
         let runtime = tasks::TaskRuntime::with_engines(resources::task_config(), engines)?;
-        app.manage(lifecycle::DesktopTasks::new(runtime)?);
+        let mut desktop = lifecycle::DesktopTasks::new(runtime)?;
+        desktop.overwrite_consent = std::sync::Arc::new(overwrite_consent::OverwriteConsent::new(
+            app.path().app_local_data_dir().ok(),
+        ));
+        #[cfg(all(windows, not(debug_assertions)))]
+        if let Some(directory) = diagnostics::cleanup_directory() {
+            // 卸载仅据此定位当前用户的已识别日志；定位记录失败不影响压缩。
+            let _ = desktop.overwrite_consent.record_logs(&directory);
+        }
+        app.manage(desktop);
         // 配置禁用自动建窗；服务和能力先就绪，首个page-load/IPC才可到达。
         let window = app
             .config()

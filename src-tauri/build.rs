@@ -28,6 +28,7 @@ fn main() {
             "release_output_directory",
             "release_native_drop",
             "apply_task_mutation",
+            "acknowledge_overwrite_warning",
         ]),
     ))
     .expect("无法构建 PixoFold 桌面资源与权限清单");

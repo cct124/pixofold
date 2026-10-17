@@ -96,7 +96,7 @@ export function binaries() {
   };
 }
 
-function findCmake(explicit) {
+export function findCmake(explicit) {
   if (explicit) return explicit;
   if (process.env.CMAKE) return process.env.CMAKE;
   if (!spawnSync('cmake', ['--version'], { windowsHide: true }).error) return 'cmake';

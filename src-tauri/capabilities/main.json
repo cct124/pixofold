@@ -21,6 +21,7 @@
     "allow-release-output-directory",
     "allow-release-native-drop",
     "allow-apply-task-mutation",
+    "allow-acknowledge-overwrite-warning",
     "core:window:allow-minimize",
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",

@@ -2,7 +2,7 @@
 
 基于 Tauri、React 和 Rust 的本地批量图片压缩工具，支持 PNG、JPEG、GIF 和 APNG，由 png-palettes 重构演进。
 
-当前已接通 **PNG / JPEG / GIF / APNG 混合工作台**：Tauri 2 + React 界面经受控原生选择/拖放、应用级任务协调和有界快照驱动独立 Rust 核心，支持文件/目录导入、批量处理、可选备份覆盖、同目录或指定目录副本、重试与清除记录。指定目录可选保留输入目录结构，授权仅本次连接有效。启动后不提供主动取消操作，退出时仍保留底层安全收尾。大小、状态和进度均来自实际任务，结果/备份定位与可见终态行缩略图已接入。**JPEG/GIF各自在随包引擎通过身份校验后开放；GIF支持无损与保守有损，内建APNG支持无损与共享调色板有损。** 实际启动能力由v15快照supportedFormats提供。GIF/APNG质量100按无损处理，质量或额外收益不足时回退，无收益保留原图；详情显示实际路径，动画预览仍为首帧。JPEG支持8位Huffman基线/渐进、普通Exif/XMP及Photoshop/IPTC，并与PNG共用内容凭据显式确认、输出及备份流程；未知保护元数据仍拒绝。具体范围见[JPEG说明](native/jpeg/README.md)和[GIF说明](native/gif/README.md)。自动验证、GUI/安装和新SHA平台结果分别见[开发记录](docs/devlog/README.md)。
+当前已接通 **PNG / JPEG / GIF / APNG 混合工作台**：Tauri 2 + React 界面经受控原生选择/拖放、应用级任务协调和有界快照驱动独立 Rust 核心，支持文件/目录导入、批量处理、可选备份覆盖、同目录或指定目录副本、重试与清除记录。指定目录可选保留输入目录结构，授权仅本次连接有效。启动后不提供主动取消操作，退出时仍保留底层安全收尾。大小、状态和进度均来自实际任务，结果/备份定位与可见终态行缩略图已接入。**JPEG/GIF各自在随包引擎通过身份校验后开放；GIF支持无损与保守有损，内建APNG支持无损与共享调色板有损。** 实际启动能力由v16快照supportedFormats提供。GIF/APNG质量100按无损处理，质量或额外收益不足时回退，无收益保留原图；详情显示实际路径，动画预览仍为首帧。JPEG支持8位Huffman基线/渐进、普通Exif/XMP及Photoshop/IPTC，并与PNG共用内容凭据显式确认、输出及备份流程；未知保护元数据仍拒绝。具体范围见[JPEG说明](native/jpeg/README.md)和[GIF说明](native/gif/README.md)。自动验证、GUI/安装和新SHA平台结果分别见[开发记录](docs/devlog/README.md)。
 
 UI 设计与可交互 HTML 原型保留作为实现依据：质量采用 0–100 连续滑块和精细输入，默认 80；当前质量描述以纯文字显示在标题行右侧。
 
@@ -71,6 +71,8 @@ pnpm desktop:dev
 | `pnpm format` | 主动格式化工程源文件及 Rust；不格式化历史设计文档或 HTML 原型 |
 | `pnpm tauri build --no-bundle --ci` | 构建桌面可执行文件，不生成安装包 |
 | `pnpm desktop:build` | 构建当前平台的应用和安装包 |
+| `pnpm installer:prepare` / `pnpm installer:check` | Windows MSI原生卸载动作构建 / 隔离数据清理回归；check已纳入统一检查，其他平台不适用 |
+| `pnpm installer:msi:check` | 独立MSI安装、静默卸载和升级保留数据验证，默认当前用户安装范围；全机范围见原生模块说明 |
 | `cargo test -p pixofold-core --locked` | 独立测试核心，不需要 GUI |
 | `pnpm fixtures:check` | 只读重生成并核对 PNG / GIF 语料、预期与 SHA256 清单 |
 | `pnpm samples:check` | 离线核对公开手测图片与许可文件的原始 SHA256；已纳入 fixtures:check |
@@ -96,6 +98,14 @@ pnpm desktop:dev
 | `cargo run -p pixofold-core --release --locked --example batch_profile -- SOURCE WORKERS COPIES [--confirm-credentials]` | 临时副本上测量整图并发；有损68，采样RSS/活动数；可显式移除测试副本凭据 |
 
 Windows 可执行文件位于 `target/release/pixofold.exe`，安装包位于 `target/release/bundle/`。安装包工具可能需要首次联网下载；签名、自动更新与正式发行尚未配置。
+
+### 首次覆盖确认与卸载数据
+
+当前协议为 **v16**。首次实际压缩采用“覆盖原图”且未开启备份时，先扫描、再明确确认；取消保留列表并暂停启动，可调整设置后点击“开始压缩”。确认在Rust端原子保存，重启/重装保留数据时不再提示；删除应用数据后重新提示。文件、目录、拖放、Ready启动、普通重试和凭据确认均按实际输出策略校验，保存失败不会启动覆盖。内容凭据移除仍是独立许可。
+
+Windows MSI交互式卸载增加“同时删除应用数据（设置、缓存和日志）”，**默认不勾选**。仅卸载成功且明确勾选时处理当前用户数据；升级、静默卸载、取消和失败保留数据。清理限应用WebView配置/缓存、覆盖确认记录与已识别的非活动日志，用户图片、结果、备份、其他用户数据及共享WebView2运行时不在范围内。占用/权限/链接导致无法清理时提示保留；可能保留空目录和零字节日志协调文件。原生弹窗语言跟随Windows用户UI语言。
+
+实现、命令和限制见[Windows MSI说明](native/windows-installer/README.md)，自动与手动证据分别见[开发记录](docs/devlog/_plan/261016/overwrite-consent-uninstall-data.md)。旧协议页面必须更新并重新握手。
 
 [公开手测素材](tests/manual-images/README.md)在仓库保存32张PNG/JPEG/GIF/APNG原件（18.18MiB）及来源/许可；首次提交并推送后，其他电脑clone/pull即可获得。运行`pnpm samples:prepare`创建可覆盖的测试副本，再次运行会得到新的完整副本；已提交原件也可用素材说明中的`git restore`命令恢复。SHA256检查纳入统一检查，第三方图片保留自身许可，不进入桌面安装资源。
 
@@ -215,7 +225,7 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 
 [桌面IPC模块](src-tauri/src/ipc/mod.rs) 与 [前端适配器](src/lib/ipc/tasks.ts) 复用唯一 TaskControl。主窗口可调用 get_task_snapshot 查询状态；该查询本身不启动导入、重试或压缩，也不创建第二个任务服务。P4工作台通过订阅复用此有界查询。
 
-- Rust DTO 与协议常量为权威来源，生成 [tasks.generated.ts](src/lib/ipc/tasks.generated.ts)；原有核心 generated.ts 和 get_app_info 契约保持不变。协议版本当前为 15，前后端须使用同一构建。快照supportedFormats来自启动时已验证的引擎；候选/任务携带format，processing以format/details区分PNG/JPEG/GIF/APNG报告，前端校验能力、行格式和实际报告的一致性。
+- Rust DTO 与协议常量为权威来源，生成 [tasks.generated.ts](src/lib/ipc/tasks.generated.ts)；原有核心 generated.ts 和 get_app_info 契约保持不变。协议版本当前为 16，前后端须使用同一构建。快照supportedFormats来自启动时已验证的引擎；候选/任务携带format，processing以format/details区分PNG/JPEG/GIF/APNG报告，前端校验能力、行格式和实际报告的一致性。
 - JPEG报告分别提供无损、有损、保守无损回退，以及映射版本/原生质量；不把JPEG编码质量当作PNG量化测量。tool_identity/tool_io/tool_exit/timed_out完整到达界面；无法安全识别的APP11返回unsupported_jpeg_credentials，不授予移除许可。已识别且完整检查通过的C2PA使用共用凭据确认，成功报告可标记contentCredentialsRemoved，NoGain不能标记已移除。嵌套清理/提交失败保留安全显示名和原始错误类别；旧协议页面须更新重载，后台已接纳任务不重跑。
 - `JobErrorDto` 的 `unsupported_content_credentials` / `unsupported_metadata` 分别表示已识别内容凭据与其他不支持安全改写的元数据；嵌套恢复原因使用同样类别，真正的产物验证错误仍为 `validation`。不能仅凭错误代码授予移除权限：confirmations集合仅包含完整解码/元数据检查通过、携带PNG或JPEG来源版本的直接凭据失败行，清理失败或其他未知元数据不入选。
 - 应用/批次 revision、selection/batch ID、字节数、elapsedMs 均为规范 u64 十进制字符串，前端用 BigInt 比较；不经过 Number。毫秒向下取整，异常溢出返回 invalid_snapshot；未知大小保留 null。行 ID、候选/问题索引、attempt 与数量使用检查过的整数；行身份由 selection/batch/id/attempt 共同界定，不是文件名。
@@ -270,7 +280,7 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 - jobs/candidates/issues每页50项；状态更新时回到首屏，额外分页最多一个在途查询。过期页不拼接，按最新revision恢复。未知大小显示“—”，精确字节按bigint计算；进度为processed/total，取消不冒充100%成功。
 - 重试只接纳当前同revision可见页内失败/取消行的稳定ID，使用草稿模式但保留原输出位置；清除需确认，仅清记录，不删除文件。结果展示实际回退原因、输出/备份名及失败恢复信息；展示名不是可访问路径，截断或替换明确标注。
 - main页面Started生命周期在同一订阅锁域撤销会话与授权，不清除或重跑任务；尚未关闭的物理对话框仍占槽，晚到结果拒绝后才释放。非main或Finished事件不撤销新会话，不依赖unload必达。
-- 浏览器仅预览布局，不读取图片或模拟业务。桌面拖放接入上述受控入口；缩略图和结果定位使用下文的任务绑定窄命令，未开放高级编码参数或通用fs/dialog/event/opener权限。v15按实际能力开放PNG/JPEG/GIF/APNG混合输入，自选输出目录使用下节的窄命令，原生GUI覆盖范围按开发记录独立验收。
+- 浏览器仅预览布局，不读取图片或模拟业务。桌面拖放接入上述受控入口；缩略图和结果定位使用下文的任务绑定窄命令，未开放高级编码参数或通用fs/dialog/event/opener权限。v16按实际能力开放PNG/JPEG/GIF/APNG混合输入，自选输出目录使用下节的窄命令，原生GUI覆盖范围按开发记录独立验收。
 
 ## 指定输出目录（P5，协议v7）
 
@@ -286,7 +296,7 @@ P2 新增 19 项 Windows 导入回归及 1 项编译型 doctest；包含 Unix �
 - 任务表最右侧“操作”列常显“详情”和“在文件夹中查看”。详情悬停或键盘聚焦即弹出非模态浮层，不展开表格行；鼠标可移入面板阅读，Tab可访问其中的真实备份定位，Escape、外部点击、来源列表滚动或行失效会关闭。实际结果可直接定位；无收益定位保留原图，没有可用结果的行禁用查看。成功备份或失败恢复报告确有备份才在浮层内显示“定位备份”。文件被移动、删除或包含链接时拒绝，不从显示名拼接路径。
 - 底部“打开输出目录”仅在本批结束且至少一张成功时显示，不在结束时自动打开。指定目录打开各成功行实际采用的根目录（保留结构也从根进入），覆盖打开结果所在目录；不使用当前设置草稿。多个目录按成功行顺序去重，显示目录名、代表任务ID/样例文件和结果数量，用户逐次选择；菜单每页最多50个目录，不同时打开多个窗口。全失败/全无收益不伪造新结果入口。
 - get_output_directories/open_output_directory绑定已ACK会话、selectionId、batchId及batchRevision，打开再指定代表成功行ID；后端解析路径，重试/清除/换批/断连后拒绝旧请求。分组在后台且不持状态锁，仅转换当前页名称；查询和打开与文件定位共享单在途许可，退出等待真实返回。打开前复查目录存在/父链，指定输出根另核对原生授权身份，被删除或同名替换不重新授权；覆盖结果父目录沿用路径级检查，不宣称文件系统CAS。不创建目录、不执行任意命令，也不自动重发打开请求。v9扩展命令与生成DTO，旧页面须更新重载。
-- `reveal_task_file`和`get_task_thumbnail`自协议v8引入，只接收已ACK的subscriptionId、selectionId、jobId、attempt、expectedState，定位再选择result/backup。Rust按当前权威终态行解析；拒绝旧会话/清单/尝试、运行行及清除/重试准备/关闭状态。不沿用批次revision作图片版本，以免其他行进度更新使已完成预览反复失效。当前协议v15，四种格式均只解析真实结果或恢复备份；旧页面须更新重载。
+- `reveal_task_file`和`get_task_thumbnail`自协议v8引入，只接收已ACK的subscriptionId、selectionId、jobId、attempt、expectedState，定位再选择result/backup。Rust按当前权威终态行解析；拒绝旧会话/清单/尝试、运行行及清除/重试准备/关闭状态。不沿用批次revision作图片版本，以免其他行进度更新使已完成预览反复失效。当前协议v16，四种格式均只解析真实结果或恢复备份；旧页面须更新重载。
 - 定位复用固定版本tauri-plugin-opener的Rust API，不安装其JS插件或授予通用路径权限；每次最多一个定位请求，Requested仅表示已请求文件管理器，系统可能只打开目录而非选中文件。macOS非UTF-8路径明确拒绝，避免其API有损转换到另一文件。Windows/macOS/Linux真实系统行为分别验收。
 - 每张图处理结束后，仅可见任务行按需申请缩略图。成功项读取当前结果文件，其余终态读取当前源文件；无备份覆盖后不会声称仍有原图预览。未处理、损坏、超限或不支持的图片回退图标/提示，不影响压缩。JPEG复用可信引擎，应用已支持的Exif方向1–8；ICC、CMYK/YCCK、不明确颜色及不支持的元数据拒绝预览。GIF复用Rust严格结构预检与可取消LZW，仅输出首幅完整透明画布的静态PNG，不播放动画；4Mi画布/单帧像素、256帧结构、32MiB缓冲及5秒协作期限进一步收紧准入。仅用于识别，不承诺ICC色彩管理或压缩前后保真对比；扫描候选/问题列表仍用文字。
 - 单解码在途、无后端等待队列；文件最多16 MiB、8,388,608像素、单边16,384，像素输出与各格式解码工作集各32 MiB。JPEG另按对齐系数/像素工作集收紧准入，单次helper期限5秒；这不包含整个文件I/O和工具身份检查耗时。图片缩放到最多128×96、不放大小图，透明度使用预乘alpha采样，方向在采样时应用而不复制全尺寸旋转图；只编码像素到最多65,536 bytes的PNG，不回传原始图片、凭据或元数据。限额不是进程RSS硬上限，所有读/解码均在后台且不持服务锁。

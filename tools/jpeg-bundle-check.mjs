@@ -79,7 +79,7 @@ for (const { file } of report.outputs) {
     assert.deepEqual(after.stdout, before.stdout, '无损系数改变');
   }
 }
-assert.equal(report.desktop.protocolVersion, 15);
+assert.equal(report.desktop.protocolVersion, 16);
 assert.equal(report.desktop.result, 'passed');
 assert.equal(report.desktop.jpegMetadata.result, 'passed');
 assert.deepEqual(

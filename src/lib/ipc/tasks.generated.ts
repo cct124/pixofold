@@ -1,6 +1,6 @@
 // 由 Rust 任务DTO生成；请运行 pnpm types:generate，勿手工编辑。
 import type { PngMode } from './generated';
-export const TASK_PROTOCOL_VERSION = 15;
+export const TASK_PROTOCOL_VERSION = 16;
 export const MAX_TASK_PAGE_SIZE = 100;
 export type DecimalU64 = string;
 export type TaskCollection = "jobs" | "candidates" | "issues" | "confirmations";
@@ -70,8 +70,10 @@ export type CredentialsOutput = "copy_beside" | { "copy_to": DirectoryTarget } |
 export type ConfirmContentCredentials = { selectionId: DecimalU64, expectedBatchRevision: DecimalU64, jobIds: Array<number>, mode: PngMode, output: CredentialsOutput, consent: CredentialsConsent, };
 export type TaskMutation = { "kind": "import" } & ImportTask | { "kind": "start" } & StartTask | { "kind": "clear" } & SelectTask | { "kind": "retry" } & RetryTask | { "kind": "confirm_content_credentials" } & ConfirmContentCredentials;
 export type TaskMutationRequest = { subscriptionId: DecimalU64, operation: TaskMutation, };
-export type TaskMutationAccepted = { selectionId: DecimalU64, };
-export type MutationError = { "code": "subscription", error: SubscriptionError, } | { "code": "task", error: TaskFailureDto, } | { "code": "selection_busy" } | { "code": "stale_grant" } | { "code": "invalid_selection" } | { "code": "stale_output_directory" } | { "code": "invalid_output_directory" } | { "code": "invalid_retry" } | { "code": "closed" } | { "code": "id_exhausted" } | { "code": "native_dialog_failed" } | { "code": "service_fault" };
+export type TaskMutationAccepted = { selectionId: DecimalU64, overwriteConfirmationRequired?: boolean, };
+export type OverwriteConsentDecision = "overwrite_without_backup";
+export type OverwriteAcknowledgement = { subscriptionId: DecimalU64, consent: OverwriteConsentDecision, };
+export type MutationError = { "code": "subscription", error: SubscriptionError, } | { "code": "task", error: TaskFailureDto, } | { "code": "selection_busy" } | { "code": "stale_grant" } | { "code": "invalid_selection" } | { "code": "stale_output_directory" } | { "code": "invalid_output_directory" } | { "code": "invalid_retry" } | { "code": "closed" } | { "code": "id_exhausted" } | { "code": "native_dialog_failed" } | { "code": "overwrite_confirmation_required" } | { "code": "overwrite_confirmation_storage" } | { "code": "service_fault" };
 export type LogState = "starting" | "ready" | "unavailable" | "busy" | "stopped";;
 export type LogStatus = { state: LogState, droppedEvents: string, writeFailures: string, canOpen: boolean, };;
 export const MAX_THUMBNAIL_WIDTH = 128;

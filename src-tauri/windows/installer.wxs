@@ -1,0 +1,19 @@
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <!-- ComponentRef使标准Tauri模板链接本片段，无需复制整份上游模板。 -->
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="PixoFoldDataCleanupSupport" Guid="{91335d60-557d-4c67-9f3b-af98219b76ef}" Win64="yes">
+        <RegistryValue Root="HKLM" Key="Software\pixofold\PixoFold" Name="DataCleanupVersion" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+    <Binary Id="PixoFoldInstallerActions" SourceFile="$(sys.SOURCEFILEDIR)runtime\pixofold-installer-$(sys.BUILDARCH).dll" />
+    <CustomAction Id="ConfirmPixoFoldDataRemoval" BinaryKey="PixoFoldInstallerActions" DllEntry="ConfirmPixoFoldDataRemoval" Execute="immediate" Return="check" />
+    <CustomAction Id="RemovePixoFoldDataAfterUninstall" BinaryKey="PixoFoldInstallerActions" DllEntry="RemovePixoFoldDataAfterUninstall" Execute="immediate" Return="ignore" />
+    <InstallExecuteSequence>
+      <!-- basic UI不运行作者UISequence，在执行序列中统一展示原生确认。 -->
+      <Custom Action="ConfirmPixoFoldDataRemoval" Before="InstallInitialize">Installed AND REMOVE~="ALL"</Custom>
+      <!-- 成功后才删除；升级、静默、取消和失败均不能清理应用数据。 -->
+      <Custom Action="RemovePixoFoldDataAfterUninstall" After="InstallFinalize">Installed AND REMOVE~="ALL" AND NOT UPGRADINGPRODUCTCODE AND UILevel &gt;= 3 AND PixoFoldCleanupRequested="1"</Custom>
+    </InstallExecuteSequence>
+  </Fragment>
+</Wix>

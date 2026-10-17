@@ -18,6 +18,7 @@ pub(crate) struct DesktopTasks {
     pub(crate) subscriptions: SubscriptionControl,
     pub(crate) imports: Arc<NativeImports>,
     pub(crate) assets: Arc<crate::assets::AssetService>,
+    pub(crate) overwrite_consent: Arc<crate::overwrite_consent::OverwriteConsent>,
     ready_to_exit: AtomicBool,
 }
 struct DesktopRuntime {
@@ -43,6 +44,7 @@ impl DesktopTasks {
             subscriptions: subscriptions.control(),
             imports: Arc::new(NativeImports::default()),
             assets: assets.clone(),
+            overwrite_consent: Arc::new(crate::overwrite_consent::OverwriteConsent::new(None)),
             runtime: Mutex::new(Some(DesktopRuntime {
                 subscriptions,
                 tasks: runtime,

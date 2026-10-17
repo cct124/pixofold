@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "pnpm jpeg:bundle:prepare && pnpm gif:bundle:prepare && pnpm dev",
     "devUrl": "http://127.0.0.1:1420",
-    "beforeBuildCommand": "pnpm jpeg:bundle:prepare && pnpm gif:bundle:prepare && pnpm build",
+    "beforeBuildCommand": "pnpm jpeg:bundle:prepare && pnpm gif:bundle:prepare && pnpm installer:prepare && pnpm build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -30,7 +30,17 @@
     }
   },
   "bundle": {
-    "resources": { "resources/jpeg/": "jpeg/", "resources/gif/": "gif/", "../tools/jpeg-lab/licenses/quick-xml-LICENSE-MIT": "licenses/quick-xml-LICENSE-MIT" },
+    "windows": {
+      "wix": {
+        "fragmentPaths": ["windows/installer.wxs"],
+        "componentRefs": ["PixoFoldDataCleanupSupport"]
+      }
+    },
+    "resources": {
+      "resources/jpeg/": "jpeg/",
+      "resources/gif/": "gif/",
+      "../tools/jpeg-lab/licenses/quick-xml-LICENSE-MIT": "licenses/quick-xml-LICENSE-MIT"
+    },
     "active": true,
     "targets": "all",
     "category": "GraphicsAndDesign",

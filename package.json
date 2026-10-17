@@ -45,13 +45,16 @@
     "jpeg:bundle:prepare": "node tools/jpeg-bundle.mjs prepare",
     "jpeg:bundle:check": "node tools/jpeg-bundle-check.mjs",
     "jpeg:acceptance:check": "node tools/jpeg-acceptance-check.mjs",
+    "installer:prepare": "node tools/windows-installer.mjs prepare",
+    "installer:check": "node tools/windows-installer.mjs check",
+    "installer:msi:check": "pnpm installer:check && node tools/windows-installer/check-msi.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "types:generate": "node tools/generate-bindings.mjs",
     "types:check": "node tools/generate-bindings.mjs --check",
     "rust:check": "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
     "rust:test": "cargo test --workspace --all-features --locked",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm fixtures:check && pnpm types:check && pnpm rust:check && pnpm rust:test"
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm fixtures:check && pnpm types:check && pnpm rust:check && pnpm rust:test && pnpm installer:check"
   },
   "dependencies": {
     "@tauri-apps/api": "2.11.1",

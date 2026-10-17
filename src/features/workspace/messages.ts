@@ -1,6 +1,27 @@
 import type { Language } from '../../stores/preferences';
 
 const copy = {
+  startCompression: ['开始压缩', 'Start compression'],
+  readyToStart: ['准备就绪，可开始压缩', 'Ready to start compression'],
+  overwriteWarningTitle: ['覆盖原图且不创建备份', 'Overwrite originals without backups'],
+  overwriteWarningBody: [
+    '当前未开启“覆盖前备份原图”。压缩结果将覆盖原图，被覆盖的原始版本无法通过 PixoFold 恢复。',
+    'Back up originals before overwriting is turned off. Compressed results will replace your originals. PixoFold cannot restore the original versions after they are overwritten.',
+  ],
+  overwriteWarningAlternative: [
+    '如需保留原图，请取消并开启备份，或选择保存副本。',
+    'To keep your originals, cancel and enable backups or choose to save copies.',
+  ],
+  overwriteWarningOnce: [
+    '确认后不再提示，清除应用数据后会再次提示。',
+    'This warning will not appear again after you confirm, unless you clear the app data.',
+  ],
+  cancelOverwrite: ['取消', 'Cancel'],
+  confirmOverwrite: ['确认覆盖并压缩', 'Confirm and compress'],
+  overwriteSaveFailed: [
+    '无法保存确认记录，压缩尚未启动。请重试，或取消后开启备份、选择保存副本。',
+    'Could not save your confirmation. Compression has not started. Try again, or cancel and enable backups or save copies.',
+  ],
   revealResult: ['在文件夹中查看结果', 'Show result in folder'],
   actions: ['操作', 'Actions'],
   viewInFolder: ['在文件夹中查看', 'Show in folder'],

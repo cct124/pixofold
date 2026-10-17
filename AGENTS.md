@@ -3,7 +3,7 @@
 ## 项目与入口
 
 - PixoFold（轻图）是本地批量图片压缩工具，计划支持PNG、JPEG、GIF、APNG，采用GPL-3.0-or-later。静态PNG真实工作台已接通核心、批量/导入规划、应用协调、快照订阅、原生文件/目录选择及受控拖放。TaskRuntime与SubscriptionRuntime属于应用；WorkspaceController属于页面，StrictMode单连接，首次未知响应失败须重载。变更前完成握手；原生路径只留Rust，不接受任意路径IPC。输入使用会话绑定单次授权，拖放复用唯一Channel/输入槽，Drop终点命中图片区域且无弹窗/忙态才导入，处理后释放票据，不发高频Over。main页面重载撤销旧订阅/授权，物理对话框仍占槽，后台任务不重跑。
-- 当前协议v15沿用v7的有/无备份覆盖、同目录及指定目录副本。输出草稿与输入共用物理选择互斥、分离授权用途；仅当前会话复用目录ID，页面只得安全名称。OutputDirectory共享身份句柄由草稿/已接纳任务持有，替换/清除/断连不改任务冻结目标；规划/暂存/提交复查身份，不宣称文件系统CAS。只持久化指定目录意图与布局布尔值，重启/重连须重选，不静默回退；缺少目录或非法质量的新导入只扫描，Ready修正后启动。普通重试只需有效模式/质量，保留原行目标/备份策略，用当前页稳定ID与批次revision，不依赖新草稿授权、不继承移除许可。
+- 当前协议v16沿用v7的有/无备份覆盖、同目录及指定目录副本。输出草稿与输入共用物理选择互斥、分离授权用途；仅当前会话复用目录ID，页面只得安全名称。OutputDirectory共享身份句柄由草稿/已接纳任务持有，替换/清除/断连不改任务冻结目标；规划/暂存/提交复查身份，不宣称文件系统CAS。只持久化指定目录意图与布局布尔值，重启/重连须重选，不静默回退；缺少目录或非法质量的新导入只扫描，Ready修正后启动。普通重试只需有效模式/质量，保留原行目标/备份策略，用当前页稳定ID与批次revision，不依赖新草稿授权、不继承移除许可。
 - 高级选项常显，覆盖前备份默认不勾选，副本忽略；指定目录时可选保留输入结构（默认关闭），不支持任意路径文本、自动编号或覆盖已有副本。caBX确认完整加载同版本列表、默认全选，固定打开时模式/目录/布局与备份初值，调整只影响选中行；布局复用核心ImportOutput::outputs_for，不移动成功项。草稿与批次分离，不自动重发不确定操作。GIF支持无损及保守有损，APNG支持无损及共享调色板有损；查询名不是路径授权，分页保持同revision。实际GUI/平台验证以devlog为准，不沿用旧CI为新代码背书。
 - v8展示命令按已ACK会话/selection/job/attempt/终态绑定，定位只解析实际结果/备份，NoGain定位保留原图；opener仅Rust调用，不装其通用IPC。缩略图由应用AssetService拥有，单解码、16 MiB输入/8 Mi像素/各32 MiB解码预算，最多128×96/64 KiB PNG，缓存64项/4 MiB；可见终态行按需，离屏释放Blob。清除/换批/重载/退出失效并释放，迟到解码不复活缓存；不把无备份覆盖后的文件叫原图，不把Requested叫OS选中已验证。具体限制与平台边界见README。
 - 自协议v9提供完成批次输出目录查询/打开，按会话/selection/batchId/revision绑定，仅成功行参与分组；冻结的指定输出根或实际结果父目录，不读设置草稿。单目录直开、多目录每页50项逐次选择，打开前复查存在/链接/原生身份；与行定位共享一个在途许可，旧版本、删除/替换不重新授权。操作列常显详情/查看，详情悬停或聚焦浮层不撑高行，备份按钮在浮层；Escape、滚动、行失效与模态占用收起，实际GUI待手测。
@@ -11,12 +11,14 @@
 - 副本保留原始OS文件名（含扩展名/大小写），不添加后缀。同目录同名按行冲突拒绝，不能转为覆盖。同名目录根允许合并布局，已有目标/同批同目标/父子目标/输出与输入交叉只使相关副本失败，其余继续；重复源身份仍整批拒绝。导入、普通重试及caBX确认共用预检和输出层noclobber，全部目标冲突也应进入Finished行结果，不能退回Ready整批拒绝。
 - 当前main为单WebviewWindow，原生拖放经WindowEvent::DragDrop分发，不是子WebView的WebviewEvent；不要双路转发。窗口分发回归与实际OS投递验收分开，未来增加子WebView时重新评估事件来源和区域归属。
 - 桌面启动按CPU/RAM配置唯一固定图片worker池（最多32）；普通压缩和凭据确认整图共用池，编码器内部不嵌套并行。PNG头/文件大小只用于收紧每图执行上限，预约按同一上限计费且pipeline必须实际执行，不能仅信扫描旧尺寸。全局预算不超过可用RAM/2、总RAM/4和4 GiB，未知RAM回退单worker/256 MiB；不是实时负载管理或RSS硬上限。核心手动BatchConfig默认仍为1，不将其误当桌面实际配置。
-- 桌面v15经TaskRuntime::with_engines把同一ImageEngines注入scan_with_engines/规划/BatchService和AssetService；默认服务仍PNG-only，工作台按supportedFormats开放JPEG/GIF/APNG。候选/行格式冻结，专属请求/报告/错误独立；PNG/JPEG共用确认交互但来源许可按格式隔离，GIF/APNG不接受移除许可。processing按format/details区分，生成类型与运行时验证同步。JPEG最多2MiB头探测只收紧执行上限，预约计入九份输入额度、两份原生预算及32MiB固定余量；取消/超时/关闭先回收子进程/管道/临时目录再释放许可。真实核心回归通过jpeg:core:check，桌面混合确认/输出/方向预览通过jpeg:bundle:check，四格式及动画有损/无损/回退通过gif:bundle:check（apng:bundle:check同入口）；GUI/安装按devlog独立验收。
+- 桌面v16经TaskRuntime::with_engines把同一ImageEngines注入scan_with_engines/规划/BatchService和AssetService；默认服务仍PNG-only，工作台按supportedFormats开放JPEG/GIF/APNG。候选/行格式冻结，专属请求/报告/错误独立；PNG/JPEG共用确认交互但来源许可按格式隔离，GIF/APNG不接受移除许可。processing按format/details区分，生成类型与运行时验证同步。JPEG最多2MiB头探测只收紧执行上限，预约计入九份输入额度、两份原生预算及32MiB固定余量；取消/超时/关闭先回收子进程/管道/临时目录再释放许可。真实核心回归通过jpeg:core:check，桌面混合确认/输出/方向预览通过jpeg:bundle:check，四格式及动画有损/无损/回退通过gif:bundle:check（apng:bundle:check同入口）；GUI/安装按devlog独立验收。
 - main窗口create=false，setup先验证引擎、创建唯一任务/订阅/展示所有者，再按原配置创建窗口；不能让首次page-load/IPC早于服务就绪。JPEG缩略图复用可信helper的pixels，限16MiB输入/8Mi像素/各32MiB像素与原生工作集/5秒单次调用；Exif方向1–8只应用于预览。ICC/CMYK/不明确颜色及保护元数据拒绝预览，不改变压缩结果；撤销取消在途预览，真实回收前仍占许可。
 - 界面以 [HTML 原型](docs/UI界面设计/PixoFold.html)及[原型说明](docs/UI界面设计/HTML原型说明.md)为准，生成的 UI 图片仅作历史参考。旧项目 png-palettes 用于参考，未经任务要求不修改。
 - 实际工具链与命令以 README、`package.json`、`rust-toolchain.toml` 为准；不把规划或未运行的跨平台 CI 写成已验证能力。
 
 ## 接手与修改
+
+- 当前协议v16增加首次无备份覆盖确认：Rust持有app_local_data_dir中的独立标记，导入可返回overwriteConfirmationRequired并仅扫描，start/冻结输出重试/凭据确认均原生校验。确认保存失败不启动，取消后Ready不得随订阅/设置自动启动，用户可显式开始；确认不等于移除内容凭据许可。Windows MSI交互卸载默认不勾选删除当前用户数据，升级/静默保留；片段在事务前确认、成功后清理，SID/固定目标/活动日志锁限定范围。installer:check已纳入统一检查，实际入口、管理员范围和GUI单独验收，见native/windows-installer/README.md。
 
 - JPEG普通Exif校验TIFF局部偏移/IFD/标准子目录，MakerNote只保留载荷；标准UTF-8 XMP拒绝DTD、外链凭据及未支持扩展包，Photoshop内嵌XMP同查。完整连续APP11 C2PA Manifest Store仅识别容器，不验证签名真实性；默认完整系数解码和源复查后进入与PNG相同的确认列表。确认只删已识别凭据段，保留其余元数据/方向；来源版本绑定格式，混合未知元数据/损坏/清理失败不获许可，普通重试不继承。v15仅成功项可报告凭据已移除；备份保留完整原件及原始JPEG扩展名。MetadataPolicy共用行为，PNG/JPEG别名兼容。元数据1MiB、Exif64IFD/4096条目、XMP深度64、JUMBF深度16/4096盒，预约与执行包含解析/重组工作集；具体边界见native/jpeg/README.md。
 - APNG单文件核心显式ApngMode::Lossy已复用validation/quantization的v2策略，默认/q100严格无损；q<100固定alpha_palette/无抖动，实际质量通过且相对min(源,有效O1基线)再省1%及1KiB才提交。仅质量/收益不足允许LosslessFallback，硬错误仍失败；最终quality只随成功有损输出。源/基线/量化/落盘复验累计同一账本，working_set_for按模式预约并计入存活源摘要1MiB；同步返回前持有许可。批量和v14桌面按冻结模式执行，预约与执行共用模式额度；转换器核对请求/实际路径、映射版本和最终质量，pnpm apng:core:check保留生产模式证据。

@@ -9,6 +9,7 @@ coverage/
 src-tauri/gen/schemas/
 src-tauri/resources/jpeg/runtime/
 src-tauri/resources/gif/runtime/
+src-tauri/windows/runtime/
 .env
 .env.*
 !.env.example

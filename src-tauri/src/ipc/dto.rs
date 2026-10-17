@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 pub(super) const MAX_PAGE_SIZE: u16 = 100;
 pub(super) const MAX_DISPLAY_CHARS: usize = 240;
 // v14增加APNG有损/回退、最终质量与模式拒绝；旧页面须更新重载，ACK/背压沿用。
-pub(crate) const TASK_PROTOCOL_VERSION: u32 = 15;
+pub(crate) const TASK_PROTOCOL_VERSION: u32 = 16;
 
 /// 无符号64位十进制字符串；拒绝数字JSON、符号、空白、前导零及溢出。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-acknowledge-overwrite-warning"
+description = "Enables the acknowledge_overwrite_warning command without any pre-configured scope."
+commands.allow = ["acknowledge_overwrite_warning"]
+
+[[permission]]
+identifier = "deny-acknowledge-overwrite-warning"
+description = "Denies the acknowledge_overwrite_warning command without any pre-configured scope."
+commands.deny = ["acknowledge_overwrite_warning"]

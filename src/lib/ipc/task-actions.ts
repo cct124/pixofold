@@ -152,6 +152,17 @@ export class TaskActions {
     return this.#run((session) => this.#mutate(session, fixed));
   }
 
+  /** 仅在用户明确确认后调用；原生持久化成功不等于任务已启动。 */
+  acknowledgeOverwrite(): Promise<void> {
+    return this.#run(async (session) => {
+      const result = await invoke<unknown>('acknowledge_overwrite_warning', {
+        request: { subscriptionId: session, consent: 'overwrite_without_backup' },
+      });
+      this.#sameSession(session);
+      if (result !== null) throw new Error('Invalid overwrite acknowledgement response');
+    });
+  }
+
   async #run<T>(action: (session: string) => Promise<T>): Promise<T> {
     if (!isTauri()) throw new Error('Native task operations are unavailable in browser preview');
     const session = this.#subscription.mutationSession;
@@ -218,6 +229,15 @@ export class TaskActions {
     const selectionId = positiveId(result.selectionId);
     if (operation.kind !== 'import' && selectionId !== operation.selectionId)
       throw new Error('Mismatched task acceptance response');
+    if (result.overwriteConfirmationRequired !== undefined) {
+      if (
+        result.overwriteConfirmationRequired !== true ||
+        operation.kind !== 'import' ||
+        operation.settings?.output !== 'overwrite_without_backup'
+      )
+        throw new Error('Invalid deferred overwrite response');
+      return { selectionId, overwriteConfirmationRequired: true };
+    }
     return { selectionId };
   }
 }
